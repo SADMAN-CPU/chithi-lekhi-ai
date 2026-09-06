@@ -25,7 +25,8 @@ import {
   Edit3,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
-import { buildWhatsAppUrl, formatDate } from '@/utils/helpers'
+import { formatDate } from '@/utils/helpers'
+import { shareLetter } from '@/lib/share-engine'
 import { RELATIONSHIP_OPTIONS, EMOTIONS } from '@/constants'
 import type { LetterRow, DownloadHistoryRow, PublicLetterRow } from '@/types/database'
 import dynamic from 'next/dynamic'
@@ -65,9 +66,13 @@ const DashboardLetterCard = React.memo(function DashboardLetterCard({
   onVisual,
   onRead,
 }: DashboardLetterCardProps) {
-  const whatsappUrl = buildWhatsAppUrl(
-    `💌 ${letter.receiver_name}-এর জন্য চিঠি:\n\n${letter.content}\n\n— চিঠি লেখাই এআই`
-  )
+  const handleWhatsAppShare = () => {
+    shareLetter({
+      platform: 'whatsapp',
+      letterText: letter.content,
+      receiverName: letter.receiver_name,
+    })
+  }
 
   return (
     <div className="paper-card rounded-2xl p-5 flex flex-col justify-between space-y-4 hover:shadow-md transition-all duration-200 group relative">
@@ -156,15 +161,14 @@ const DashboardLetterCard = React.memo(function DashboardLetterCard({
             )}
           </button>
 
-          <a
-            href={whatsappUrl}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            type="button"
+            onClick={handleWhatsAppShare}
             title="হোয়াটসঅ্যাপে শেয়ার"
             className="text-neutral-500 hover:text-[#25D366] p-1 rounded transition-colors"
           >
             <Share2 className="w-3.5 h-3.5" />
-          </a>
+          </button>
 
           <button
             type="button"
@@ -1179,15 +1183,18 @@ export default function DashboardPage() {
                   <span>ইমেজ কার্ড</span>
                 </button>
 
-                <a
-                  href={buildWhatsAppUrl(readingLetter.content)}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  type="button"
+                  onClick={() => shareLetter({
+                    platform: 'whatsapp',
+                    letterText: readingLetter.content,
+                    receiverName: readingLetter.receiver_name,
+                  })}
                   className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bengali font-medium bg-[#25D366] hover:bg-[#20bd5a] text-white transition-colors"
                 >
                   <Share2 className="w-4 h-4" />
                   <span>হোয়াটসঅ্যাপ</span>
-                </a>
+                </button>
               </div>
             </div>
           </div>

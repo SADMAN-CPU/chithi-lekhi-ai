@@ -179,7 +179,7 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     console.error('[POST /api/generate-letter] Generation error:', err)
     const error: ApiError = {
-      message: 'Failed to generate letter. Please try again.',
+      message: 'চিঠি তৈরি করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন। (Failed to generate letter. Please try again.)',
       code: 'GENERATION_ERROR',
       status: 500,
     }

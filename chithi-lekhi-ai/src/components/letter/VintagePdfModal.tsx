@@ -5,22 +5,23 @@ import {
   X,
   Download,
   Sparkles,
-  Feather,
   Printer,
   ChevronLeft,
   ChevronRight,
   FileText,
+  AlertCircle,
 } from 'lucide-react'
-import {
-  PDF_THEMES,
-  type PdfThemeId,
-  exportMultiPageA4Pdf,
-} from '@/lib/export-utils'
-import {
-  partitionLetterIntoPages,
-  type FontSizeChoice,
-} from '@/lib/letter-layout-engine'
-import { formatDate } from '@/utils/helpers'
+import { PDF_THEMES, type PdfThemeId, exportMultiPageA4Pdf } from '@/lib/export-utils'
+import { partitionLetterIntoPages, type FontSizeChoice } from '@/lib/letter-layout-engine'
+import { LetterCanvas, type CanvasThemeId } from './LetterCanvas'
+
+// Map PDF theme IDs → LetterCanvas theme IDs (they share the same keys now)
+const PDF_THEME_TO_CANVAS: Record<PdfThemeId, CanvasThemeId> = {
+  'old-love': 'old-love',
+  'mother-letter': 'mother-letter',
+  '90s-post': '90s-post',
+  'royal-vintage': 'royal-vintage',
+}
 
 interface VintagePdfModalProps {
   letter: string
@@ -42,27 +43,32 @@ export function VintagePdfModal({
   const [activePageIndex, setActivePageIndex] = useState(0)
   const [isExporting, setIsExporting] = useState(false)
   const [exportMessage, setExportMessage] = useState<string | null>(null)
+  const [exportError, setExportError] = useState<string | null>(null)
 
-  // Container refs for multi-page batch rendering
+  /**
+   * Ref for the hidden batch container holding ALL pages simultaneously.
+   *
+   * FIX: The container uses position:fixed; opacity:0 instead of left:-9999px.
+   * Mobile Safari (WebKit) renders off-viewport elements as blank frames when
+   * using html-to-image. With position:fixed + opacity:0, the browser paints
+   * the elements into the compositor layer even though they are invisible,
+   * allowing html-to-image to capture them correctly.
+   */
   const batchPagesContainerRef = useRef<HTMLDivElement>(null)
 
-  const themeConfig = PDF_THEMES[selectedTheme] || PDF_THEMES['old-love']
-  const formattedDate = date ? formatDate(date) : formatDate(new Date().toISOString())
+  const _themeConfig = PDF_THEMES[selectedTheme] || PDF_THEMES['old-love']
+  const canvasThemeId = PDF_THEME_TO_CANVAS[selectedTheme]
 
-  // Dynamic Pagination Engine: Splits letter cleanly across A4 pages without text cutoff
-  const layout = useMemo(() => {
-    return partitionLetterIntoPages(letter, {
-      ratio: 'a4',
-      fontSizeChoice,
-    })
-  }, [letter, fontSizeChoice])
+  // Dynamic Pagination Engine
+  const layout = useMemo(
+    () => partitionLetterIntoPages(letter, { ratio: 'a4', fontSizeChoice }),
+    [letter, fontSizeChoice]
+  )
 
   const totalPages = layout.pages.length
-
-  // Ensure active page stays within valid bounds
   const currentPageSafeIndex = Math.min(activePageIndex, totalPages - 1)
 
-  // Handle Multi-Page A4 PDF Compilation & Download
+  // ── PDF Download ─────────────────────────────────────────────────────────
   const handleDownloadPdf = async () => {
     if (!batchPagesContainerRef.current) return
 
@@ -70,10 +76,14 @@ export function VintagePdfModal({
       batchPagesContainerRef.current.querySelectorAll<HTMLElement>('[data-pdf-page]')
     )
 
-    if (pageElements.length === 0) return
+    if (pageElements.length === 0) {
+      setExportError('পৃষ্ঠা লোড হয়নি। মডাল বন্ধ করে আবার চেষ্টা করুন।')
+      return
+    }
 
     setIsExporting(true)
-    setExportMessage('পিডিএফ সংকলন শুরু হচ্ছে...')
+    setExportError(null)
+    setExportMessage('আপনার চিঠির PDF তৈরি হচ্ছে...')
 
     try {
       const filename = `chithi-${(receiverName || 'letter').replace(/\s+/g, '-').toLowerCase()}-${selectedTheme}.pdf`
@@ -82,127 +92,29 @@ export function VintagePdfModal({
         setExportMessage(msg)
       })
 
-      // Record download in download history (Phase 5/6 SaaS)
-      try {
-        await fetch('/api/downloads', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ format: 'pdf' }),
-        })
-      } catch {
-        // Non-blocking
-      }
+      // Non-blocking analytics
+      fetch('/api/downloads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ format: 'pdf' }),
+      }).catch(() => {})
 
       setExportMessage('ডাউনলোড সম্পন্ন! 🎉')
-      setTimeout(() => {
-        setExportMessage(null)
-      }, 2500)
+      setTimeout(() => setExportMessage(null), 2500)
     } catch (err) {
-      console.error('PDF export failed:', err)
-      setExportMessage('পিডিএফ রেন্ডারে সমস্যা হয়েছে।')
-      setTimeout(() => setExportMessage(null), 3000)
+      console.error('[VintagePdfModal] PDF export failed:', err)
+      setExportMessage(null)
+      setExportError('PDF তৈরি করা যায়নি, আবার চেষ্টা করুন')
+      setTimeout(() => setExportError(null), 4000)
     } finally {
       setIsExporting(false)
     }
   }
 
-  // Helper renderer for a single A4 page
-  const renderA4PageContent = (pageContent: string, pageNum: number, total: number) => {
-    const isFirstPage = pageNum === 1
-    const isLastPage = pageNum === total
-
-    return (
-      <div
-        className={`w-full max-w-[595px] min-h-[842px] ${themeConfig.bgClass} border-4 double ${themeConfig.borderClass} rounded-sm shadow-xl p-8 sm:p-12 flex flex-col justify-between relative transition-colors duration-300 select-text`}
-        style={{
-          backgroundImage: 'radial-gradient(#d3c5ad 0.7px, transparent 0.7px)',
-          backgroundSize: '22px 22px',
-        }}
-      >
-        {/* Top Header */}
-        {isFirstPage ? (
-          <div className="flex items-start justify-between border-b border-black/10 pb-5 mb-5 select-none">
-            <div>
-              <span className="text-[10px] font-sans font-semibold tracking-widest uppercase opacity-60 block">
-                VINTAGE AIRMAIL ARCHIVE
-              </span>
-              <h1 className="font-bengali font-bold text-2xl text-neutral-900 mt-1">
-                প্রিয় {receiverName || 'কাছের মানুষ'}
-              </h1>
-              <div className="flex items-center gap-2 text-xs font-bengali opacity-70 mt-1">
-                <span>তারিখ: {formattedDate}</span>
-                {relationship && <span>• {relationship}</span>}
-              </div>
-            </div>
-
-            {/* Stamp Badge */}
-            <div className="flex items-center gap-2 select-none pointer-events-none">
-              <div
-                className={`w-14 h-16 border-2 border-dashed ${themeConfig.stampBorder} ${themeConfig.stampBg} rounded-sm flex flex-col items-center justify-center p-1 shadow-2xs rotate-2`}
-              >
-                <Feather className={`w-5 h-5 ${themeConfig.stampText} opacity-80 mb-0.5`} />
-                <span
-                  className={`text-[8px] font-sans font-bold uppercase tracking-wider ${themeConfig.stampText}`}
-                >
-                  CHITHI
-                </span>
-                <span className={`text-[7px] font-bengali ${themeConfig.stampText} opacity-80`}>
-                  ডাকটিকিট
-                </span>
-              </div>
-              <div className="w-10 h-10 rounded-full border border-neutral-400 flex items-center justify-center -rotate-12 opacity-50">
-                <span className="text-[7px] font-mono font-bold tracking-tighter text-neutral-600">
-                  DHAKA GPO
-                </span>
-              </div>
-            </div>
-          </div>
-        ) : (
-          /* Running Header for Subsequent Pages */
-          <div className="flex items-center justify-between border-b border-black/10 pb-3 mb-5 select-none text-xs font-bengali opacity-60">
-            <span>চিঠি লেখাই এআই • প্রিয় {receiverName}</span>
-            <span>
-              পৃষ্ঠা {pageNum} / {total}
-            </span>
-          </div>
-        )}
-
-        {/* Letter Body Chunk */}
-        <div
-          className={`flex-1 font-bengali ${layout.computedFontSize.cssClass} whitespace-pre-wrap select-text my-2`}
-          style={{ color: themeConfig.textColor }}
-        >
-          {pageContent}
-        </div>
-
-        {/* Page Footer */}
-        <div className="pt-4 border-t border-black/10 flex flex-col items-center justify-center gap-1.5 text-center select-none">
-          {isLastPage ? (
-            <>
-              <span className="text-xs tracking-widest opacity-40 font-serif">
-                {themeConfig.ornament}
-              </span>
-              <div className="flex items-center justify-between w-full text-[11px] font-bengali opacity-60">
-                <span>চিঠি লেখাই এআই • Chithi Lekhi AI</span>
-                <span>যে কথা মুখে বলা যায় না 💌</span>
-              </div>
-            </>
-          ) : (
-            <div className="flex items-center justify-between w-full text-[11px] font-bengali opacity-60">
-              <span>
-                পৃষ্ঠা {pageNum} / {total}
-              </span>
-              <span>পরবর্তী পৃষ্ঠায় সমাপ্য... ➔</span>
-            </div>
-          )}
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 overflow-y-auto animate-in fade-in duration-200">
       <div className="my-auto w-full max-w-4xl bg-white/95 rounded-3xl shadow-2xl border border-rose-100 flex flex-col max-h-[94vh] overflow-hidden">
+
         {/* Header Bar */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-neutral-100 bg-rose-50/40">
           <div className="flex items-center gap-2.5">
@@ -249,7 +161,7 @@ export function VintagePdfModal({
                   onClick={() => setSelectedTheme(themeKey)}
                   className={`px-3 py-1.5 rounded-xl text-xs font-bengali font-medium transition-all flex items-center gap-1.5 border ${
                     isSelected
-                      ? 'border-rose-400 bg-rose-50 text-rose-800 shadow-2xs font-semibold'
+                      ? 'border-rose-400 bg-rose-50 text-rose-800 shadow-xs font-semibold'
                       : 'border-neutral-200 bg-neutral-50/60 text-neutral-600 hover:bg-neutral-100'
                   }`}
                 >
@@ -261,13 +173,14 @@ export function VintagePdfModal({
 
             <div className="h-4 w-px bg-neutral-200 mx-1 hidden sm:block" />
 
+            {/* Font Size */}
             <div className="flex items-center gap-1 text-xs font-bengali">
               <span className="text-neutral-500 mr-0.5">ফন্ট:</span>
               {(
                 [
                   { id: 'auto', label: 'অটো' },
                   { id: 'normal', label: 'স্বাভাবিক' },
-                  { id: 'large', label: 'বড়' },
+                  { id: 'large', label: 'বড়' },
                   { id: 'small', label: 'ছোট' },
                 ] as const
               ).map((fs) => (
@@ -304,13 +217,20 @@ export function VintagePdfModal({
               <Download className="w-4 h-4" />
             )}
             <span>
-              {exportMessage ||
-                `এ৪ পিডিএফ ডাউনলোড (${totalPages} পৃষ্ঠা)`}
+              {exportMessage || `এ৪ পিডিএফ ডাউনলোড (${totalPages} পৃষ্ঠা)`}
             </span>
           </button>
         </div>
 
-        {/* Page Switcher Strip (if multi-page) */}
+        {/* Error Banner */}
+        {exportError && (
+          <div className="mx-5 mt-3 p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2 text-xs font-bengali text-red-700">
+            <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+            <span>{exportError}</span>
+          </div>
+        )}
+
+        {/* Page Switcher Strip (multi-page) */}
         {totalPages > 1 && (
           <div className="px-5 py-2 bg-amber-50/60 border-b border-amber-100 flex items-center justify-between text-xs font-bengali text-neutral-700">
             <div className="flex items-center gap-2">
@@ -323,7 +243,7 @@ export function VintagePdfModal({
                     onClick={() => setActivePageIndex(idx)}
                     className={`w-6 h-6 rounded-md font-sans text-xs font-bold transition-all ${
                       currentPageSafeIndex === idx
-                        ? 'bg-rose-500 text-white shadow-2xs'
+                        ? 'bg-rose-500 text-white shadow-xs'
                         : 'bg-white border border-amber-200 text-neutral-600 hover:bg-amber-100'
                     }`}
                   >
@@ -332,14 +252,12 @@ export function VintagePdfModal({
                 ))}
               </div>
             </div>
-
             <div className="flex items-center gap-1">
               <button
                 type="button"
                 disabled={currentPageSafeIndex === 0}
                 onClick={() => setActivePageIndex((prev) => Math.max(0, prev - 1))}
                 className="p-1 rounded-md border border-amber-200 bg-white hover:bg-amber-100 disabled:opacity-40 transition-colors"
-                title="পূর্ববর্তী পৃষ্ঠা"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
@@ -351,7 +269,6 @@ export function VintagePdfModal({
                 disabled={currentPageSafeIndex === totalPages - 1}
                 onClick={() => setActivePageIndex((prev) => Math.min(totalPages - 1, prev + 1))}
                 className="p-1 rounded-md border border-amber-200 bg-white hover:bg-amber-100 disabled:opacity-40 transition-colors"
-                title="পরবর্তী পৃষ্ঠা"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
@@ -359,29 +276,70 @@ export function VintagePdfModal({
           </div>
         )}
 
-        {/* Interactive Preview Scroll Area */}
+        {/* Interactive Preview */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-neutral-100/80 flex justify-center">
-          {renderA4PageContent(
-            layout.pages[currentPageSafeIndex] || letter,
-            currentPageSafeIndex + 1,
-            totalPages
-          )}
+          <LetterCanvas
+            pageContent={layout.pages[currentPageSafeIndex] || letter}
+            pageNum={currentPageSafeIndex + 1}
+            totalPages={totalPages}
+            isFirstPage={currentPageSafeIndex === 0}
+            isLastPage={currentPageSafeIndex === totalPages - 1}
+            receiverName={receiverName}
+            relationship={relationship}
+            date={date}
+            themeId={canvasThemeId}
+            fontSizeClass={layout.computedFontSize.cssClass}
+            className="w-full max-w-[595px]"
+            style={{ minHeight: '842px' }}
+          />
         </div>
 
-        {/* Hidden Container Rendering All Pages for 1-Click Multi-Page PDF Capture */}
+        {/*
+         * Hidden batch container rendering ALL pages simultaneously.
+         *
+         * FIX for mobile Safari blank-page bug:
+         *   position:fixed + opacity:0 (NOT left:-9999px)
+         *   WebKit clips html-to-image captures of elements that are scrolled
+         *   outside the viewport. With position:fixed + opacity:0 the elements
+         *   are in the viewport painting tree (invisible to the user) and are
+         *   captured correctly by html-to-image.
+         *
+         *   Width must be explicit (595px = A4 width in CSS px at 96dpi) so the
+         *   font metrics match what was laid out by letter-layout-engine.
+         */}
         <div
           ref={batchPagesContainerRef}
-          className="absolute left-[-9999px] top-[-9999px] pointer-events-none"
           aria-hidden="true"
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            opacity: 0,
+            pointerEvents: 'none',
+            zIndex: -1,
+            width: '595px',
+          }}
         >
           {layout.pages.map((pageText, idx) => (
-            <div key={idx} data-pdf-page="true" className="mb-8">
-              {renderA4PageContent(pageText, idx + 1, totalPages)}
+            <div key={idx} data-pdf-page="true" style={{ marginBottom: '32px', width: '595px' }}>
+              <LetterCanvas
+                pageContent={pageText}
+                pageNum={idx + 1}
+                totalPages={totalPages}
+                isFirstPage={idx === 0}
+                isLastPage={idx === totalPages - 1}
+                receiverName={receiverName}
+                relationship={relationship}
+                date={date}
+                themeId={canvasThemeId}
+                fontSizeClass={layout.computedFontSize.cssClass}
+                style={{ minHeight: '842px', width: '595px' }}
+              />
             </div>
           ))}
         </div>
 
-        {/* Footer info */}
+        {/* Footer */}
         <div className="px-5 py-2.5 bg-neutral-50 border-t border-neutral-100 flex items-center justify-between text-xs font-bengali text-neutral-500">
           <span className="flex items-center gap-1">
             <Sparkles className="w-3.5 h-3.5 text-amber-500" />

@@ -34,7 +34,7 @@ export const PDF_THEMES: Record<PdfThemeId, PdfThemeConfig> = {
   },
   'mother-letter': {
     id: 'mother-letter',
-    nameBn: "মায়ের চিঠি (Mother's Letter)",
+    nameBn: "মায়ের চিঠি (Mother's Letter)",
     nameEn: "Mother's Letter",
     emoji: '🕊️',
     bgClass: 'bg-[#FAF7F0]',
@@ -86,7 +86,7 @@ export function generateFormattedTxt(params: {
   date?: string
 }): string {
   const currentDate = params.date ? formatDate(params.date) : formatDate(new Date().toISOString())
-  const recipient = params.receiverName ? `প্রিয় ${params.receiverName}` : 'কাছের মানুষ'
+  const recipient = params.receiverName ? `প্রিয় ${params.receiverName}` : 'কাছের মানুষ'
   const relation = params.relationship ? ` (${params.relationship})` : ''
 
   // Split and format body paragraphs
@@ -111,7 +111,7 @@ ${bodyContent}
 
 ──────────────────────────────────────────────────────────
 ডাকটিকিট: ঢাকা জিপিও • ১৯৯০-এর স্মৃতি
-যে কথা মুখে বলা যায় না, চিঠিতে লিখে ফেলুন 💌
+যে কথা মুখে বলা যায় না, চিঠিতে লিখে ফেলুন 💌
 ওয়েবসাইট: https://chithi.ai
 ──────────────────────────────────────────────────────────`
 }
@@ -140,17 +140,43 @@ export function downloadFormattedTxt(params: {
 }
 
 /**
- * Helper to get safe pixelRatio for mobile devices to prevent canvas memory crashes
+ * Helper to get safe pixelRatio for mobile devices to prevent canvas memory crashes.
+ * Mobile Safari 16 crashes with devicePixelRatio > 2.0 for large canvases.
  */
-function getSafePixelRatio(): number {
+export function getSafePixelRatio(targetRatio = 2.5): number {
   if (typeof window === 'undefined') return 2.0
   const isMobile =
     /Android|iPhone|iPad|iPod|webOS/i.test(navigator.userAgent) || window.innerWidth < 768
-  return isMobile ? Math.min(2.0, window.devicePixelRatio || 2.0) : 2.5
+  return isMobile ? Math.min(2.0, targetRatio) : targetRatio
 }
 
 /**
- * Render and export a DOM element as a high-resolution A4 PDF
+ * Capture a DOM element as a PNG data URL.
+ *
+ * The element MUST be visible in the document for html-to-image to work correctly.
+ * Use position:fixed + opacity:0 rather than left:-9999px (mobile Safari renders
+ * off-viewport elements as blank frames).
+ *
+ * @param element   - The DOM element to capture
+ * @param pixelRatio - DPI multiplier (clamped on mobile)
+ * @param quality   - PNG quality 0-1
+ */
+export async function captureElementAsPng(
+  element: HTMLElement,
+  pixelRatio = 2.5,
+  quality = 0.98
+): Promise<string> {
+  const { toPng } = await import('html-to-image')
+  const safeRatio = getSafePixelRatio(pixelRatio)
+  return toPng(element, {
+    cacheBust: true,
+    pixelRatio: safeRatio,
+    quality,
+  })
+}
+
+/**
+ * Render and export a DOM element as a high-resolution A4 PDF.
  * Dynamically loads jspdf and html-to-image on demand.
  */
 export async function exportElementToA4Pdf(
@@ -161,19 +187,13 @@ export async function exportElementToA4Pdf(
   onProgress?.('উচ্চ রেজোলিউশন ডকুমেন্ট রেন্ডার হচ্ছে...')
 
   // Dynamically import heavy libraries
-  const [{ toPng }, { default: jsPDF }] = await Promise.all([
+  const [, { default: jsPDF }] = await Promise.all([
     import('html-to-image'),
     import('jspdf'),
   ])
 
-  const pixelRatio = getSafePixelRatio()
-
-  // Capture high-density image of the element
-  const dataUrl = await toPng(element, {
-    cacheBust: true,
-    pixelRatio,
-    quality: 0.98,
-  })
+  const pixelRatio = getSafePixelRatio(2.5)
+  const dataUrl = await captureElementAsPng(element, pixelRatio, 0.98)
 
   onProgress?.('এ৪ (A4) প্রিন্ট-রেডি পিডিএফ সংকলন চলছে...')
 
@@ -195,23 +215,26 @@ export async function exportElementToA4Pdf(
 }
 
 /**
- * Render and compile multiple DOM elements into a single multi-page A4 PDF document
+ * Render and compile multiple DOM elements into a single multi-page A4 PDF.
  * Dynamically loads jspdf and html-to-image on demand.
+ *
+ * IMPORTANT: Elements must be visible in the DOM (position:fixed; opacity:0)
+ * rather than translated off-screen (left:-9999px) — mobile Safari returns
+ * blank frames for off-viewport elements.
  */
 export async function exportMultiPageA4Pdf(
   elements: HTMLElement[],
   filename: string,
   onProgress?: (msg: string) => void
 ): Promise<void> {
-  if (elements.length === 0) return
+  if (elements.length === 0) {
+    throw new Error('কোনো পৃষ্ঠা পাওয়া যায়নি')
+  }
 
-  // Dynamically import heavy libraries
-  const [{ toPng }, { default: jsPDF }] = await Promise.all([
-    import('html-to-image'),
-    import('jspdf'),
-  ])
+  onProgress?.('আপনার চিঠির PDF তৈরি হচ্ছে...')
 
-  const pixelRatio = getSafePixelRatio()
+  const { default: jsPDF } = await import('jspdf')
+  const pixelRatio = getSafePixelRatio(2.5)
 
   const pdf = new jsPDF({
     orientation: 'portrait',
@@ -225,11 +248,10 @@ export async function exportMultiPageA4Pdf(
   for (let i = 0; i < elements.length; i++) {
     onProgress?.(`পৃষ্ঠা ${i + 1}/${elements.length} রেন্ডার হচ্ছে...`)
 
-    const dataUrl = await toPng(elements[i], {
-      cacheBust: true,
-      pixelRatio,
-      quality: 0.98,
-    })
+    // Small delay to let browser paint the element before capture
+    await new Promise((r) => setTimeout(r, 80))
+
+    const dataUrl = await captureElementAsPng(elements[i], pixelRatio, 0.98)
 
     if (i > 0) {
       pdf.addPage('a4', 'portrait')
@@ -240,4 +262,24 @@ export async function exportMultiPageA4Pdf(
 
   onProgress?.('পিডিএফ সংকলন সম্পন্ন হচ্ছে...')
   pdf.save(filename.endsWith('.pdf') ? filename : `${filename}.pdf`)
+}
+
+/**
+ * Export a single element as a merged/continuous PNG (for long letters).
+ * The element should have dynamic height (height: auto) to capture the full content.
+ */
+export async function exportMergedLetterPng(
+  element: HTMLElement,
+  filename: string,
+  onProgress?: (msg: string) => void
+): Promise<void> {
+  onProgress?.('সম্পূর্ণ চিঠি একটানা ছবিতে রূপান্তর হচ্ছে...')
+  const pixelRatio = getSafePixelRatio(2.5)
+  const dataUrl = await captureElementAsPng(element, pixelRatio, 0.98)
+
+  onProgress?.('ডাউনলোড শুরু হচ্ছে...')
+  const link = document.createElement('a')
+  link.download = filename.endsWith('.png') ? filename : `${filename}.png`
+  link.href = dataUrl
+  link.click()
 }

@@ -4,17 +4,15 @@ import React, { useState, useRef, useCallback, useMemo } from 'react'
 import {
   Download,
   Share2,
-  Feather,
   Sparkles,
   X,
   ChevronLeft,
   ChevronRight,
   Layers,
-  Maximize2,
   Sliders,
   CheckCircle2,
+  Merge,
 } from 'lucide-react'
-import { formatDate } from '@/utils/helpers'
 import {
   partitionLetterIntoPages,
   QUALITY_CONFIG,
@@ -22,14 +20,44 @@ import {
   type TargetAspectRatio,
   type FontSizeChoice,
 } from '@/lib/letter-layout-engine'
+import {
+  captureElementAsPng,
+  exportMergedLetterPng,
+  getSafePixelRatio,
+} from '@/lib/export-utils'
+import { shareLetter } from '@/lib/share-engine'
+import { LetterCanvas, type CanvasThemeId } from './LetterCanvas'
 
-export type VintageCardStyle = '90s-paper' | 'romantic-vintage' | 'minimal-premium' | 'modern-card'
+export type VintageCardStyle =
+  | '90s-paper'
+  | 'romantic-vintage'
+  | 'minimal-premium'
+  | 'modern-card'
+
+// Map VintageCardStyle → CanvasThemeId (same keys, just typed)
+const STYLE_TO_THEME: Record<VintageCardStyle, CanvasThemeId> = {
+  '90s-paper': '90s-paper',
+  'romantic-vintage': 'romantic-vintage',
+  'minimal-premium': 'minimal-premium',
+  'modern-card': 'modern-card',
+}
+
+const STYLE_META: Record<
+  VintageCardStyle,
+  { name: string; emoji: string }
+> = {
+  '90s-paper': { name: '৯০-এর পুরোনো কাগজ', emoji: '✉️' },
+  'romantic-vintage': { name: 'রোমান্টিক ভিন্টেজ', emoji: '🌸' },
+  'minimal-premium': { name: 'মিনিমাল প্রিমিয়াম', emoji: '✨' },
+  'modern-card': { name: 'মডার্ন কার্ড', emoji: '💎' },
+}
 
 interface VintageLetterVisualProps {
   letter: string
   receiverName: string
   relationship?: string
   date?: string
+  shareUrl?: string
   onClose?: () => void
 }
 
@@ -38,189 +66,168 @@ export function VintageLetterVisualStudio({
   receiverName,
   relationship,
   date,
+  shareUrl,
   onClose,
 }: VintageLetterVisualProps) {
-  const cardRef = useRef<HTMLDivElement>(null)
-
-  // Customizer state
+  // ── Studio state ────────────────────────────────────────────────────────
   const [cardStyle, setCardStyle] = useState<VintageCardStyle>('90s-paper')
   const [aspectRatio, setAspectRatio] = useState<TargetAspectRatio>('portrait')
   const [fontSizeChoice, setFontSizeChoice] = useState<FontSizeChoice>('auto')
   const [qualityTier, setQualityTier] = useState<QualityTier>('high')
   const [currentPageIndex, setCurrentPageIndex] = useState(0)
+
+  // ── UX state ─────────────────────────────────────────────────────────────
   const [downloading, setDownloading] = useState(false)
   const [sharing, setSharing] = useState(false)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
 
-  // Layout Engine: Partitions letter across pages and calculates metrics
-  const layout = useMemo(() => {
-    return partitionLetterIntoPages(letter, {
-      ratio: aspectRatio,
-      fontSizeChoice,
-    })
-  }, [letter, aspectRatio, fontSizeChoice])
+  // ── Refs ─────────────────────────────────────────────────────────────────
+  /** Ref for the currently-visible preview card */
+  const cardRef = useRef<HTMLDivElement>(null)
+  /** Ref for the hidden batch render container (all pages, captured for PDF/batch download) */
+  const batchContainerRef = useRef<HTMLDivElement>(null)
+  /** Ref for the hidden merged canvas (auto-height, entire letter) */
+  const mergedCanvasRef = useRef<HTMLDivElement>(null)
+
+  // ── Layout engine ────────────────────────────────────────────────────────
+  const layout = useMemo(
+    () => partitionLetterIntoPages(letter, { ratio: aspectRatio, fontSizeChoice }),
+    [letter, aspectRatio, fontSizeChoice]
+  )
 
   const totalPages = layout.totalPages
   const activePageIndex = Math.min(currentPageIndex, totalPages - 1)
   const activePageText = layout.pages[activePageIndex] || letter
 
-  // Style configurations
-  const stylesConfig: Record<
-    VintageCardStyle,
-    {
-      name: string
-      nameEn: string
-      emoji: string
-      bgClass: string
-      textClass: string
-      borderClass: string
-      postmarkColor: string
-      stampBg: string
-    }
-  > = {
-    '90s-paper': {
-      name: '৯০-এর পুরোনো কাগজ',
-      nameEn: '90s Old Paper',
-      emoji: '✉️',
-      bgClass: 'bg-[#F7F2E7] text-[#2C3440]',
-      textClass: 'font-bengali text-[#1E293B]',
-      borderClass: 'border-[#D9CFBE]',
-      postmarkColor: 'text-[#8C4A32] border-[#8C4A32]',
-      stampBg: 'bg-[#F2E8D5] border-[#B89F7D]',
-    },
-    'romantic-vintage': {
-      name: 'রোমান্টিক ভিন্টেজ',
-      nameEn: 'Romantic Vintage',
-      emoji: '🌸',
-      bgClass: 'bg-gradient-to-br from-[#FFF0F3] via-[#FFE4E8] to-[#FFF5F7] text-[#4C0519]',
-      textClass: 'font-bengali text-[#500724]',
-      borderClass: 'border-[#FDA4AF]',
-      postmarkColor: 'text-[#BE123C] border-[#BE123C]',
-      stampBg: 'bg-[#FFE4E6] border-[#FB7185]',
-    },
-    'minimal-premium': {
-      name: 'মিনিমাল প্রিমিয়াম',
-      nameEn: 'Minimal Premium',
-      emoji: '✨',
-      bgClass: 'bg-[#FAF9F6] text-[#18181B]',
-      textClass: 'font-bengali text-[#27272A]',
-      borderClass: 'border-[#E4E4E7]',
-      postmarkColor: 'text-[#52525B] border-[#71717A]',
-      stampBg: 'bg-white border-[#D4D4D8]',
-    },
-    'modern-card': {
-      name: 'মডার্ন কার্ড',
-      nameEn: 'Modern Card',
-      emoji: '💎',
-      bgClass: 'bg-gradient-to-br from-[#FDF2F8] via-[#FFFFFF] to-[#EFF6FF] text-[#0F172A]',
-      textClass: 'font-bengali text-[#1E293B]',
-      borderClass: 'border-[#E2E8F0]',
-      postmarkColor: 'text-[#E11D48] border-[#E11D48]',
-      stampBg: 'bg-white border-[#CBD5E1]',
-    },
-  }
+  // Merged mode = aspectRatio 'natural'
+  const isMergedMode = aspectRatio === 'natural'
 
   const qualitySetting = QUALITY_CONFIG[qualityTier]
+  const themeId = STYLE_TO_THEME[cardStyle]
 
-  // Helper to determine safe mobile pixel ratio to prevent canvas memory crashes
-  const getSafeMobilePixelRatio = useCallback((targetRatio: number) => {
-    if (typeof window === 'undefined') return 2.0
-    const isMobile =
-      /Android|iPhone|iPad|iPod|webOS/i.test(navigator.userAgent) || window.innerWidth < 768
-    return isMobile ? Math.min(2.0, targetRatio) : targetRatio
-  }, [])
+  // ── Status helpers ───────────────────────────────────────────────────────
+  const showStatus = (msg: string, durationMs = 2800) => {
+    setStatusMessage(msg)
+    setTimeout(() => setStatusMessage(null), durationMs)
+  }
 
-  // Handle Download Single Page / Full Continuous Canvas
+  // ── Download: Single page (or merged canvas) ─────────────────────────────
   const handleDownloadCurrentPage = useCallback(async () => {
-    if (!cardRef.current) return
     setDownloading(true)
     setStatusMessage(`${qualitySetting.labelBn} এ রেন্ডার হচ্ছে...`)
-
     try {
-      const { toPng } = await import('html-to-image')
-      const pixelRatio = getSafeMobilePixelRatio(qualitySetting.pixelRatio)
+      const safePR = getSafePixelRatio(qualitySetting.pixelRatio)
 
-      const dataUrl = await toPng(cardRef.current, {
-        cacheBust: true,
-        pixelRatio,
-        quality: qualitySetting.quality,
-      })
-
-      const pageSuffix = totalPages > 1 ? `-page-${activePageIndex + 1}` : ''
-      const link = document.createElement('a')
-      link.download = `chithi-${(receiverName || 'letter').replace(/\s+/g, '-').toLowerCase()}-${cardStyle}${pageSuffix}.png`
-      link.href = dataUrl
-      link.click()
-
-      setStatusMessage('ইমেজ ডাউনলোড সম্পন্ন!')
-      setTimeout(() => setStatusMessage(null), 2500)
+      if (isMergedMode && mergedCanvasRef.current) {
+        // Export full continuous letter as single PNG
+        await exportMergedLetterPng(
+          mergedCanvasRef.current,
+          `chithi-${(receiverName || 'letter').replace(/\s+/g, '-').toLowerCase()}-full`,
+          (msg) => setStatusMessage(msg)
+        )
+      } else if (cardRef.current) {
+        const dataUrl = await captureElementAsPng(cardRef.current, safePR, qualitySetting.quality)
+        const pageSuffix = totalPages > 1 ? `-page-${activePageIndex + 1}` : ''
+        const link = document.createElement('a')
+        link.download = `chithi-${(receiverName || 'letter').replace(/\s+/g, '-').toLowerCase()}-${cardStyle}${pageSuffix}.png`
+        link.href = dataUrl
+        link.click()
+      }
+      showStatus('ইমেজ ডাউনলোড সম্পন্ন! ✓')
     } catch (err) {
-      console.error('Image export failed:', err)
-      setStatusMessage('ইমেজ রূপান্তরে সমস্যা হয়েছে।')
-      setTimeout(() => setStatusMessage(null), 2500)
+      console.error('[VintageLetterVisualStudio] download failed:', err)
+      showStatus('ইমেজ রূপান্তরে সমস্যা হয়েছে। আবার চেষ্টা করুন।', 3500)
     } finally {
       setDownloading(false)
     }
-  }, [cardStyle, receiverName, totalPages, activePageIndex, qualitySetting, getSafeMobilePixelRatio])
+  }, [
+    isMergedMode,
+    qualitySetting,
+    receiverName,
+    cardStyle,
+    totalPages,
+    activePageIndex,
+  ])
 
-  // Handle Sequential Batch Download of All Pages (Memory Optimized for Mobile)
+  // ── Download: All pages (batch, no state mutation mid-loop) ─────────────
   const handleDownloadAllPages = useCallback(async () => {
     if (totalPages <= 1) {
       await handleDownloadCurrentPage()
       return
     }
 
+    if (isMergedMode && mergedCanvasRef.current) {
+      // In merged mode, all text is already in one element
+      await handleDownloadCurrentPage()
+      return
+    }
+
     setDownloading(true)
+    setStatusMessage(`সবগুলো ${totalPages}টি পৃষ্ঠা রেন্ডার হচ্ছে...`)
+
     try {
-      const { toPng } = await import('html-to-image')
-      const pixelRatio = getSafeMobilePixelRatio(qualitySetting.pixelRatio)
+      const safePR = getSafePixelRatio(qualitySetting.pixelRatio)
 
-      for (let i = 0; i < totalPages; i++) {
-        setCurrentPageIndex(i)
-        setStatusMessage(`পৃষ্ঠা ${i + 1}/${totalPages} রেন্ডার ও ডাউনলোড হচ্ছে...`)
-        // Wait for React DOM update and font rendering stabilization
-        await new Promise((r) => setTimeout(r, 450))
+      // Capture all page elements from the hidden batch container
+      // These are rendered simultaneously (no React state mutation per page)
+      const batchEls = batchContainerRef.current
+        ? Array.from(
+            batchContainerRef.current.querySelectorAll<HTMLElement>('[data-batch-page]')
+          )
+        : []
 
-        if (cardRef.current) {
-          const dataUrl = await toPng(cardRef.current, {
-            cacheBust: true,
-            pixelRatio,
-            quality: qualitySetting.quality,
-          })
-
+      if (batchEls.length === 0) {
+        // Fallback: sequential current-page switching (slower but safe)
+        for (let i = 0; i < totalPages; i++) {
+          setCurrentPageIndex(i)
+          setStatusMessage(`পৃষ্ঠা ${i + 1}/${totalPages} রেন্ডার হচ্ছে...`)
+          await new Promise((r) => setTimeout(r, 350))
+          if (cardRef.current) {
+            const dataUrl = await captureElementAsPng(cardRef.current, safePR, qualitySetting.quality)
+            const link = document.createElement('a')
+            link.download = `chithi-${(receiverName || 'letter').replace(/\s+/g, '-').toLowerCase()}-page-${i + 1}.png`
+            link.href = dataUrl
+            link.click()
+          }
+        }
+      } else {
+        // Fast path: all pages pre-rendered in batch container, no state mutation
+        for (let i = 0; i < batchEls.length; i++) {
+          setStatusMessage(`পৃষ্ঠা ${i + 1}/${batchEls.length} ডাউনলোড হচ্ছে...`)
+          await new Promise((r) => setTimeout(r, 60))
+          const dataUrl = await captureElementAsPng(batchEls[i], safePR, qualitySetting.quality)
           const link = document.createElement('a')
           link.download = `chithi-${(receiverName || 'letter').replace(/\s+/g, '-').toLowerCase()}-page-${i + 1}.png`
           link.href = dataUrl
           link.click()
         }
       }
-      setStatusMessage(`সবগুলো (${totalPages}টি) পৃষ্ঠা সফলভাবে ডাউনলোড হয়েছে!`)
-      setTimeout(() => setStatusMessage(null), 3000)
+
+      showStatus(`${totalPages}টি পৃষ্ঠা সফলভাবে ডাউনলোড হয়েছে! ✓`, 3500)
     } catch (err) {
-      console.error('Batch export failed:', err)
-      setStatusMessage('ব্যাচ ডাউনলোডে সমস্যা হয়েছে।')
-      setTimeout(() => setStatusMessage(null), 3000)
+      console.error('[VintageLetterVisualStudio] batch download failed:', err)
+      showStatus('ব্যাচ ডাউনলোডে সমস্যা হয়েছে। আবার চেষ্টা করুন।', 3500)
     } finally {
       setDownloading(false)
     }
-  }, [totalPages, handleDownloadCurrentPage, receiverName, qualitySetting, getSafeMobilePixelRatio])
+  }, [
+    totalPages,
+    isMergedMode,
+    qualitySetting,
+    receiverName,
+    handleDownloadCurrentPage,
+  ])
 
-  // Handle Web Share
+  // ── Social / Native Share ────────────────────────────────────────────────
   const handleShareImage = useCallback(async () => {
-    if (!cardRef.current) return
     setSharing(true)
-    setStatusMessage('শেয়ারের জন্য প্রস্তুত হচ্ছে...')
-
+    setStatusMessage('শেয়ারের জন্য প্রস্তুত হচ্ছে...')
     try {
-      const { toPng } = await import('html-to-image')
-      const pixelRatio = getSafeMobilePixelRatio(qualitySetting.pixelRatio)
+      const safePR = getSafePixelRatio(qualitySetting.pixelRatio)
+      const sourceEl = isMergedMode ? mergedCanvasRef.current : cardRef.current
+      if (!sourceEl) return
 
-      const dataUrl = await toPng(cardRef.current, {
-        cacheBust: true,
-        pixelRatio,
-        quality: qualitySetting.quality,
-      })
-
+      const dataUrl = await captureElementAsPng(sourceEl, safePR, qualitySetting.quality)
       const blob = await (await fetch(dataUrl)).blob()
       const file = new File(
         [blob],
@@ -231,41 +238,53 @@ export function VintageLetterVisualStudio({
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
           title: `চিঠি — ${receiverName}`,
-          text: `💌 ${receiverName}-এর জন্য একটি চিঠি\n— চিঠি লেখাই এআই (Chithi Lekhi AI)`,
+          text: `💌 ${receiverName}-এর জন্য একটি চিঠি\n— চিঠি লেখাই এআই`,
           files: [file],
+          ...(shareUrl ? { url: shareUrl } : {}),
         })
-        setStatusMessage('শেয়ার সম্পন্ন!')
+        showStatus('শেয়ার সম্পন্ন! ✓')
       } else {
+        // Fallback: download the image + copy link
         const link = document.createElement('a')
         link.download = file.name
         link.href = dataUrl
         link.click()
-        await navigator.clipboard.writeText(letter)
-        setStatusMessage('ইমেজ ডাউনলোড হয়েছে ও টেক্সট কপি হয়েছে!')
+        if (shareUrl) {
+          const result = await shareLetter({
+            platform: 'copy',
+            shareUrl,
+            letterText: letter,
+            receiverName,
+          })
+          showStatus(`ইমেজ ডাউনলোড হয়েছে • ${result.message}`)
+        } else {
+          showStatus('ইমেজ ডাউনলোড হয়েছে!')
+        }
       }
-      setTimeout(() => setStatusMessage(null), 3000)
-    } catch (err) {
-      console.error('Share failed:', err)
-      setStatusMessage('শেয়ার বাতিল হয়েছে।')
-      setTimeout(() => setStatusMessage(null), 2500)
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        showStatus('শেয়ার বাতিল করা হয়েছে।')
+      } else {
+        console.error('[VintageLetterVisualStudio] share failed:', err)
+        showStatus('শেয়ার করতে সমস্যা হয়েছে।', 3500)
+      }
     } finally {
       setSharing(false)
     }
-  }, [letter, receiverName, qualitySetting, getSafeMobilePixelRatio])
+  }, [isMergedMode, qualitySetting, receiverName, shareUrl, letter])
 
-  // Dynamic Container Styles: NO rigid max-height or clipping
+  // ── Container style per ratio ────────────────────────────────────────────
   const ratioContainerStyles: Record<TargetAspectRatio, string> = {
     portrait: 'max-w-[440px] min-h-[550px]',
     square: 'max-w-[480px] min-h-[480px]',
     a4: 'max-w-[460px] min-h-[650px]',
-    natural: 'max-w-[500px] min-h-[380px]',
+    natural: 'max-w-[500px]', // auto-height, no min
   }
-
-  const currentTheme = stylesConfig[cardStyle]
 
   return (
     <div className="w-full max-w-4xl mx-auto space-y-5">
-      {/* Studio Controls Header */}
+
+      {/* ── Studio Controls ──────────────────────────────────────────────── */}
       <div className="bg-white/95 backdrop-blur-md border border-rose-100 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -278,7 +297,9 @@ export function VintageLetterVisualStudio({
                   ফুল লেটার ইমেজ রেন্ডারিং ইঞ্জিন
                 </h3>
                 <span className="text-[10px] font-bengali font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  {layout.metrics.category === 'short'
+                  {isMergedMode
+                    ? 'একটানা মার্জড ছবি'
+                    : layout.metrics.category === 'short'
                     ? 'সংক্ষিপ্ত চিঠি (১ পৃষ্ঠা)'
                     : layout.metrics.category === 'medium'
                     ? `আদর্শ দৈর্ঘ্য (${totalPages} পৃষ্ঠা)`
@@ -286,7 +307,7 @@ export function VintageLetterVisualStudio({
                 </span>
               </div>
               <p className="text-[11px] font-bengali text-neutral-500">
-                চিঠির কোনো অংশ ক্রপ হবে না — সম্ভাষণ, বডি প্যারাগ্রাফ ও স্বাক্ষর ১০০% অক্ষুণ্ণ থাকবে
+                চিঠির কোনো অংশ ক্রপ হবে না — সম্ভাষণ, বডি ও স্বাক্ষর ১০০% অক্ষুণ্ণ
               </p>
             </div>
           </div>
@@ -308,8 +329,8 @@ export function VintageLetterVisualStudio({
             কার্ডের ভিন্টেজ থিম:
           </label>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {(Object.keys(stylesConfig) as VintageCardStyle[]).map((stKey) => {
-              const cfg = stylesConfig[stKey]
+            {(Object.keys(STYLE_META) as VintageCardStyle[]).map((stKey) => {
+              const cfg = STYLE_META[stKey]
               const isSelected = cardStyle === stKey
               return (
                 <button
@@ -334,52 +355,33 @@ export function VintageLetterVisualStudio({
           </div>
         </div>
 
-        {/* 2. Aspect Ratio Controls */}
+        {/* 2. Aspect Ratio / Mode Controls */}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-neutral-100">
           <div className="flex flex-wrap items-center gap-1.5 text-xs font-bengali">
-            <span className="text-neutral-500">রেশিও:</span>
-            <button
-              type="button"
-              onClick={() => {
-                setAspectRatio('portrait')
-                setCurrentPageIndex(0)
-              }}
-              className={`px-2.5 py-1 rounded-lg border transition-all ${
-                aspectRatio === 'portrait'
-                  ? 'border-rose-400 bg-rose-50 text-rose-800 font-semibold shadow-2xs'
-                  : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
-              }`}
-            >
-              📱 ৪:৫ (১০৮০ × ১৩৫০)
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setAspectRatio('square')
-                setCurrentPageIndex(0)
-              }}
-              className={`px-2.5 py-1 rounded-lg border transition-all ${
-                aspectRatio === 'square'
-                  ? 'border-rose-400 bg-rose-50 text-rose-800 font-semibold shadow-2xs'
-                  : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
-              }`}
-            >
-              ⬛ ১:১ (১০৮০ × ১০৮০)
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setAspectRatio('a4')
-                setCurrentPageIndex(0)
-              }}
-              className={`px-2.5 py-1 rounded-lg border transition-all ${
-                aspectRatio === 'a4'
-                  ? 'border-rose-400 bg-rose-50 text-rose-800 font-semibold shadow-2xs'
-                  : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
-              }`}
-            >
-              📜 এ৪ পেপার (A4)
-            </button>
+            <span className="text-neutral-500">মোড / রেশিও:</span>
+            {(
+              [
+                { ratio: 'portrait', label: '📱 ৪:৫', sub: '(১০৮০×১৩৫০)' },
+                { ratio: 'square', label: '⬛ ১:১', sub: '(১০৮০×১০৮০)' },
+                { ratio: 'a4', label: '📜 এ৪', sub: '(A4)' },
+              ] as const
+            ).map(({ ratio, label, sub }) => (
+              <button
+                key={ratio}
+                type="button"
+                onClick={() => {
+                  setAspectRatio(ratio)
+                  setCurrentPageIndex(0)
+                }}
+                className={`px-2.5 py-1 rounded-lg border transition-all ${
+                  aspectRatio === ratio
+                    ? 'border-rose-400 bg-rose-50 text-rose-800 font-semibold shadow-xs'
+                    : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
+                }`}
+              >
+                {label} <span className="opacity-60 text-[10px]">{sub}</span>
+              </button>
+            ))}
             <button
               type="button"
               onClick={() => {
@@ -388,18 +390,18 @@ export function VintageLetterVisualStudio({
               }}
               className={`px-2.5 py-1 rounded-lg border transition-all flex items-center gap-1 ${
                 aspectRatio === 'natural'
-                  ? 'border-emerald-500 bg-emerald-50 text-emerald-800 font-semibold shadow-2xs'
+                  ? 'border-emerald-500 bg-emerald-50 text-emerald-800 font-semibold shadow-xs'
                   : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
               }`}
             >
-              <Maximize2 className="w-3 h-3 text-emerald-600" />
-              <span>অটো-হাইট (সম্পূর্ণ চিঠি)</span>
+              <Merge className="w-3 h-3 text-emerald-600" />
+              <span>একটানা (সম্পূর্ণ)</span>
             </button>
           </div>
 
           {/* Typography Scale */}
           <div className="flex items-center gap-1 text-xs font-bengali">
-            <span className="text-neutral-500 mr-1">ফন্ট সাইজ:</span>
+            <span className="text-neutral-500 mr-1">ফন্ট:</span>
             {(['auto', 'small', 'normal', 'large'] as const).map((sz) => (
               <button
                 key={sz}
@@ -411,19 +413,18 @@ export function VintageLetterVisualStudio({
                     : 'border-neutral-200 text-neutral-500'
                 }`}
               >
-                {sz === 'auto' ? 'অটো' : sz === 'small' ? 'ছোট' : sz === 'normal' ? 'স্বাভাবিক' : 'বড়'}
+                {sz === 'auto' ? 'অটো' : sz === 'small' ? 'ছোট' : sz === 'normal' ? 'স্বাভাবিক' : 'বড়'}
               </button>
             ))}
           </div>
         </div>
 
-        {/* 3. Image Quality Options (Standard, High Quality, Print Quality) */}
+        {/* 3. Image Quality */}
         <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-neutral-100">
           <div className="flex items-center gap-1.5 text-xs font-bengali text-neutral-600">
             <Sliders className="w-3.5 h-3.5 text-neutral-500" />
             <span className="font-medium">ইমেজ কোয়ালিটি:</span>
           </div>
-
           <div className="flex flex-wrap items-center gap-1.5">
             {(['standard', 'high', 'print'] as const).map((tier) => {
               const item = QUALITY_CONFIG[tier]
@@ -435,7 +436,7 @@ export function VintageLetterVisualStudio({
                   onClick={() => setQualityTier(tier)}
                   className={`px-2.5 py-1 rounded-lg border text-xs font-bengali transition-all flex items-center gap-1 ${
                     isSelected
-                      ? 'border-rose-400 bg-rose-50 text-rose-800 font-semibold shadow-2xs'
+                      ? 'border-rose-400 bg-rose-50 text-rose-800 font-semibold shadow-xs'
                       : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
                   }`}
                 >
@@ -447,16 +448,15 @@ export function VintageLetterVisualStudio({
           </div>
         </div>
 
-        {/* Multi-Page Pagination Bar (Guarantees zero text loss across pages) */}
-        {totalPages > 1 && (
+        {/* 4. Multi-page pagination bar */}
+        {!isMergedMode && totalPages > 1 && (
           <div className="flex items-center justify-between p-2.5 bg-amber-50/70 border border-amber-200/60 rounded-xl text-xs font-bengali text-amber-900">
             <div className="flex items-center gap-1.5">
               <Layers className="w-4 h-4 text-amber-600" />
               <span>
-                চিঠি দীর্ঘ হওয়ায় <strong>{totalPages}টি পৃষ্ঠায়</strong> বিভক্ত করা হয়েছে (কোনো বাক্য বা স্বাক্ষর কাটা পড়বে না)
+                চিঠি দীর্ঘ হওয়ায় <strong>{totalPages}টি পৃষ্ঠায়</strong> বিভক্ত (কোনো বাক্য কাটা পড়বে না)
               </span>
             </div>
-
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -482,81 +482,80 @@ export function VintageLetterVisualStudio({
         )}
       </div>
 
-      {/* ─────────────────────────────────────────────────────────────
-          THE VISUAL LETTER CANVAS (Zero-Crop Guarantee)
-         ───────────────────────────────────────────────────────────── */}
+      {/* ── Letter Canvas Preview ─────────────────────────────────────────── */}
       <div className="flex justify-center p-2 overflow-x-auto bg-neutral-100/50 rounded-2xl border border-neutral-200/60">
-        <div
-          ref={cardRef}
-          className={`w-full ${ratioContainerStyles[aspectRatio]} ${currentTheme.bgClass} border-2 ${currentTheme.borderClass} rounded-2xl shadow-xl p-6 sm:p-9 flex flex-col justify-between relative transition-all duration-300`}
-          style={{
-            backgroundImage:
-              cardStyle === '90s-paper'
-                ? 'radial-gradient(#d3c5ad 0.65px, transparent 0.65px)'
-                : undefined,
-            backgroundSize: cardStyle === '90s-paper' ? '18px 18px' : undefined,
-          }}
-        >
-          {/* Top Header: Airmail Stamp, Receiver Name, Relationship */}
-          <div className="flex items-start justify-between mb-4 select-none">
-            <div>
-              <span className="text-[10px] font-sans font-semibold tracking-widest uppercase opacity-50 block">
-                {totalPages > 1
-                  ? `AIRMAIL LETTER • PAGE ${activePageIndex + 1}/${totalPages}`
-                  : 'PERSONAL AIRMAIL LETTER'}
-              </span>
-              <h2 className="font-bengali font-bold text-lg sm:text-xl leading-tight">
-                প্রিয় {receiverName || 'কাছের মানুষ'}
-              </h2>
-              {relationship && (
-                <span className="text-[10px] font-bengali opacity-60 block mt-0.5">
-                  {relationship}
-                </span>
-              )}
-            </div>
-
-            {/* Vintage Postmark Stamp Badge */}
-            <div className="flex items-center gap-1.5 opacity-90 pointer-events-none">
-              <div
-                className={`w-12 h-14 sm:w-14 sm:h-16 border-2 border-dashed ${currentTheme.stampBg} rounded flex flex-col items-center justify-center p-1 shadow-2xs rotate-3`}
-              >
-                <Feather className="w-4 h-4 sm:w-5 sm:h-5 opacity-70 mb-0.5" />
-                <span className="text-[7px] sm:text-[8px] font-sans font-bold uppercase tracking-wider opacity-80">
-                  CHITHI
-                </span>
-                <span className="text-[6px] sm:text-[7px] font-bengali opacity-70">
-                  ডাকটিকিট
-                </span>
-              </div>
-              <div
-                className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full border ${currentTheme.postmarkColor} flex items-center justify-center -rotate-12 opacity-60`}
-              >
-                <span className="text-[5px] sm:text-[6px] font-mono font-bold tracking-tighter">
-                  DHAKA
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Letter Body: Clean Bengali typography, zero-crop, natural flow */}
-          <div
-            className={`my-auto font-bengali ${layout.computedFontSize.cssClass} whitespace-pre-wrap ${currentTheme.textClass} select-text py-2`}
-          >
-            {activePageText}
-          </div>
-
-          {/* Bottom Card Footer with Date, Signature Guarantee, & Watermark */}
-          <div className="pt-4 mt-4 border-t border-black/5 flex items-center justify-between text-[10px] sm:text-[11px] font-bengali opacity-50 select-none">
-            <span>
-              {date ? formatDate(date) : 'চিঠি লেখাই এআই'}
-              {totalPages > 1 && ` • পৃষ্ঠা ${activePageIndex + 1}/${totalPages}`}
-            </span>
-            <span className="font-sans font-medium tracking-tight">chithi.ai • যে কথা মুখে বলা যায় না 💌</span>
-          </div>
-        </div>
+        {isMergedMode ? (
+          /* Merged / Continuous canvas — entire letter in one scrollable card */
+          <LetterCanvas
+            ref={mergedCanvasRef}
+            pageContent={letter}
+            pageNum={1}
+            totalPages={1}
+            isFirstPage
+            isLastPage
+            receiverName={receiverName}
+            relationship={relationship}
+            date={date}
+            themeId={themeId}
+            fontSizeClass={layout.computedFontSize.cssClass}
+            merged
+            className={ratioContainerStyles.natural}
+          />
+        ) : (
+          /* Paged canvas — shows the current active page */
+          <LetterCanvas
+            ref={cardRef}
+            pageContent={activePageText}
+            pageNum={activePageIndex + 1}
+            totalPages={totalPages}
+            isFirstPage={activePageIndex === 0}
+            isLastPage={activePageIndex === totalPages - 1}
+            receiverName={receiverName}
+            relationship={relationship}
+            date={date}
+            themeId={themeId}
+            fontSizeClass={layout.computedFontSize.cssClass}
+            className={`w-full ${ratioContainerStyles[aspectRatio]}`}
+          />
+        )}
       </div>
 
-      {/* Download & Share Action Buttons */}
+      {/* ── Hidden Batch Container (all pages simultaneously for batch download) */}
+      {!isMergedMode && totalPages > 1 && (
+        <div
+          ref={batchContainerRef}
+          aria-hidden="true"
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            opacity: 0,
+            pointerEvents: 'none',
+            zIndex: -1,
+            width: '460px',
+          }}
+        >
+          {layout.pages.map((pageText, idx) => (
+            <div key={idx} data-batch-page="true" style={{ marginBottom: '32px' }}>
+              <LetterCanvas
+                pageContent={pageText}
+                pageNum={idx + 1}
+                totalPages={totalPages}
+                isFirstPage={idx === 0}
+                isLastPage={idx === totalPages - 1}
+                receiverName={receiverName}
+                relationship={relationship}
+                date={date}
+                themeId={themeId}
+                fontSizeClass={layout.computedFontSize.cssClass}
+                style={{ width: '460px' }}
+              />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Download & Share Actions ──────────────────────────────────────── */}
       <div className="bg-white/95 backdrop-blur-md border border-rose-100 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
         <div className="text-xs font-bengali text-neutral-600">
           {statusMessage ? (
@@ -570,7 +569,7 @@ export function VintageLetterVisualStudio({
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
-          {/* Download Current Page */}
+          {/* Download Current Page / Merged */}
           <button
             type="button"
             disabled={downloading}
@@ -587,12 +586,16 @@ export function VintageLetterVisualStudio({
               <Download className="w-4 h-4" />
             )}
             <span>
-              {totalPages > 1 ? `পৃষ্ঠা ${activePageIndex + 1} ডাউনলোড (PNG)` : 'ইমেজ ডাউনলোড (PNG)'}
+              {isMergedMode
+                ? 'একটানা ছবি ডাউনলোড'
+                : totalPages > 1
+                ? `পৃষ্ঠা ${activePageIndex + 1} ডাউনলোড (PNG)`
+                : 'ইমেজ ডাউনলোড (PNG)'}
             </span>
           </button>
 
-          {/* Download All Pages (If Multi-page) */}
-          {totalPages > 1 && (
+          {/* Download All Pages (multi-page only) */}
+          {!isMergedMode && totalPages > 1 && (
             <button
               type="button"
               disabled={downloading}
@@ -604,7 +607,7 @@ export function VintageLetterVisualStudio({
             </button>
           )}
 
-          {/* Share Image Button */}
+          {/* Social Share */}
           <button
             type="button"
             disabled={sharing}
@@ -616,7 +619,7 @@ export function VintageLetterVisualStudio({
             ) : (
               <Share2 className="w-4 h-4" />
             )}
-            <span>সোশ্যাল শেয়ার</span>
+            <span>সোশ্যাল শেয়ার</span>
           </button>
         </div>
       </div>

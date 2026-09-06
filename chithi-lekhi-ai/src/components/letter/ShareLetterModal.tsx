@@ -13,8 +13,11 @@ import {
   ExternalLink,
   Sparkles,
   Image as ImageIcon,
+  Mail,
+  Smartphone,
 } from 'lucide-react'
 import type { ShareExpiration } from '@/lib/shares'
+import { shareLetter } from '@/lib/share-engine'
 import dynamic from 'next/dynamic'
 
 const VintageLetterVisualStudio = dynamic(
@@ -53,6 +56,9 @@ export function ShareLetterModal({
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [showStudio, setShowStudio] = useState(false)
 
+  // Share feedback
+  const [shareStatus, setShareStatus] = useState<{ platform: string; msg: string } | null>(null)
+
   // Track analytics event helper
   const trackShare = async (platform: string, eventType: 'share' | 'download' = 'share') => {
     if (!shareToken) return
@@ -60,11 +66,7 @@ export function ShareLetterModal({
       await fetch('/api/shares/track', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          shareToken,
-          eventType,
-          platform,
-        }),
+        body: JSON.stringify({ shareToken, eventType, platform }),
       })
     } catch {
       // Non-blocking
@@ -76,14 +78,13 @@ export function ShareLetterModal({
     setErrorMessage(null)
 
     try {
-      // Create share in database
       const res = await fetch('/api/shares', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           letter_id: letterId || `local-${Date.now()}`,
           is_public: isPublic,
-          expiration: expiration,
+          expiration,
         }),
       })
 
@@ -92,7 +93,6 @@ export function ShareLetterModal({
         setGeneratedUrl(data.shareUrl)
         setShareToken(data.shareToken)
       } else {
-        // Fallback to client URL generator
         const fallbackToken = Math.random().toString(36).slice(2, 8)
         const origin = typeof window !== 'undefined' ? window.location.origin : 'https://chithilekhi.com'
         setGeneratedUrl(`${origin}/read/${fallbackToken}`)
@@ -109,28 +109,73 @@ export function ShareLetterModal({
     }
   }
 
+  // ── Unified share handlers (all via shareLetter()) ────────────────────────
+
   const handleCopy = async () => {
     if (!generatedUrl) return
-    try {
-      await navigator.clipboard.writeText(generatedUrl)
+    const result = await shareLetter({
+      platform: 'copy',
+      shareUrl: generatedUrl,
+      letterText: letter,
+      receiverName,
+    })
+    if (result.success) {
       setCopied(true)
       setTimeout(() => setCopied(false), 2500)
       trackShare('copy_link')
-    } catch {
-      // Fallback
     }
   }
 
-  const handleWhatsAppShare = () => {
+  const handleWhatsAppShare = async () => {
+    if (!generatedUrl) return
     trackShare('whatsapp')
-    const message = `💌 ${receiverName}-এর জন্য একটি বিশেষ চিঠি এসেছে, পড়ে দেখো:\n\n${generatedUrl}\n\n— চিঠি লেখাই AI (Chithi Lekhi AI)`
-    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`, '_blank')
+    await shareLetter({
+      platform: 'whatsapp',
+      shareUrl: generatedUrl,
+      letterText: letter,
+      receiverName,
+    })
+    setShareStatus({ platform: 'whatsapp', msg: 'হোয়াটসঅ্যাপ খুলছে...' })
+    setTimeout(() => setShareStatus(null), 2500)
   }
 
-  const handleFacebookShare = () => {
-    trackShare('facebook')
+  const handleFacebookShare = async () => {
     if (!generatedUrl) return
-    window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(generatedUrl)}`, '_blank')
+    trackShare('facebook')
+    await shareLetter({
+      platform: 'facebook',
+      shareUrl: generatedUrl,
+      letterText: letter,
+      receiverName,
+    })
+    setShareStatus({ platform: 'facebook', msg: 'ফেসবুক শেয়ার খুলছে...' })
+    setTimeout(() => setShareStatus(null), 2500)
+  }
+
+  const handleEmailShare = async () => {
+    if (!generatedUrl) return
+    trackShare('email')
+    const result = await shareLetter({
+      platform: 'email',
+      shareUrl: generatedUrl,
+      letterText: letter,
+      receiverName,
+    })
+    setShareStatus({ platform: 'email', msg: result.message })
+    setTimeout(() => setShareStatus(null), 2500)
+  }
+
+  const handleNativeShare = async () => {
+    if (!generatedUrl) return
+    trackShare('native')
+    const result = await shareLetter({
+      platform: 'native',
+      shareUrl: generatedUrl,
+      letterText: letter,
+      receiverName,
+    })
+    setShareStatus({ platform: 'native', msg: result.message })
+    setTimeout(() => setShareStatus(null), 2500)
   }
 
   const handleDownloadImage = () => {
@@ -145,7 +190,7 @@ export function ShareLetterModal({
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-100 bg-rose-50/40">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-rose-500 to-amber-500 flex items-center justify-center text-white shadow-2xs">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-rose-500 to-amber-500 flex items-center justify-center text-white shadow-xs">
                 <LinkIcon className="w-4 h-4" />
               </div>
               <div>
@@ -153,11 +198,10 @@ export function ShareLetterModal({
                   পাবলিক শেয়ার লিংক তৈরি করুন
                 </h3>
                 <p className="text-[11px] font-bengali text-neutral-500">
-                  চিঠিটি অনলাইনে পড়ার জন্য একটি সুন্দর শর্ট লিংক তৈরি করুন
+                  চিঠিটি অনলাইনে পড়ার জন্য একটি সুন্দর শর্ট লিংক তৈরি করুন
                 </p>
               </div>
             </div>
-
             <button
               type="button"
               onClick={onClose}
@@ -171,7 +215,7 @@ export function ShareLetterModal({
           <div className="p-6 space-y-5">
             {!generatedUrl ? (
               <>
-                {/* 1. Privacy Mode Selection */}
+                {/* 1. Privacy Mode */}
                 <div className="space-y-2">
                   <label className="block text-xs font-bengali font-bold text-neutral-700">
                     নিরাপত্তা ও প্রাইভেসি (Privacy Mode):
@@ -182,36 +226,35 @@ export function ShareLetterModal({
                       onClick={() => setIsPublic(true)}
                       className={`p-3 rounded-2xl border text-left flex items-start gap-2.5 transition-all text-xs font-bengali ${
                         isPublic
-                          ? 'border-rose-400 bg-rose-50/60 text-rose-900 shadow-2xs'
+                          ? 'border-rose-400 bg-rose-50/60 text-rose-900 shadow-xs'
                           : 'border-neutral-200 bg-neutral-50/40 text-neutral-600 hover:bg-neutral-50'
                       }`}
                     >
                       <Globe className="w-4 h-4 text-rose-600 mt-0.5 shrink-0" />
                       <div>
                         <span className="font-bold block">পাবলিক (Public)</span>
-                        <span className="text-[11px] opacity-75">লিংক থাকা যে কেউ পড়তে পারবে</span>
+                        <span className="text-[11px] opacity-75">লিংক থাকা যে কেউ পড়তে পারবে</span>
                       </div>
                     </button>
-
                     <button
                       type="button"
                       onClick={() => setIsPublic(false)}
                       className={`p-3 rounded-2xl border text-left flex items-start gap-2.5 transition-all text-xs font-bengali ${
                         !isPublic
-                          ? 'border-rose-400 bg-rose-50/60 text-rose-900 shadow-2xs'
+                          ? 'border-rose-400 bg-rose-50/60 text-rose-900 shadow-xs'
                           : 'border-neutral-200 bg-neutral-50/40 text-neutral-600 hover:bg-neutral-50'
                       }`}
                     >
                       <Lock className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
                       <div>
                         <span className="font-bold block">প্রাইভেট (Private)</span>
-                        <span className="text-[11px] opacity-75">শুধুমাত্র আপনার ড্যাশবোর্ডে থাকবে</span>
+                        <span className="text-[11px] opacity-75">শুধুমাত্র আপনার ড্যাশবোর্ডে</span>
                       </div>
                     </button>
                   </div>
                 </div>
 
-                {/* 2. Expiration Option */}
+                {/* 2. Expiration */}
                 <div className="space-y-2">
                   <label className="block text-xs font-bengali font-bold text-neutral-700">
                     মেয়াদ নির্বাচন (Expire Option):
@@ -230,7 +273,7 @@ export function ShareLetterModal({
                         onClick={() => setExpiration(exp.id)}
                         className={`p-2.5 rounded-xl border text-center transition-all text-xs font-bengali ${
                           expiration === exp.id
-                            ? 'border-rose-400 bg-rose-50 text-rose-900 font-bold shadow-2xs'
+                            ? 'border-rose-400 bg-rose-50 text-rose-900 font-bold shadow-xs'
                             : 'border-neutral-200 bg-neutral-50/40 text-neutral-600 hover:bg-neutral-50'
                         }`}
                       >
@@ -248,7 +291,7 @@ export function ShareLetterModal({
                   </p>
                 )}
 
-                {/* Generate Action Button */}
+                {/* Generate Button */}
                 <button
                   type="button"
                   disabled={isLoading}
@@ -268,7 +311,7 @@ export function ShareLetterModal({
                 </button>
               </>
             ) : (
-              /* Result State: Generated Link Display & 4 Growth Action Buttons */
+              /* Result: Generated Link + Unified Share Buttons */
               <div className="space-y-4 text-center py-1 animate-in zoom-in-95 duration-200">
                 <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center mx-auto">
                   <Check className="w-6 h-6" />
@@ -285,25 +328,24 @@ export function ShareLetterModal({
                   </p>
                 </div>
 
-                {/* Link Box with Copy Button */}
+                {/* Link Box */}
                 <div className="p-3 bg-neutral-50 border border-neutral-200 rounded-2xl flex items-center justify-between gap-2">
                   <span className="font-mono text-xs text-neutral-800 truncate select-all">
                     {generatedUrl}
                   </span>
-
                   <button
                     type="button"
                     onClick={handleCopy}
                     className={`px-3 py-1.5 rounded-xl font-bengali text-xs font-semibold shrink-0 transition-all flex items-center gap-1 ${
                       copied
-                        ? 'bg-emerald-600 text-white shadow-emerald-200'
+                        ? 'bg-emerald-600 text-white'
                         : 'bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-100'
                     }`}
                   >
                     {copied ? (
                       <>
                         <Check className="w-3.5 h-3.5 text-white" />
-                        <span>কপি হয়েছে</span>
+                        <span>কপি হয়েছে</span>
                       </>
                     ) : (
                       <>
@@ -314,26 +356,53 @@ export function ShareLetterModal({
                   </button>
                 </div>
 
-                {/* 4 Growth Share & Download Buttons (WhatsApp, Facebook, Image Download, Read View) */}
+                {/* Share Status Feedback */}
+                {shareStatus && (
+                  <p className="text-xs font-bengali text-rose-600 font-semibold animate-in fade-in duration-200">
+                    {shareStatus.msg}
+                  </p>
+                )}
+
+                {/* Share Buttons — 6 options in a 2x3 grid */}
                 <div className="grid grid-cols-2 gap-2 pt-1">
-                  {/* WhatsApp Share */}
+                  {/* WhatsApp — unified via shareLetter() */}
                   <button
                     type="button"
                     onClick={handleWhatsAppShare}
-                    className="py-2.5 px-3 rounded-xl font-bengali text-xs font-semibold bg-[#25D366] hover:bg-[#20bd5a] text-white flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
+                    className="py-2.5 px-3 rounded-xl font-bengali text-xs font-semibold bg-[#25D366] hover:bg-[#20bd5a] text-white flex items-center justify-center gap-1.5 transition-colors shadow-xs"
                   >
                     <Share2 className="w-3.5 h-3.5" />
                     <span>হোয়াটসঅ্যাপ</span>
                   </button>
 
-                  {/* Facebook Share */}
+                  {/* Facebook */}
                   <button
                     type="button"
                     onClick={handleFacebookShare}
-                    className="py-2.5 px-3 rounded-xl font-bengali text-xs font-semibold bg-[#1877F2] hover:bg-[#166fe5] text-white flex items-center justify-center gap-1.5 transition-colors shadow-2xs"
+                    className="py-2.5 px-3 rounded-xl font-bengali text-xs font-semibold bg-[#1877F2] hover:bg-[#166fe5] text-white flex items-center justify-center gap-1.5 transition-colors shadow-xs"
                   >
                     <Share2 className="w-3.5 h-3.5" />
-                    <span>ফেসবুক শেয়ার</span>
+                    <span>ফেসবুক</span>
+                  </button>
+
+                  {/* Email */}
+                  <button
+                    type="button"
+                    onClick={handleEmailShare}
+                    className="py-2.5 px-3 rounded-xl font-bengali text-xs font-semibold bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 flex items-center justify-center gap-1.5 transition-colors"
+                  >
+                    <Mail className="w-3.5 h-3.5" />
+                    <span>ইমেইল</span>
+                  </button>
+
+                  {/* Native Share (Web Share API) */}
+                  <button
+                    type="button"
+                    onClick={handleNativeShare}
+                    className="py-2.5 px-3 rounded-xl font-bengali text-xs font-semibold bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200 flex items-center justify-center gap-1.5 transition-colors"
+                  >
+                    <Smartphone className="w-3.5 h-3.5" />
+                    <span>মোবাইল শেয়ার</span>
                   </button>
 
                   {/* Download Image Card */}
@@ -365,12 +434,13 @@ export function ShareLetterModal({
 
       {/* Visual Studio Modal for Image Download */}
       {showStudio && (
-        <div className="fixed inset-0 z-60 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 overflow-y-auto animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 overflow-y-auto animate-in fade-in duration-200">
           <div className="my-auto w-full">
             <VintageLetterVisualStudio
               letter={letter}
               receiverName={receiverName}
               relationship={relationship}
+              shareUrl={generatedUrl || undefined}
               onClose={() => setShowStudio(false)}
             />
           </div>

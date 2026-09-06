@@ -22,8 +22,8 @@ import {
   Scissors,
   Flame,
 } from 'lucide-react'
-import { buildWhatsAppUrl } from '@/utils/helpers'
 import { downloadFormattedTxt } from '@/lib/export-utils'
+import { shareLetter } from '@/lib/share-engine'
 import { WRITING_PERSONALITIES } from '@/constants'
 import type { EraStyle, Language, LetterLength } from '@/types'
 import type { RefineAction } from '@/lib/validations'
@@ -135,6 +135,8 @@ function LetterPreviewCardInner({
 
   // Feedback & Modal States
   const [copied, setCopied] = useState(false)
+  const [txtDownloaded, setTxtDownloaded] = useState(false)
+  const [whatsappSharing, setWhatsappSharing] = useState(false)
   const [showVisualStudio, setShowVisualStudio] = useState(false)
   const [showPdfModal, setShowPdfModal] = useState(false)
   const [showShareModal, setShowShareModal] = useState(false)
@@ -173,7 +175,20 @@ function LetterPreviewCardInner({
       receiverName,
       relationship,
     })
+    setTxtDownloaded(true)
+    setTimeout(() => setTxtDownloaded(false), 2500)
   }, [currentLetter, receiverName, relationship])
+
+  // Handle WhatsApp Share via universal share engine
+  const handleWhatsAppShare = useCallback(async () => {
+    setWhatsappSharing(true)
+    await shareLetter({
+      platform: 'whatsapp',
+      letterText: currentLetter,
+      receiverName,
+    })
+    setTimeout(() => setWhatsappSharing(false), 2000)
+  }, [currentLetter, receiverName])
 
   // Handle AI Refinement Request
   const handleRefine = useCallback(
@@ -262,9 +277,6 @@ function LetterPreviewCardInner({
     long: 'দীর্ঘ',
   }
 
-  const whatsappUrl = buildWhatsAppUrl(
-    `💌 তোমার জন্য একটি চিঠি এসেছে:\n\n${currentLetter}\n\n— চিঠি লেখাই AI (Chithi Lekhi AI)`
-  )
 
   return (
     <div className="w-full max-w-2xl mx-auto space-y-5 animate-in fade-in-50 duration-500">
@@ -547,7 +559,7 @@ function LetterPreviewCardInner({
           {copied ? (
             <>
               <Check className="w-4 h-4 text-white" />
-              <span>কপি হয়েছে!</span>
+              <span>কপি হয়েছে!</span>
             </>
           ) : (
             <>
@@ -557,32 +569,53 @@ function LetterPreviewCardInner({
           )}
         </button>
 
-        {/* WhatsApp Share Button */}
-        <a
-          href={whatsappUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bengali text-xs sm:text-sm font-medium bg-[#25D366] hover:bg-[#20bd5a] text-white shadow-xs transition-colors"
+        {/* WhatsApp Share Button — uses universal shareLetter() engine */}
+        <button
+          type="button"
+          onClick={handleWhatsAppShare}
+          disabled={whatsappSharing}
+          className={`flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bengali text-xs sm:text-sm font-medium shadow-xs transition-all ${
+            whatsappSharing
+              ? 'bg-[#25D366]/70 text-white cursor-not-allowed'
+              : 'bg-[#25D366] hover:bg-[#20bd5a] text-white'
+          }`}
         >
-          <Share2 className="w-4 h-4" />
+          {whatsappSharing ? (
+            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+          ) : (
+            <Share2 className="w-4 h-4" />
+          )}
           <span>হোয়াটসঅ্যাপ</span>
-        </a>
+        </button>
 
-        {/* Formatted TXT Export Button */}
+        {/* Formatted TXT Export Button — shows success feedback */}
         <button
           type="button"
           onClick={handleDownloadTxt}
-          className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bengali text-xs sm:text-sm font-medium bg-neutral-50 hover:bg-neutral-100 text-neutral-800 border border-neutral-200 transition-colors"
+          className={`flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bengali text-xs sm:text-sm font-medium transition-all ${
+            txtDownloaded
+              ? 'bg-emerald-600 text-white shadow-xs'
+              : 'bg-neutral-50 hover:bg-neutral-100 text-neutral-800 border border-neutral-200'
+          }`}
         >
-          <Download className="w-4 h-4 text-neutral-600" />
-          <span>ফরম্যাটেড TXT</span>
+          {txtDownloaded ? (
+            <>
+              <Check className="w-4 h-4 text-white" />
+              <span>TXT হয়েছে!</span>
+            </>
+          ) : (
+            <>
+              <Download className="w-4 h-4 text-neutral-600" />
+              <span>ফরম্যাটেড TXT</span>
+            </>
+          )}
         </button>
 
         {/* Print-Ready A4 Vintage PDF Button */}
         <button
           type="button"
           onClick={() => setShowPdfModal(true)}
-          className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bengali text-xs sm:text-sm font-semibold bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 transition-colors shadow-2xs"
+          className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bengali text-xs sm:text-sm font-semibold bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 transition-colors shadow-xs"
         >
           <Printer className="w-4 h-4 text-rose-600" />
           <span>এ৪ পিডিএফ</span>
