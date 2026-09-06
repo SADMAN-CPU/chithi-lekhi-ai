@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { generateLetterSchema } from '@/lib/validations'
-import { generateLetter } from '@/lib/openai'
+import { generateGeminiLetter } from '@/lib/gemini'
+import { analyzeEmotionalContext } from '@/lib/emotion-engine'
 import { createLetter } from '@/lib/supabase/letters'
 import { sanitizeInput } from '@/utils/helpers'
 import { checkRateLimit, createRateLimitResponse } from '@/lib/rate-limit'
@@ -8,7 +9,7 @@ import type { ApiError, GenerateLetterRequest, GenerateLetterResponse } from '@/
 
 export async function POST(request: NextRequest) {
   try {
-    // 1. Enforce Rate Limiting (5 requests per 60s per IP to protect OpenAI API limits)
+    // 1. Enforce Rate Limiting (5 requests per 60s per IP to protect OpenAI/Gemini API limits)
     const rateLimit = checkRateLimit(request, {
       limit: 5,
       windowSeconds: 60,
@@ -47,11 +48,18 @@ export async function POST(request: NextRequest) {
       language: data.language,
       category: data.category,
       style: data.style,
+      personality: data.personality || (data.style as GenerateLetterRequest['personality']),
       emotion: data.emotion ? sanitizeInput(data.emotion) : undefined,
     }
 
-    // Generate the personalized letter using our AI engine
-    const letter = await generateLetter(sanitizedParams)
+    // Phase 02: Perform deep emotional & psychological context analysis
+    const emotionalAnalysis = analyzeEmotionalContext(sanitizedParams)
+
+    // Phase 01 & 03: Generate personalized letter with Gemini AI enriched by the Emotion Understanding Layer
+    const { letter, provider } = await generateGeminiLetter(
+      sanitizedParams,
+      emotionalAnalysis.promptContext
+    )
 
     // Save generated letter in Supabase database (Phase 05)
     let letterId: string | undefined
@@ -89,6 +97,9 @@ export async function POST(request: NextRequest) {
         eraStyle: sanitizedParams.eraStyle,
         language: sanitizedParams.language,
         wordCount,
+        provider,
+        personality: sanitizedParams.personality || sanitizedParams.style,
+        emotionalTone: emotionalAnalysis.detectedEmotion.bengaliLabel,
       },
     }
 

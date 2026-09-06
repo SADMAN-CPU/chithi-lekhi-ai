@@ -84,9 +84,34 @@ function generatePersonalizedFallback(params: GenerateLetterRequest): string {
   }
 
   // Default: Bengali (বাংলা)
-  let letter = `প্রিয় ${name},\n\n`
+  const personality = params.personality || params.style
 
-  if (era === '90s-handwritten') {
+  let salutation = `প্রিয় ${name},`
+  if (personality === 'rabindranath-classical') {
+    salutation = `কল্যাণীয়া ${name},`
+  } else if (personality === 'funny-friend') {
+    salutation = `কী রে ${name},`
+  } else if (personality === 'romantic') {
+    salutation = `আমার প্রিয়তম ${name},`
+  }
+
+  let letter = `${salutation}\n\n`
+
+  if (personality === 'rabindranath-classical') {
+    letter += `দূর দিগন্তের ওপারে যখন সন্ধ্যার ছায়া গাঢ় হইয়া আসে, স্মৃতির শান্ত নদীর তীরে তোমার মুখচ্ছবি আসিয়া দাঁড়ায়। কত কথা সময়ের চরণে লীন হইয়া যায়, অথচ মনের অন্তস্তলে কিছু অবিনশ্বর ভাব চিরন্তন জ্যোতির্ময় হইয়া বিরাজ করে।\n\n`
+  } else if (personality === 'funny-friend') {
+    letter += `তোকে কোনোদিন এইভাবে চিঠি লিখব ভাবিনি রে! কিন্তু আজকে মনে হলো একটু খুনসুটি না করলে দিনটাই জমছে না। সেই যে চায়ের দোকানে বসে ঘণ্টার পর ঘণ্টা আড্ডা দিতাম—আজও ভাবলে হাসি পায়।\n\n`
+  } else if (personality === 'mature-apology') {
+    letter += `মানুষ ভুল করে, কিন্তু সেই ভুলের কারণে যদি তোমার হৃদয়ে আঘাত লেগে থাকে, তবে তার কোনো অজুহাত হয় না। আজ সব অহংকার ও দ্বিধা দূরে সরিয়ে অত্যন্ত বিনীতভাবে তোমার কাছে এই চিঠিটি লিখছি।\n\n`
+  } else if (personality === 'poetic') {
+    letter += `শ্রাবণের মেঘমেদুর আকাশের নিচে বসে আজ স্মৃতির আঙিনায় আলো ফেলেছি। কিছু অনুভূতি কবিতার মতো ছন্দ খোঁজে, কিছু কথা বৃষ্টিভেজা মাটির সোঁদা গন্ধের মতো বুকের ভেতরে ছড়িয়ে পড়ে।\n\n`
+  } else if (personality === 'romantic') {
+    letter += `প্রতিদিনের ব্যস্ততার মাঝে যখনই এক মুহূর্তের জন্য চোখ বুজি, কেবল তোমার মিষ্টি মুখটিই ভেসে ওঠে। তোমার ছোঁয়া, তোমার মৃদু হাসি আর একসাথে কাটানো মুহূর্তগুলো আমার জীবনের শ্রেষ্ঠ উপহার।\n\n`
+  } else if (personality === 'deep-emotional') {
+    letter += `কিছু অনুভূতি এতটাই গভীর যে তা মুখে বলতে গেলে কণ্ঠ রুদ্ধ হয়ে আসে। আজ বুকের ভেতরের সমস্ত গোপন আবেগ, দীর্ঘশ্বাস আর না-বলা আকুলতা এই সাদা কাগজের বুকে ঢেলে দিচ্ছি।\n\n`
+  } else if (personality === 'simple-human') {
+    letter += `কোনো জটিল কথা বলতে আসিনি, খুব সাধারণ আর সহজ ভাষায় তোমাকে মনের কথাটা জানাতে চাই। জীবনে অনেক মানুষ আসে-যায়, কিন্তু তোমার মতো আপন কেউ কখনো হতে পারেনি।\n\n`
+  } else if (era === '90s-handwritten') {
     letter += `আজ অনেক দিন পর ঝরনা কলম হাতে নিয়েছি। জানালার বাইরে মৃদু বাতাস আর সন্ধ্যার আলো নিভে আসার মুহূর্তে কেন যেন তোমার মুখটি বুকের ভেতর ভেসে উঠল। ডাকপিয়নের অপেক্ষায় কাটানো সেই পুরোনো দিনের মতো, প্রতিটি শব্দে আমার হৃদয় উজাড় করে দিচ্ছি।\n\n`
   } else if (era === 'vintage') {
     letter += `দূরত্বের কুয়াশাঘেরা সীমানা পেরিয়ে আজ স্মৃতির ওপারে তোমার ডাক শুনলাম। জীবনের ব্যস্ত স্রোতে কত কথা জমে থাকে, যা কখনো উচ্চারণ করা হয় না; অথচ মৌন নদীর মতো তা অহর্নিশ বয়ে চলে হৃদয়ের গহীনে।\n\n`
@@ -108,7 +133,15 @@ function generatePersonalizedFallback(params: GenerateLetterRequest): string {
     letter += `পৃথিবীর সব কোলাহল পেরিয়ে আমার সব প্রার্থনা যেন তোমার চারপাশেই আলো ছড়িয়ে রাখে। জীবনের যত ঝড়ই আসুক, জানবে দূরে থেকেও কেউ একজন নীরবে তোমার মঙ্গল কামনা করে চলেছে।\n\n`
   }
 
-  if (era === 'vintage') {
+  if (personality === 'rabindranath-classical') {
+    letter += `ইতি তোমার,\nচিরন্তন শুভানুধ্যায়ী`
+  } else if (personality === 'mature-apology') {
+    letter += `ক্ষমা ও শান্তির প্রত্যাশায়,\nতোমার অনুতপ্ত একজন`
+  } else if (personality === 'funny-friend') {
+    letter += `আড্ডার টেবিলে দেখা হবে,\nতোরই আজন্মের দোস্ত`
+  } else if (personality === 'romantic') {
+    letter += `অনন্ত ভালোবাসায়,\nচিরদিনের তোমার`
+  } else if (era === 'vintage') {
     letter += `ইতি,\nতোমার শুভানুধ্যায়ী`
   } else if (era === '90s-handwritten') {
     letter += `চিঠির অপেক্ষায়,\nতোমার একান্ত আপন`
@@ -119,6 +152,29 @@ function generatePersonalizedFallback(params: GenerateLetterRequest): string {
   return letter
 }
 
+/**
+ * Calculate optimal max_tokens based on script density and requested letter length.
+ * Bengali Unicode script requires ~2.5x-3.5x more BPE tokens per word than English.
+ */
+export function calculateOptimalTokens(
+  language: 'bengali' | 'english' | 'banglish' = 'bengali',
+  length: 'short' | 'medium' | 'long' = 'medium'
+): number {
+  switch (language) {
+    case 'bengali':
+      // Bengali Unicode script consumes ~2.8 tokens per word
+      // Short (~120 words): 450 tokens
+      // Medium (~250 words): 900 tokens
+      // Long (~450 words): 1500 tokens (guarantees complete sign-off without truncation)
+      return length === 'long' ? 1500 : length === 'short' ? 450 : 900
+    case 'banglish':
+      return length === 'long' ? 1000 : length === 'short' ? 350 : 700
+    case 'english':
+    default:
+      return length === 'long' ? 850 : length === 'short' ? 300 : 550
+  }
+}
+
 // ─── Main Letter Generator ───────────────────────────────────────────────────
 
 export async function generateLetter(params: GenerateLetterRequest): Promise<string> {
@@ -126,7 +182,7 @@ export async function generateLetter(params: GenerateLetterRequest): Promise<str
 
   if (openaiClient) {
     try {
-      const maxTokens = params.letterLength === 'long' ? 900 : params.letterLength === 'short' ? 350 : 600
+      const maxTokens = calculateOptimalTokens(params.language, params.letterLength)
 
       const completion = await openaiClient.chat.completions.create({
         model: 'gpt-4o-mini',
@@ -140,7 +196,9 @@ export async function generateLetter(params: GenerateLetterRequest): Promise<str
             content: prompt,
           },
         ],
-        temperature: 0.88,
+        temperature: 0.82,
+        presence_penalty: 0.3,
+        frequency_penalty: 0.1,
         max_tokens: maxTokens,
       })
 

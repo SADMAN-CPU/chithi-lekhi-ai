@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { buildWhatsAppUrl, formatDate } from '@/utils/helpers'
+import { RELATIONSHIP_OPTIONS } from '@/constants'
 import type { LetterRow } from '@/types/database'
 import { VintageLetterVisualStudio } from '@/components/letter/VintageLetterVisualStudio'
 
@@ -305,12 +306,11 @@ export default function DashboardPage() {
                   className="py-2.5 px-3 rounded-xl border border-neutral-200 bg-white text-xs sm:text-sm font-bengali text-neutral-700 outline-none focus:border-rose-400 transition-all shadow-2xs"
                 >
                   <option value="all">সব সম্পর্ক</option>
-                  <option value="first-love">প্রথম ভালোবাসা</option>
-                  <option value="husband-wife">স্বামী / স্ত্রী</option>
-                  <option value="best-friend">প্রিয় বন্ধু</option>
-                  <option value="family">পরিবার</option>
-                  <option value="lost-connection">হারিয়ে যাওয়া যোগাযোগ</option>
-                  <option value="someone-special">বিশেষ কেউ</option>
+                  {RELATIONSHIP_OPTIONS.map((rel) => (
+                    <option key={rel.value} value={rel.value}>
+                      {rel.emoji} {rel.label}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>

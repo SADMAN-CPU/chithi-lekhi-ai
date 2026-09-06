@@ -12,11 +12,13 @@ import {
   RELATIONSHIP_OPTIONS,
   ERA_STYLE_OPTIONS,
   LETTER_LENGTH_OPTIONS,
+  WRITING_PERSONALITIES,
   LANGUAGES,
   MEMORY_SUGGESTIONS,
   SITUATION_SUGGESTIONS,
   FEELING_SUGGESTIONS,
 } from '@/constants'
+import { getErrorMessage } from '@/utils/helpers'
 import type {
   GenerateLetterRequest,
   GenerateLetterResponse,
@@ -24,6 +26,7 @@ import type {
   EraStyle,
   LetterLength,
   Language,
+  WritingPersonality,
 } from '@/types'
 
 interface EmotionalStorytellerFormProps {
@@ -39,6 +42,9 @@ export function EmotionalStorytellerForm({
   const [receiverName, setReceiverName] = useState(initialValues?.receiverName || '')
   const [relationship, setRelationship] = useState<Relationship>(
     (initialValues?.relationship as Relationship) || 'first-love'
+  )
+  const [personality, setPersonality] = useState<WritingPersonality>(
+    (initialValues?.personality as WritingPersonality) || 'deep-emotional'
   )
   const [memory, setMemory] = useState(initialValues?.memory || '')
   const [situation, setSituation] = useState(initialValues?.situation || '')
@@ -60,6 +66,7 @@ export function EmotionalStorytellerForm({
   const fillSampleStory = () => {
     setReceiverName('তানিয়া')
     setRelationship('first-love')
+    setPersonality('90s-handwritten')
     setMemory('টিএসসির চায়ের দোকানে সেই বৃষ্টিভেজা বিকেলে তোমার ভেজা কাজল আর একটুকরো মিষ্টি হাসি')
     setSituation('অনেক দিন হলো আমাদের কথা হয় না, সময়ের স্রোতে দুজন দুদিকে ব্যস্ত')
     setFeeling('তীব্র মিস করছি তোমাকে, বুকের ভেতর আজও সেই পুরোনো অনুভূতি তেমনি জীবন্ত')
@@ -100,6 +107,8 @@ export function EmotionalStorytellerForm({
       letterLength,
       eraStyle,
       language,
+      personality,
+      style: personality,
     }
 
     try {
@@ -114,15 +123,17 @@ export function EmotionalStorytellerForm({
       const data: GenerateLetterResponse = await res.json()
 
       if (!res.ok || !data.success) {
-        throw new Error(data.error || 'চিঠি তৈরি করতে সমস্যা হয়েছে। আবার চেষ্টা করুন।')
+        const message = getErrorMessage(
+          data.error,
+          'চিঠি তৈরি করতে সমস্যা হয়েছে। অনুগ্রহ করে পুনরায় চেষ্টা করুন।'
+        )
+        throw new Error(message)
       }
 
       onLetterGenerated(data, payload)
     } catch (err: unknown) {
       console.error('Letter generation error:', err)
-      setError(
-        err instanceof Error ? err.message : 'চিঠি তৈরিতে কিছু সমস্যা হয়েছে। পুনরায় চেষ্টা করুন।'
-      )
+      setError(getErrorMessage(err))
     } finally {
       clearInterval(stepInterval)
       setLoading(false)
@@ -382,10 +393,59 @@ export function EmotionalStorytellerForm({
           </div>
         </div>
 
+        {/* The 8 Writing Personalities (Phase 03) */}
+        <div className="space-y-2.5">
+          <div className="flex items-center justify-between">
+            <label className="block text-sm font-bengali font-medium text-neutral-800">
+              চিঠির লেখনী ব্যক্তিত্ব ও মেজাজ (Writing Personality) <span className="text-rose-500">*</span>
+            </label>
+            <span className="text-[11px] font-bengali text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200/60 font-medium">
+              ৮টি অনন্য মানবিক সুর
+            </span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {WRITING_PERSONALITIES.map((p) => {
+              const selected = personality === p.value
+              return (
+                <button
+                  key={p.value}
+                  type="button"
+                  onClick={() => {
+                    setPersonality(p.value)
+                    if (p.value === '90s-handwritten') setEraStyle('90s-handwritten')
+                    else if (p.value === 'rabindranath-classical') setEraStyle('vintage')
+                    else if (p.value === 'simple-human') setEraStyle('modern')
+                  }}
+                  className={`p-2.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
+                    selected
+                      ? 'border-rose-400 bg-rose-50/90 ring-1 ring-rose-300 shadow-xs'
+                      : 'border-neutral-200 hover:border-neutral-300 bg-white hover:bg-neutral-50/60'
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className="text-base">{p.emoji}</span>
+                      <span className="font-bengali font-bold text-xs sm:text-sm text-neutral-900 leading-tight">
+                        {p.label}
+                      </span>
+                    </div>
+                    <p className="text-[10px] font-bengali text-neutral-500 line-clamp-2 leading-tight">
+                      {p.tagline}
+                    </p>
+                  </div>
+                  <span className="text-[9px] text-neutral-400 font-sans mt-2 block">
+                    {p.labelEn}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
         {/* 7. Era Style */}
-        <div className="space-y-2">
+        <div className="space-y-2 pt-1">
           <label className="block text-sm font-bengali font-medium text-neutral-800">
-            চিঠির যুগ ও সুর (Era Style)
+            চিঠির যুগ ও আবহ (Era Setting)
           </label>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
             {ERA_STYLE_OPTIONS.map((era) => {

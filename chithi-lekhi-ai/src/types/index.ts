@@ -11,6 +11,12 @@ export type LetterCategory =
 
 /** Phase 02 & 03: Relationship types for emotional storytelling context */
 export type Relationship =
+  | 'lover'
+  | 'mother'
+  | 'father'
+  | 'friend'
+  | 'lost-person'
+  | 'special-person'
   | 'first-love'
   | 'husband-wife'
   | 'best-friend'
@@ -20,14 +26,32 @@ export type Relationship =
 
 /** Phase 02: Structured emotion values */
 export type LetterEmotion =
+  | 'love'
   | 'missing-someone'
-  | 'love-confession'
   | 'apology'
   | 'gratitude'
+  | 'sadness'
+  | 'happiness'
+  | 'motivation'
+  | 'nostalgia'
+  | 'love-confession'
   | 'goodbye'
   | 'reunion'
 
+/** Phase 03: The 8 Advanced Writing Personalities */
+export type WritingPersonality =
+  | 'deep-emotional'
+  | 'romantic'
+  | 'poetic'
+  | 'rabindranath-classical'
+  | '90s-handwritten'
+  | 'simple-human'
+  | 'funny-friend'
+  | 'mature-apology'
+
+/** Writing style union combining advanced personalities with legacy aliases for 100% backward compatibility */
 export type WritingStyle =
+  | WritingPersonality
   | 'vintage'
   | 'romantic'
   | 'emotional'
@@ -111,6 +135,7 @@ export interface GenerateLetterRequest {
   language: Language
   category?: LetterCategory
   style?: WritingStyle
+  personality?: WritingPersonality | WritingStyle
   emotion?: string
 }
 
@@ -118,7 +143,7 @@ export interface GenerateLetterResponse {
   success: boolean
   letter: string
   letterId?: string
-  error?: string
+  error?: string | ApiError
   metadata?: {
     receiverName: string
     relationship: string
@@ -126,6 +151,9 @@ export interface GenerateLetterResponse {
     eraStyle: EraStyle
     language: Language
     wordCount: number
+    provider?: 'gemini' | 'openai' | 'fallback'
+    personality?: string
+    emotionalTone?: string
   }
 }
 

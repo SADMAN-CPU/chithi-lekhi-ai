@@ -1,6 +1,7 @@
 import type {
   LetterCategory,
   WritingStyle,
+  WritingPersonality,
   Language,
   LetterEmoji,
   Relationship,
@@ -69,7 +70,7 @@ export const LETTER_CATEGORIES: Array<{
   },
 ] as const
 
-// ─── Relationships (Phase 02 & 03) ──────────────────────────────────────────
+// ─── Relationships (Phase 02 & 03: Primary 6 + Specific Nuances) ──────────────
 
 export const RELATIONSHIP_OPTIONS: Array<{
   value: Relationship
@@ -78,6 +79,13 @@ export const RELATIONSHIP_OPTIONS: Array<{
   emoji: string
   description: string
 }> = [
+  {
+    value: 'lover',
+    label: 'প্রেমিক / প্রেমিকা',
+    labelEn: 'Lover / Partner',
+    emoji: '🌹',
+    description: 'হৃদয়ের গভীরতম ভালোবাসার মানুষ',
+  },
   {
     value: 'first-love',
     label: 'প্রথম ভালোবাসা',
@@ -93,6 +101,27 @@ export const RELATIONSHIP_OPTIONS: Array<{
     description: 'জীবনের সাথী, একসাথে চলার গভীর বন্ধন',
   },
   {
+    value: 'mother',
+    label: 'মা (Mother)',
+    labelEn: 'Mother',
+    emoji: '🤱',
+    description: 'স্নেহের আঁচল, নিঃস্বার্থ ত্যাগ ও পরম আশ্রয়',
+  },
+  {
+    value: 'father',
+    label: 'বাবা (Father)',
+    labelEn: 'Father',
+    emoji: '🌿',
+    description: 'নিঃশব্দ বটবৃক্ষের মতো ভরসার ছায়া ও প্রেরণা',
+  },
+  {
+    value: 'friend',
+    label: 'বন্ধু (Friend)',
+    labelEn: 'Friend',
+    emoji: '🤝',
+    description: 'প্রাণখোলা আড্ডা, নির্ভেজাল টান ও আজীবনের সঙ্গী',
+  },
+  {
     value: 'best-friend',
     label: 'প্রিয় বন্ধু',
     labelEn: 'Best Friend',
@@ -104,20 +133,34 @@ export const RELATIONSHIP_OPTIONS: Array<{
     label: 'পরিবার / আত্মীয়',
     labelEn: 'Family',
     emoji: '🏡',
-    description: 'মা, বাবা, ভাই, বোন বা প্রিয় স্বজন',
+    description: 'ভাই, বোন বা পরিবারের প্রিয় স্বজন',
+  },
+  {
+    value: 'lost-person',
+    label: 'হারিয়ে যাওয়া মানুষ',
+    labelEn: 'Lost Person',
+    emoji: '🍂',
+    description: 'স্মৃতির ওপারে হারিয়ে যাওয়া চিরচেনা কেউ',
   },
   {
     value: 'lost-connection',
     label: 'হারিয়ে যাওয়া যোগাযোগ',
     labelEn: 'Lost Connection',
-    emoji: '🍂',
+    emoji: '⏳',
     description: 'সময়ের স্রোতে দূরে সরে যাওয়া কেউ',
   },
   {
-    value: 'someone-special',
+    value: 'special-person',
     label: 'বিশেষ কেউ',
-    labelEn: 'Someone Special',
+    labelEn: 'Special Person',
     emoji: '✨',
+    description: 'অনুচ্চারিত ভালোলাগা ও দূরবর্তী মুগ্ধতা',
+  },
+  {
+    value: 'someone-special',
+    label: 'গোপন প্রিয়জন',
+    labelEn: 'Someone Special',
+    emoji: '💫',
     description: 'যাকে দূর থেকে ভালোবেসেছি বা গোপনে ভাবি',
   },
 ] as const
@@ -226,6 +269,149 @@ export const FEELING_SUGGESTIONS: string[] = [
   'নীরব শুভকামনা ও তোমাকে ভালো রাখার প্রার্থনা',
   'একাকিত্বে তোমার উপস্থিতি তীব্রভাবে অনুভব করা',
 ]
+
+// ─── Emotion Options (Phase 02) ───────────────────────────────────────────────
+
+export const EMOTION_OPTIONS: Array<{
+  value: string
+  label: string
+  labelEn: string
+  emoji: string
+  description: string
+}> = [
+  {
+    value: 'love',
+    label: 'ভালোবাসা',
+    labelEn: 'Love',
+    emoji: '💕',
+    description: 'হৃদয়ের গভীরতম ভালোবাসা ও অবিচ্ছেদ্য টান',
+  },
+  {
+    value: 'missing-someone',
+    label: 'তীব্র মিস করছি',
+    labelEn: 'Missing Someone',
+    emoji: '🌙',
+    description: 'অনুপস্থিতির তীব্র শূন্যতা ও স্মৃতির গভীর দীর্ঘশ্বাস',
+  },
+  {
+    value: 'apology',
+    label: 'ক্ষমাপ্রার্থনা',
+    labelEn: 'Apology',
+    emoji: '🙏',
+    description: 'অকপট অনুশোচনা, ভুলের দায় স্বীকার ও শান্তি স্থাপন',
+  },
+  {
+    value: 'gratitude',
+    label: 'কৃতজ্ঞতা',
+    labelEn: 'Gratitude',
+    emoji: '✨',
+    description: 'জীবনের কঠিন সময়ে আলো হয়ে পাশে থাকার স্বীকৃতি',
+  },
+  {
+    value: 'sadness',
+    label: 'মনখারাপ ও বিষাদ',
+    labelEn: 'Sadness',
+    emoji: '🌧️',
+    description: 'মনের ভেতরের চাপা কান্না ও বেদনাময় অনুভূতি',
+  },
+  {
+    value: 'happiness',
+    label: 'আনন্দ ও উচ্ছ্বাস',
+    labelEn: 'Happiness',
+    emoji: '🎉',
+    description: 'জীবনের আনন্দের মুহূর্তগুলোকে প্রিয়জনের সাথে ভাগ করে নেওয়া',
+  },
+  {
+    value: 'motivation',
+    label: 'অনুপ্রেরণা ও সাহস',
+    labelEn: 'Motivation',
+    emoji: '🔥',
+    description: 'হতাশা কাটিয়ে নতুন করে মাথা তুলে দাঁড়ানোর প্রত্যয়',
+  },
+  {
+    value: 'nostalgia',
+    label: 'নস্টালজিয়া ও পুরোনো স্মৃতি',
+    labelEn: 'Nostalgia',
+    emoji: '📻',
+    description: 'ফেলে আসা সোনালী দিন ও শৈশবের অমলিন স্মৃতি',
+  },
+] as const
+
+// ─── The 8 Advanced Writing Personalities (Phase 03) ──────────────────────────
+
+export const WRITING_PERSONALITIES: Array<{
+  value: WritingPersonality
+  label: string
+  labelEn: string
+  emoji: string
+  tagline: string
+  description: string
+}> = [
+  {
+    value: 'deep-emotional',
+    label: 'গভীর আবেগময়',
+    labelEn: 'Deep Emotional',
+    emoji: '🌊',
+    tagline: 'হৃদয়ের অন্তঃস্থল ছোঁয়া তীব্র অনুভব',
+    description: 'অকপট আকুলতা, চোখের কোণে জল এনে দেওয়ার মতো খাঁটি অনুভূতি ও মনের অব্যক্ত কথা।',
+  },
+  {
+    value: 'romantic',
+    label: 'রোমান্টিক',
+    labelEn: 'Romantic',
+    emoji: '🌹',
+    tagline: 'মধুর প্রেম ও অনুরাগের মিষ্টি কথন',
+    description: 'মুগ্ধতা, আদুরে কথন, হৃদস্পন্দনের উষ্ণতা এবং ভালোবাসার নিবিড় অনুভূতি।',
+  },
+  {
+    value: 'poetic',
+    label: 'কাব্যিক',
+    labelEn: 'Poetic',
+    emoji: '🕊️',
+    tagline: 'ছন্দময় রূপক ও নান্দনিক সাহিত্য',
+    description: 'বৃষ্টি, মেঘ, জোছনা ও অনুভূতির মায়াবী মেলবন্ধন; প্রতিটি বাক্যে কবিতার সুর।',
+  },
+  {
+    value: 'rabindranath-classical',
+    label: 'রবীন্দ্র-ধাঁচের ধ্রুপদী চিঠি',
+    labelEn: 'Rabindranath Classical',
+    emoji: '📜',
+    tagline: 'ছিন্নপত্রের ধ্রুপদী ভাব ও গভীর দর্শন',
+    description: 'শান্তিনিকেতনী আভিজাত্য, গোধূলির আলো, স্মৃতিকথা ও ধ্রুপদী বাংলা ভাষার অনুপম মাধুর্য।',
+  },
+  {
+    value: '90s-handwritten',
+    label: '৯০-এর হাতে লেখা ডাকচিঠি',
+    labelEn: '90s Handwritten',
+    emoji: '✉️',
+    tagline: 'নীল খাম, ঝরনা কলম ও মিষ্টি অপেক্ষা',
+    description: 'ডাকপিয়নের ঘণ্টার শব্দ, হারমোনিয়ামের সুর আর ক্যাসেট যুগের নিখাদ নস্টালজিয়া।',
+  },
+  {
+    value: 'simple-human',
+    label: 'সহজ ও সাবলীল মানুষের কথন',
+    labelEn: 'Simple Natural Human',
+    emoji: '☕',
+    tagline: 'কৃত্রিমতাহীন সহজ আন্তরিক কথন',
+    description: 'কোনো জটিলতা ছাড়া সাধারণ মানুষের মতো খোলামেলা ও মনছোঁয়া কথাবার্তা।',
+  },
+  {
+    value: 'funny-friend',
+    label: 'মজার বন্ধুত্বের চিঠি',
+    labelEn: 'Funny Friendship',
+    emoji: '🎈',
+    tagline: 'খুনসুটি, হাসি আর নির্ভেজাল টান',
+    description: 'একটু খোঁটা দেওয়া, পুরোনো দিনের আড্ডার স্মৃতি আর মজাদার খুনসুটিতে ভরা বন্ধুত্ব।',
+  },
+  {
+    value: 'mature-apology',
+    label: 'গম্ভীর ও পরিপক্ব ক্ষমাপ্রার্থনা',
+    labelEn: 'Mature Apology',
+    emoji: '🌱',
+    tagline: 'অকপট অনুশোচনা ও শান্তির প্রয়াস',
+    description: 'কোনো অজুহাত ছাড়া ভুলের শান্ত দায় স্বীকার, আত্মমর্যাদা ও ক্ষমা চাওয়ার মার্জিত রূপ।',
+  },
+] as const
 
 // ─── Writing Styles ───────────────────────────────────────────────────────────
 

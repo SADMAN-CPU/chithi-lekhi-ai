@@ -29,12 +29,39 @@ export const generateLetterSchema = z.object({
   eraStyle: z.enum(['modern', '90s-handwritten', 'vintage']).default('90s-handwritten'),
   language: z.enum(['bengali', 'english', 'banglish']).default('bengali'),
 
-  // Optional fields for backward compatibility with earlier specs
+  // Optional fields for backward compatibility and Phase 03 8 Personalities
+  personality: z
+    .enum([
+      'deep-emotional',
+      'romantic',
+      'poetic',
+      'rabindranath-classical',
+      '90s-handwritten',
+      'simple-human',
+      'funny-friend',
+      'mature-apology',
+    ])
+    .optional(),
   category: z
     .enum(['love', 'friendship', 'family', 'apology', 'missing', 'motivation', 'secret'])
     .optional(),
   style: z
-    .enum(['vintage', 'romantic', 'emotional', 'deep', 'simple', 'mature', 'poetic', 'funny'])
+    .enum([
+      'deep-emotional',
+      'romantic',
+      'poetic',
+      'rabindranath-classical',
+      '90s-handwritten',
+      'simple-human',
+      'funny-friend',
+      'mature-apology',
+      'vintage',
+      'emotional',
+      'deep',
+      'simple',
+      'mature',
+      'funny',
+    ])
     .optional(),
   emotion: z.string().max(100).optional(),
 })

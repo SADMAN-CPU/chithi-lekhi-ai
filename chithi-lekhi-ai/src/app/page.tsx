@@ -88,6 +88,7 @@ export default function Home() {
               eraStyle={lastRequest.eraStyle}
               language={lastRequest.language}
               letterLength={lastRequest.letterLength}
+              personality={lastRequest.personality}
               onReset={handleReset}
               onEdit={handleEdit}
             />

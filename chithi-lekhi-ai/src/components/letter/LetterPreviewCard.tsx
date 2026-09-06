@@ -13,6 +13,7 @@ import {
   Image as ImageIcon,
 } from 'lucide-react'
 import { buildWhatsAppUrl } from '@/utils/helpers'
+import { WRITING_PERSONALITIES } from '@/constants'
 import type { EraStyle, Language, LetterLength } from '@/types'
 import { VintageLetterVisualStudio } from './VintageLetterVisualStudio'
 
@@ -24,6 +25,7 @@ interface LetterPreviewCardProps {
   eraStyle: EraStyle
   language: Language
   letterLength: LetterLength
+  personality?: string
   onReset: () => void
   onEdit: () => void
 }
@@ -36,6 +38,7 @@ export function LetterPreviewCard({
   eraStyle,
   language,
   letterLength,
+  personality,
   onReset,
   onEdit,
 }: LetterPreviewCardProps) {
@@ -105,7 +108,16 @@ export function LetterPreviewCard({
         })
         const data = await res.json()
         if (data.success && data.shareUrl) {
-          await navigator.clipboard.writeText(data.shareUrl)
+          try {
+            await navigator.clipboard.writeText(data.shareUrl)
+          } catch {
+            const textarea = document.createElement('textarea')
+            textarea.value = data.shareUrl
+            document.body.appendChild(textarea)
+            textarea.select()
+            document.execCommand('copy')
+            document.body.removeChild(textarea)
+          }
           setCopiedShareLink(true)
           setTimeout(() => setCopiedShareLink(false), 3000)
         }
@@ -154,6 +166,12 @@ export function LetterPreviewCard({
           <span className="text-[11px] text-neutral-600 bg-neutral-100 px-2 py-0.5 rounded-md font-bengali">
             {languageLabels[language]} • {lengthLabels[letterLength]}
           </span>
+          {personality && (
+            <span className="text-[11px] text-rose-700 bg-rose-50 border border-rose-200/60 px-2 py-0.5 rounded-md font-bengali font-medium">
+              {WRITING_PERSONALITIES.find((p) => p.value === personality)?.emoji}{' '}
+              {WRITING_PERSONALITIES.find((p) => p.value === personality)?.label || personality}
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-2">

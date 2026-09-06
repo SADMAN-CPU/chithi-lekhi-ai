@@ -65,3 +65,42 @@ export function sanitizeInput(input: string): string {
   return clean.trim()
 }
 
+/**
+ * Safely extract human-readable error string from various error formats:
+ * - Plain string
+ * - ApiError object ({ message, code, status })
+ * - Error instance (err.message)
+ * - Nested { error: ... } objects
+ * - Prevents [object Object] rendering in UI
+ */
+export function getErrorMessage(
+  error: unknown,
+  fallback = 'চিঠি তৈরিতে কিছু সমস্যা হয়েছে। অনুগ্রহ করে পুনরায় চেষ্টা করুন।'
+): string {
+  if (!error) return fallback
+
+  if (typeof error === 'string') {
+    const trimmed = error.trim()
+    return trimmed.length > 0 ? trimmed : fallback
+  }
+
+  if (error instanceof Error) {
+    return error.message || fallback
+  }
+
+  if (typeof error === 'object') {
+    const record = error as Record<string, unknown>
+
+    if (typeof record.message === 'string' && record.message.trim()) {
+      return record.message.trim()
+    }
+
+    if ('error' in record) {
+      return getErrorMessage(record.error, fallback)
+    }
+  }
+
+  return fallback
+}
+
+
