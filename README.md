@@ -1,7 +1,9 @@
 # 💌 Chithi Lekhi AI
 
 <p align="center">
-  <img src="./docs/assets/logo.png" width="180" alt="Chithi Lekhi AI Logo"/>
+ <p align="center">
+  <img src="https://raw.githubusercontent.com/SADMAN-CPU/chithi-lekhi-ai/main/public/logo.png" width="180" alt="Chithi Lekhi AI Logo"/>
+</p>
 </p>
 
 <h1 align="center">
