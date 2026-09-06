@@ -46,8 +46,12 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // 2. Local session fallback cookie check (for development testing)
-  if (!isAuthenticated) {
+  // 2. Local session fallback cookie check (DEVELOPMENT ONLY)
+  // SECURITY NOTICE:
+  // In production (NODE_ENV === 'production'), client-forged cookies (chithi_session)
+  // MUST NEVER be trusted to authenticate or bypass middleware protection.
+  // Access control must strictly depend on verified Supabase Auth JWT sessions.
+  if (!isAuthenticated && process.env.NODE_ENV !== 'production') {
     const demoCookie = request.cookies.get('chithi_session')
     if (demoCookie?.value) {
       isAuthenticated = true

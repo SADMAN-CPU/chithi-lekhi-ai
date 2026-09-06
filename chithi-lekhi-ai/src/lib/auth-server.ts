@@ -7,8 +7,7 @@ export interface ServerUser {
 }
 
 /**
- * Safely verify the current authenticated user on the server.
- * Checks live Supabase session first, then falls back to session cookie.
+ * Check if live Supabase service is configured with valid credentials.
  */
 export const isSupabaseConfigured = Boolean(
   process.env.NEXT_PUBLIC_SUPABASE_URL &&
@@ -17,10 +16,28 @@ export const isSupabaseConfigured = Boolean(
 )
 
 /**
- * Safely verify the current authenticated user on the server.
- * Checks live Supabase session first, then falls back to session cookie.
+ * Server-side authentication session verifier.
+ *
+ * ============================================================================
+ * CRITICAL SECURITY ARCHITECTURE NOTICE:
+ * ============================================================================
+ * - In PRODUCTION (`NODE_ENV === 'production'`):
+ *   Authentication MUST strictly and exclusively verify cryptographic JWT tokens
+ *   via Supabase Auth (`supabase.auth.getUser()`).
+ *   Under NO circumstances is an unverified, client-supplied cookie (such as
+ *   `chithi_session`) trusted in production. Trusting unsigned client cookies in
+ *   production allows arbitrary UUID impersonation, IDOR, and account takeover.
+ *
+ * - In DEVELOPMENT (`NODE_ENV !== 'production'`):
+ *   A local fallback cookie (`chithi_session`) is permitted ONLY for local offline
+ *   UI previewing and mock end-to-end testing when live Supabase credentials or
+ *   local SMTP are not configured.
+ * ============================================================================
  */
 export async function getServerUser(): Promise<ServerUser | null> {
+  const isProduction = process.env.NODE_ENV === 'production'
+
+  // 1. Primary & Production Auth: Cryptographically verified Supabase Auth session
   if (isSupabaseConfigured) {
     try {
       const supabase = await createClient()
@@ -32,11 +49,17 @@ export async function getServerUser(): Promise<ServerUser | null> {
         return { id: user.id, email: user.email }
       }
     } catch (err) {
-      console.warn('[getServerUser] Supabase session check error:', err)
+      console.warn('[getServerUser] Supabase session verification error:', err)
     }
   }
 
-  // Fallback session cookie for development and local testing
+  // 2. In PRODUCTION: Never trust client-forged cookies or unverified fallback tokens.
+  if (isProduction) {
+    return null
+  }
+
+  // 3. DEVELOPMENT ONLY: Unsigned session cookie for offline/local test mocking.
+  // SECURITY: This block is unreachable in production (process.env.NODE_ENV === 'production').
   try {
     const cookieStore = await cookies()
     const demoCookie = cookieStore.get('chithi_session')
@@ -44,7 +67,7 @@ export async function getServerUser(): Promise<ServerUser | null> {
       return { id: demoCookie.value }
     }
   } catch {
-    // If called in a context where cookies cannot be read
+    // If called in an environment where cookies cannot be read (e.g. static generation)
   }
 
   return null

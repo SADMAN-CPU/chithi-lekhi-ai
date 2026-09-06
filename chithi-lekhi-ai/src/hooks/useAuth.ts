@@ -113,6 +113,16 @@ export function useAuth() {
     setLoading(false)
   }
 
+  const resetPassword = async (email: string) => {
+    const { resetPasswordForEmail } = await import('@/lib/auth')
+    return resetPasswordForEmail(email)
+  }
+
+  const updatePassword = async (newPassword: string) => {
+    const { updateUserPassword } = await import('@/lib/auth')
+    return updateUserPassword(newPassword)
+  }
+
   return {
     user,
     loading,
@@ -120,6 +130,8 @@ export function useAuth() {
     signIn,
     signUp,
     signOut,
+    resetPassword,
+    updatePassword,
     refreshUser,
   }
 }

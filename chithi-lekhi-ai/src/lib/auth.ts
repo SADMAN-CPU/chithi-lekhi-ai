@@ -35,8 +35,8 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     }
   }
 
-  // Check fallback local session in browser
-  if (typeof window !== 'undefined') {
+  // Check fallback local session in browser (DEVELOPMENT ONLY)
+  if (process.env.NODE_ENV !== 'production' && typeof window !== 'undefined') {
     const raw = localStorage.getItem(DEMO_USER_KEY)
     if (raw) {
       try {
@@ -77,7 +77,12 @@ export async function signInWithEmail(email: string, password: string): Promise<
     }
   }
 
-  // Fallback demo login (useful for previewing without live SMTP)
+  // SECURITY: In production, never permit insecure fallback demo login.
+  if (process.env.NODE_ENV === 'production') {
+    return { user: null, error: 'Authentication service is not configured or unavailable.' }
+  }
+
+  // Fallback demo login (DEVELOPMENT ONLY: useful for local preview without live SMTP)
   const demoUser: AuthUser = {
     id: 'user-' + btoa(email).slice(0, 8),
     email,
@@ -86,7 +91,7 @@ export async function signInWithEmail(email: string, password: string): Promise<
 
   if (typeof window !== 'undefined') {
     localStorage.setItem(DEMO_USER_KEY, JSON.stringify(demoUser))
-    // Also set demo cookie for proxy middleware
+    // Also set demo cookie for proxy middleware in dev
     document.cookie = `chithi_session=${demoUser.id}; path=/; max-age=86400`
   }
 
@@ -124,7 +129,12 @@ export async function signUpWithEmail(email: string, password: string, name?: st
     }
   }
 
-  // Fallback demo signup
+  // SECURITY: In production, never permit insecure fallback demo signup.
+  if (process.env.NODE_ENV === 'production') {
+    return { user: null, error: 'Registration service is not configured or unavailable.' }
+  }
+
+  // Fallback demo signup (DEVELOPMENT ONLY)
   const demoUser: AuthUser = {
     id: 'user-' + btoa(email).slice(0, 8),
     email,
@@ -153,4 +163,62 @@ export async function signOutUser(): Promise<void> {
     localStorage.removeItem(DEMO_USER_KEY)
     document.cookie = 'chithi_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
   }
+}
+
+export async function resetPasswordForEmail(
+  email: string
+): Promise<{ success: boolean; error: string | null }> {
+  if (!email || !email.includes('@')) {
+    return { success: false, error: 'অনুগ্রহ করে সঠিক ইমেইল ঠিকানা প্রদান করুন' }
+  }
+
+  if (isConfigured) {
+    try {
+      const supabase = createClient()
+      const origin =
+        typeof window !== 'undefined' ? window.location.origin : 'https://chithilekhi.com'
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${origin}/login?passwordReset=true`,
+      })
+
+      if (error) {
+        return { success: false, error: error.message }
+      }
+      return { success: true, error: null }
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'পাসওয়ার্ড রিসেট লিংক পাঠাতে সমস্যা হয়েছে',
+      }
+    }
+  }
+
+  // Fallback demo mode
+  return { success: true, error: null }
+}
+
+export async function updateUserPassword(
+  newPassword: string
+): Promise<{ success: boolean; error: string | null }> {
+  if (!newPassword || newPassword.length < 6) {
+    return { success: false, error: 'পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে' }
+  }
+
+  if (isConfigured) {
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.auth.updateUser({ password: newPassword })
+      if (error) {
+        return { success: false, error: error.message }
+      }
+      return { success: true, error: null }
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'পাসওয়ার্ড আপডেট করতে সমস্যা হয়েছে',
+      }
+    }
+  }
+
+  return { success: true, error: null }
 }

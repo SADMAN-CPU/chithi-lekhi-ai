@@ -1,38 +1,56 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useCallback } from 'react'
+import dynamic from 'next/dynamic'
 import { Navbar } from '@/components/layout/Navbar'
 import { EmotionalStorytellerForm } from '@/components/generator/EmotionalStorytellerForm'
-import { LetterPreviewCard } from '@/components/letter/LetterPreviewCard'
 import type { GenerateLetterRequest, GenerateLetterResponse } from '@/types'
 import { Sparkles } from 'lucide-react'
+
+// Code-split LetterPreviewCard so initial landing page doesn't load preview & export modules
+const LetterPreviewCard = dynamic(
+  () => import('@/components/letter/LetterPreviewCard').then((mod) => mod.LetterPreviewCard),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="paper-card rounded-2xl p-8 max-w-2xl mx-auto animate-pulse space-y-4 border border-rose-100">
+        <div className="h-6 bg-rose-100/60 rounded w-1/3" />
+        <div className="space-y-2 pt-4">
+          <div className="h-4 bg-neutral-200/60 rounded w-full" />
+          <div className="h-4 bg-neutral-200/60 rounded w-5/6" />
+          <div className="h-4 bg-neutral-200/60 rounded w-4/6" />
+        </div>
+      </div>
+    ),
+  }
+)
 
 export default function Home() {
   const [generatedLetter, setGeneratedLetter] = useState<string | null>(null)
   const [lastRequest, setLastRequest] = useState<GenerateLetterRequest | null>(null)
   const [currentLetterId, setCurrentLetterId] = useState<string | undefined>(undefined)
 
-  const handleLetterGenerated = (
-    response: GenerateLetterResponse,
-    request: GenerateLetterRequest
-  ) => {
-    setGeneratedLetter(response.letter)
-    setLastRequest(request)
-    setCurrentLetterId(response.letterId)
-    window.scrollTo({ top: 120, behavior: 'smooth' })
-  }
+  const handleLetterGenerated = useCallback(
+    (response: GenerateLetterResponse, request: GenerateLetterRequest) => {
+      setGeneratedLetter(response.letter)
+      setLastRequest(request)
+      setCurrentLetterId(response.letterId)
+      window.scrollTo({ top: 120, behavior: 'smooth' })
+    },
+    []
+  )
 
-  const handleReset = () => {
+  const handleReset = useCallback(() => {
     setGeneratedLetter(null)
     setLastRequest(null)
     setCurrentLetterId(undefined)
     window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
+  }, [])
 
-  const handleEdit = () => {
+  const handleEdit = useCallback(() => {
     setGeneratedLetter(null)
     window.scrollTo({ top: 180, behavior: 'smooth' })
-  }
+  }, [])
 
   return (
     <div className="min-h-screen flex flex-col bg-chithi-gradient selection:bg-rose-100 selection:text-rose-800">

@@ -70,26 +70,59 @@ export type GenerateLetterInput = z.infer<typeof generateLetterSchema>
 
 // ─── Phase 04: AI Letter Refinement Schema ────────────────────────────────────
 
-export const refineLetterSchema = z.object({
-  letter: z
-    .string()
-    .min(20, 'বিদ্যমান চিঠির বিষয়বস্তু আবশ্যক / Existing letter content is required')
-    .max(5000, 'Letter is too long to refine')
-    .trim(),
-  refinementType: z.enum([
-    'more-emotional',
-    'more-romantic',
-    'simpler',
-    'longer',
-    'shorter',
-    'vintage-90s',
-  ]),
-  receiverName: z.string().max(60).optional(),
-  relationship: z.string().max(60).optional(),
-  language: z.enum(['bengali', 'english', 'banglish']).optional(),
-  memory: z.string().max(600).optional(),
-  situation: z.string().max(600).optional(),
-  feeling: z.string().max(300).optional(),
-})
+export const refineActionEnum = z.enum([
+  'more-emotional',
+  'make-more-emotional',
+  'more-romantic',
+  'make-more-romantic',
+  'romantic',
+  'more-poetic',
+  'make-more-poetic',
+  'vintage-90s',
+  'add-90s-vintage-feeling',
+  '90s-vintage',
+  '90s-style',
+  'make-shorter',
+  'shorter',
+  'short-version',
+  'make-longer',
+  'longer',
+  'simpler-language',
+  'make-simpler',
+  'simpler',
+  'better-writing',
+  'deeper-feeling',
+  'custom',
+  'custom-instruction',
+])
+
+export type RefineAction = z.infer<typeof refineActionEnum>
+
+export const refineLetterSchema = z
+  .object({
+    originalLetter: z.string().max(5000, 'Letter is too long to refine').optional(),
+    letter: z.string().max(5000, 'Letter is too long to refine').optional(),
+    action: refineActionEnum.optional(),
+    refinementType: refineActionEnum.optional(),
+    customInstruction: z.string().max(500, 'Custom instruction must be under 500 characters').optional(),
+    personality: z.string().max(60).optional(),
+    relationship: z.string().max(60).optional(),
+    receiverName: z.string().max(60).optional(),
+    language: z.enum(['bengali', 'english', 'banglish']).default('bengali'),
+    memory: z.string().max(600).optional(),
+    situation: z.string().max(600).optional(),
+    feeling: z.string().max(300).optional(),
+  })
+  .refine(
+    (data) => {
+      const content = data.originalLetter?.trim() || data.letter?.trim()
+      return Boolean(content && content.length >= 20)
+    },
+    { message: 'বিদ্যমান চিঠির বিষয়বস্তু আবশ্যক / Existing letter content is required (min 20 characters)' }
+  )
+  .refine(
+    (data) => Boolean(data.action || data.refinementType || data.customInstruction),
+    { message: 'রিফাইনমেন্ট অ্যাকশন নির্বাচন করুন / Please select a refinement action' }
+  )
 
 export type RefineLetterInput = z.infer<typeof refineLetterSchema>

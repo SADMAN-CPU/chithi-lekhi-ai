@@ -94,9 +94,17 @@ function LoginFormContent() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-xs font-bengali font-medium text-neutral-700">
-                পাসওয়ার্ড (Password)
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-bengali font-medium text-neutral-700">
+                  পাসওয়ার্ড (Password)
+                </label>
+                <Link
+                  href="/forgot-password"
+                  className="text-[11px] font-bengali text-rose-600 hover:underline"
+                >
+                  পাসওয়ার্ড ভুলে গেছেন?
+                </Link>
+              </div>
               <div className="relative">
                 <Lock className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input

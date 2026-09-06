@@ -11,9 +11,11 @@ const isRealApiKey = Boolean(
   apiKey.startsWith('sk-')
 )
 
-const openaiClient = isRealApiKey
+export const openaiClient = isRealApiKey
   ? new OpenAI({ apiKey })
   : null
+
+export { openaiClient as openai }
 
 // ─── High-Fidelity Emotional Fallback Engine ──────────────────────────────────
 //

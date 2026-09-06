@@ -11,9 +11,21 @@ import {
   Feather,
   Image as ImageIcon,
   ArrowRight,
+  Eye,
+  Clock,
+  Sparkles,
 } from 'lucide-react'
 import { buildWhatsAppUrl, formatDate } from '@/utils/helpers'
-import { VintageLetterVisualStudio } from './VintageLetterVisualStudio'
+import dynamic from 'next/dynamic'
+
+const VintageLetterVisualStudio = dynamic(
+  () => import('./VintageLetterVisualStudio').then((mod) => mod.VintageLetterVisualStudio),
+  { ssr: false }
+)
+const VoiceLetterPlayer = dynamic(
+  () => import('./VoiceLetterPlayer').then((mod) => mod.VoiceLetterPlayer),
+  { ssr: false }
+)
 
 interface AnonymousLetterReaderProps {
   receiverName: string
@@ -22,6 +34,9 @@ interface AnonymousLetterReaderProps {
   eraStyle?: string | null
   createdAt: string
   slug: string
+  views?: number
+  expiresAt?: string | null
+  expiration?: '24h' | '7d' | 'never' | string
 }
 
 export function AnonymousLetterReader({
@@ -31,15 +46,38 @@ export function AnonymousLetterReader({
   eraStyle,
   createdAt,
   slug,
+  views = 1,
+  expiresAt,
+  expiration = 'never',
 }: AnonymousLetterReaderProps) {
   const [copiedText, setCopiedText] = useState(false)
   const [copiedLink, setCopiedLink] = useState(false)
   const [showStudio, setShowStudio] = useState(false)
 
-  const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/read/${slug}` : `/read/${slug}`
-  const whatsappUrl = buildWhatsAppUrl(
-    `💌 তোমার জন্য একটি চিঠি এসেছে, পড়ে দেখো:\n\n${shareUrl}\n\n— চিঠি লেখাই AI (Chithi Lekhi AI)`
-  )
+  const shareUrl =
+    typeof window !== 'undefined'
+      ? `${window.location.origin}/read/${slug}`
+      : `https://chithilekhi.com/read/${slug}`
+
+  const whatsappMessage = `💌 ${receiverName}-এর জন্য একটি চিঠি এসেছে, পড়ে দেখো:\n\n${shareUrl}\n\n— চিঠি লেখাই AI (Chithi Lekhi AI)`
+  const whatsappUrl = buildWhatsAppUrl(whatsappMessage)
+
+  // Track analytics event helper
+  const trackShareEvent = async (platform: string, eventType: 'share' | 'download' = 'share') => {
+    try {
+      await fetch('/api/shares/track', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          shareToken: slug,
+          eventType,
+          platform,
+        }),
+      })
+    } catch {
+      // Non-blocking
+    }
+  }
 
   const handleCopyText = async () => {
     try {
@@ -56,50 +94,84 @@ export function AnonymousLetterReader({
       await navigator.clipboard.writeText(shareUrl)
       setCopiedLink(true)
       setTimeout(() => setCopiedLink(false), 2000)
+      trackShareEvent('copy_link')
     } catch {
       // Fallback
     }
   }
 
-  const eraLabel =
-    eraStyle === '90s-handwritten'
-      ? '✉️ ৯০-এর হাতে লেখা চিঠি'
-      : eraStyle === 'vintage'
-      ? '📜 ভিন্টেজ ক্লাসিক্যাল'
-      : '✨ আন্তরিক চিঠি'
+  const handleWhatsApp = () => {
+    trackShareEvent('whatsapp')
+    window.open(whatsappUrl, '_blank')
+  }
+
+  const handleFacebook = () => {
+    trackShareEvent('facebook')
+    window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`, '_blank')
+  }
+
+  const handleDownloadImage = () => {
+    trackShareEvent('image', 'download')
+    setShowStudio(true)
+  }
 
   return (
-    <div className="w-full max-w-2xl mx-auto space-y-6 animate-in fade-in duration-500">
-      {/* Anonymous Arrival Banner */}
-      <div className="text-center space-y-2 pb-2">
-        <div className="inline-flex items-center gap-1.5 bg-rose-50 text-rose-700 text-xs font-bengali px-3 py-1 rounded-full border border-rose-200/60 shadow-2xs">
-          <Heart className="w-3.5 h-3.5 fill-rose-500 text-rose-500" />
-          <span>গোপন ও ব্যক্তিগত চিঠি</span>
+    <div className="w-full max-w-2xl mx-auto space-y-6 animate-in fade-in zoom-in-95 duration-700">
+      {/* Anonymous Arrival Top Strip */}
+      <div className="text-center space-y-2 pb-1">
+        <div className="inline-flex items-center gap-2 bg-rose-50 text-rose-700 text-xs font-bengali px-3.5 py-1 rounded-full border border-rose-200/60 shadow-2xs">
+          <Heart className="w-3.5 h-3.5 fill-rose-500 text-rose-500 animate-pulse" />
+          <span>একটি বিশেষ গোপন চিঠি এসেছে</span>
+          <span className="text-neutral-300">•</span>
+          <span className="inline-flex items-center gap-1 font-sans text-neutral-600">
+            <Eye className="w-3 h-3 text-rose-500" />
+            <span>{views} views</span>
+          </span>
         </div>
+
         <h1 className="font-bengali text-2xl sm:text-3xl font-bold text-neutral-900 tracking-tight">
-          তোমার জন্য একটি চিঠি এসেছে
+          প্রিয় {receiverName}-এর উদ্দেশ্যে চিঠি
         </h1>
         <p className="font-bengali text-xs sm:text-sm text-neutral-600 max-w-md mx-auto">
-          কেউ একজন তার না-বলা মনের গভীর কথাগুলো এই চিঠিতে লিখে তোমার কাছে পাঠিয়েছে।
+          কেউ একজন মনের গভীর ভালোবাসা ও শ্রদ্ধা নিয়ে এই চিঠিটি পাঠিয়েছে।
         </p>
+
+        {/* Expiration Tag if applicable */}
+        {expiration !== 'never' && expiresAt && (
+          <div className="inline-flex items-center gap-1.5 text-[11px] font-bengali text-amber-800 bg-amber-50/90 border border-amber-200/80 px-2.5 py-0.5 rounded-md mt-1">
+            <Clock className="w-3 h-3 text-amber-600" />
+            <span>
+              চিঠির মেয়াদ: {expiration === '24h' ? '২৪ ঘণ্টা' : '৭ দিন'} (মেয়াদ শেষ:{' '}
+              {formatDate(expiresAt)})
+            </span>
+          </div>
+        )}
       </div>
 
-      {/* Realistic Paper Card (100% Anonymous - No author data) */}
-      <div className="relative paper-card rounded-3xl p-6 sm:p-10 shadow-lg overflow-hidden border border-rose-100">
+      {/* ─────────────────────────────────────────────────────────────
+          REALISTIC 90s VINTAGE PAPER LETTER CARD
+         ───────────────────────────────────────────────────────────── */}
+      <div
+        className="relative bg-[#fbf8f1] rounded-3xl p-6 sm:p-10 shadow-xl overflow-hidden border-2 sm:border-4 double border-[#b89767] transition-all duration-300"
+        style={{
+          backgroundImage: 'radial-gradient(#cfc2ad 0.65px, transparent 0.65px)',
+          backgroundSize: '20px 20px',
+        }}
+      >
         {/* Vintage Postmark Decorator */}
-        <div className="absolute top-5 right-5 sm:top-8 sm:right-8 flex flex-col items-center pointer-events-none select-none opacity-85">
-          <div className="w-14 h-16 sm:w-16 sm:h-20 border-2 border-dashed border-rose-400/70 bg-rose-50/60 rounded-md flex flex-col items-center justify-center p-1 shadow-xs rotate-3">
+        <div className="absolute top-5 right-5 sm:top-8 sm:right-8 flex flex-col items-center pointer-events-none select-none opacity-90">
+          <div className="w-14 h-16 sm:w-16 sm:h-20 border-2 border-dashed border-rose-400/80 bg-rose-50/70 rounded-md flex flex-col items-center justify-center p-1 shadow-xs rotate-3">
             <Feather className="w-5 h-5 sm:w-6 sm:h-6 text-rose-600 mb-0.5" />
             <span className="text-[8px] sm:text-[9px] font-sans font-bold text-rose-700 uppercase tracking-widest">
               CHITHI
             </span>
-            <span className="text-[7px] sm:text-[8px] font-bengali text-rose-600/80">
+            <span className="text-[7px] sm:text-[8px] font-bengali text-rose-600/90">
               ডাকটিকিট
             </span>
           </div>
-          <div className="absolute -bottom-2 -left-3 w-9 h-9 sm:w-11 sm:h-11 rounded-full border border-rose-800/40 flex items-center justify-center -rotate-12 bg-white/40 backdrop-blur-xs">
-            <span className="text-[6px] sm:text-[7px] font-mono text-rose-900/60 font-semibold tracking-tighter">
-              DHAKA 90s
+          <div className="absolute -bottom-2 -left-3 w-9 h-9 sm:w-11 sm:h-11 rounded-full border border-neutral-400 flex items-center justify-center -rotate-12 bg-white/50 backdrop-blur-xs">
+            <span className="text-[6px] sm:text-[7px] font-mono text-neutral-700 font-semibold tracking-tighter">
+              DHAKA GPO
             </span>
           </div>
         </div>
@@ -107,10 +179,10 @@ export function AnonymousLetterReader({
         {/* Letter Header */}
         <div className="mb-6 sm:mb-8 pr-20">
           <span className="text-[10px] sm:text-xs uppercase tracking-widest text-neutral-400 font-sans font-semibold mb-1 block">
-            ANONYMOUS LETTER
+            VINTAGE ANONYMOUS ARCHIVE
           </span>
           <div className="flex flex-wrap items-baseline gap-2">
-            <h2 className="font-bengali text-2xl sm:text-3xl font-bold text-neutral-900">
+            <h2 className="font-bengali text-2xl sm:text-3xl font-bold text-[#3d2714]">
               প্রিয় {receiverName}
             </h2>
             {relationship && (
@@ -119,53 +191,52 @@ export function AnonymousLetterReader({
               </span>
             )}
           </div>
-          <div className="h-0.5 w-16 bg-gradient-to-r from-rose-400 to-amber-300 mt-2 rounded-full" />
+          <div className="flex items-center gap-2 mt-1.5 text-xs font-bengali text-neutral-500">
+            <span>তারিখ: {formatDate(createdAt)}</span>
+            <span>•</span>
+            <span className="font-sans text-[11px] uppercase tracking-wider">
+              {eraStyle === '90s-handwritten' ? '90s Handwritten' : 'Vintage Classical'}
+            </span>
+          </div>
+          <div className="h-0.5 w-16 bg-[#b89767] mt-2 rounded-full" />
         </div>
 
         {/* Letter Body */}
-        <div className="letter-body font-bengali text-neutral-800 text-base sm:text-lg leading-relaxed sm:leading-loose whitespace-pre-wrap select-text">
+        <div className="letter-body font-bengali text-base sm:text-[17px] leading-relaxed sm:leading-loose text-[#2c1d11] whitespace-pre-wrap select-text my-4">
           {content}
         </div>
 
         {/* Bottom Vintage Footer Line */}
-        <div className="mt-8 sm:mt-12 pt-4 border-t border-rose-200/50 flex flex-wrap items-center justify-between gap-2 text-xs text-neutral-400 font-bengali">
-          <span>{formatDate(createdAt)}</span>
-          <span className="font-sans font-medium text-neutral-500">{eraLabel}</span>
-          <span>চিঠি লেখাই এআই • chithi.ai</span>
+        <div className="mt-8 sm:mt-12 pt-4 border-t border-black/10 flex flex-wrap items-center justify-between gap-2 text-xs text-neutral-500 font-bengali select-none">
+          <span>চিঠি লেখাই এআই • Chithi Lekhi AI</span>
+          <span>যে কথা মুখে বলা যায় না 💌</span>
         </div>
       </div>
 
-      {/* Reader Action Buttons */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-        {/* Copy Text */}
-        <button
-          type="button"
-          onClick={handleCopyText}
-          className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bengali text-xs sm:text-sm font-medium bg-white hover:bg-neutral-50 text-neutral-800 border border-neutral-200 shadow-2xs transition-colors"
-        >
-          {copiedText ? (
-            <>
-              <Check className="w-3.5 h-3.5 text-emerald-600" />
-              <span>কপি হয়েছে</span>
-            </>
-          ) : (
-            <>
-              <Copy className="w-3.5 h-3.5 text-neutral-500" />
-              <span>চিঠি কপি</span>
-            </>
-          )}
-        </button>
+      {/* ─────────────────────────────────────────────────────────────
+          AI VOICE LETTER PLAYER (Integrated into Reader)
+         ───────────────────────────────────────────────────────────── */}
+      <VoiceLetterPlayer
+        letterText={content}
+        receiverName={receiverName}
+        shareToken={slug}
+        initialVoiceStyle="warm"
+      />
 
+      {/* ─────────────────────────────────────────────────────────────
+          READER GROWTH ACTIONS (Copy Link, WhatsApp, Facebook, Image)
+         ───────────────────────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         {/* Copy Share Link */}
         <button
           type="button"
           onClick={handleCopyLink}
-          className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bengali text-xs sm:text-sm font-medium bg-white hover:bg-neutral-50 text-neutral-800 border border-neutral-200 shadow-2xs transition-colors"
+          className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bengali text-xs sm:text-sm font-semibold bg-white hover:bg-neutral-50 text-neutral-800 border border-neutral-200 shadow-2xs transition-colors"
         >
           {copiedLink ? (
             <>
               <Check className="w-3.5 h-3.5 text-emerald-600" />
-              <span>লিংক কপি</span>
+              <span>লিংক কপি!</span>
             </>
           ) : (
             <>
@@ -176,34 +247,68 @@ export function AnonymousLetterReader({
         </button>
 
         {/* WhatsApp Share */}
-        <a
-          href={whatsappUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bengali text-xs sm:text-sm font-medium bg-[#25D366] hover:bg-[#20bd5a] text-white transition-colors"
+        <button
+          type="button"
+          onClick={handleWhatsApp}
+          className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bengali text-xs sm:text-sm font-semibold bg-[#25D366] hover:bg-[#20bd5a] text-white shadow-2xs transition-colors"
         >
           <Share2 className="w-3.5 h-3.5" />
           <span>হোয়াটসঅ্যাপ</span>
-        </a>
+        </button>
 
-        {/* Visual Image Studio */}
+        {/* Facebook Share */}
         <button
           type="button"
-          onClick={() => setShowStudio(true)}
-          className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bengali text-xs sm:text-sm font-semibold bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 transition-colors"
+          onClick={handleFacebook}
+          className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bengali text-xs sm:text-sm font-semibold bg-[#1877F2] hover:bg-[#166fe5] text-white shadow-2xs transition-colors"
         >
-          <ImageIcon className="w-3.5 h-3.5 text-rose-600" />
-          <span>ইমেজ কার্ড</span>
+          <Share2 className="w-3.5 h-3.5" />
+          <span>ফেসবুক শেয়ার</span>
+        </button>
+
+        {/* Download Image */}
+        <button
+          type="button"
+          onClick={handleDownloadImage}
+          className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bengali text-xs sm:text-sm font-semibold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 shadow-2xs transition-colors"
+        >
+          <ImageIcon className="w-3.5 h-3.5 text-amber-600" />
+          <span>ইমেজ ডাউনলোড</span>
         </button>
       </div>
 
-      {/* Write a reply or letter yourself CTA */}
-      <div className="bg-white/80 backdrop-blur-xs border border-rose-100/90 rounded-2xl p-5 text-center space-y-2 shadow-2xs">
-        <h3 className="font-bengali font-bold text-base text-neutral-900">
-          আপনিও কাউকে চিঠি লিখতে চান?
+      {/* Copy Text Option */}
+      <div className="text-center">
+        <button
+          type="button"
+          onClick={handleCopyText}
+          className="inline-flex items-center gap-1.5 text-xs font-bengali text-neutral-500 hover:text-neutral-800 transition-colors"
+        >
+          {copiedText ? (
+            <>
+              <Check className="w-3.5 h-3.5 text-emerald-600" />
+              <span>সম্পূর্ণ টেক্সট কপি হয়েছে</span>
+            </>
+          ) : (
+            <>
+              <Copy className="w-3.5 h-3.5" />
+              <span>চিঠির টেক্সট কপি করতে এখানে ক্লিক করুন</span>
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* Chithi Lekhi AI Viral CTA */}
+      <div className="bg-white/90 backdrop-blur-xs border border-rose-100 rounded-3xl p-6 text-center space-y-2.5 shadow-xs">
+        <div className="inline-flex items-center gap-1 text-xs font-bengali font-semibold text-rose-600 bg-rose-50 px-2.5 py-0.5 rounded-full">
+          <Sparkles className="w-3 h-3 text-amber-500" />
+          <span>চিঠি লেখাই এআই</span>
+        </div>
+        <h3 className="font-bengali font-bold text-base sm:text-lg text-neutral-900">
+          আপনিও কি কাউকে মনের কথা বলতে চান?
         </h3>
-        <p className="font-bengali text-xs sm:text-sm text-neutral-600 max-w-md mx-auto">
-          যে কথা কখনো মুখে বলা হয়নি, আমাদের এআই দিয়ে তা একটি নিখুঁত চিঠিতে রূপ দিন সম্পূর্ণ বিনামূল্যে।
+        <p className="font-bengali text-xs sm:text-sm text-neutral-600 max-w-md mx-auto leading-relaxed">
+          যে কথা কখনো মুখে বলা হয়নি, আমাদের এআই দিয়ে তা একটি নিখুঁত ভিন্টেজ চিঠিতে রূপ দিন সম্পূর্ণ বিনামূল্যে।
         </p>
         <div className="pt-2">
           <Link
@@ -216,7 +321,7 @@ export function AnonymousLetterReader({
         </div>
       </div>
 
-      {/* Visual Studio Modal */}
+      {/* Visual Studio Modal for Image Export */}
       {showStudio && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 overflow-y-auto animate-in fade-in duration-200">
           <div className="my-auto w-full">

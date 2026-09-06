@@ -41,8 +41,9 @@ export async function GET(request: NextRequest, { params }: Props) {
       )
     }
 
-    // If letter is private and has an owner in production, check authorization
-    if (isSupabaseConfigured && !letter.is_public && letter.user_id) {
+    // If letter is private and has an owner, check authorization
+    const isProduction = process.env.NODE_ENV === 'production'
+    if ((isProduction || isSupabaseConfigured) && !letter.is_public && letter.user_id) {
       const serverUser = await getServerUser()
       if (!serverUser || serverUser.id !== letter.user_id) {
         return NextResponse.json(
@@ -95,7 +96,8 @@ export async function DELETE(request: NextRequest, { params }: Props) {
     }
 
     const serverUser = await getServerUser()
-    if (isSupabaseConfigured && existing.user_id && (!serverUser || existing.user_id !== serverUser.id)) {
+    const isProduction = process.env.NODE_ENV === 'production'
+    if ((isProduction || isSupabaseConfigured) && existing.user_id && (!serverUser || existing.user_id !== serverUser.id)) {
       return NextResponse.json(
         { success: false, error: { message: 'Unauthorized deletion', status: 403 } },
         { status: 403 }
@@ -111,6 +113,77 @@ export async function DELETE(request: NextRequest, { params }: Props) {
     console.error('[DELETE /api/letters/[id]] Error:', err)
     return NextResponse.json(
       { success: false, error: { message: 'Failed to delete letter', status: 500 } },
+      { status: 500 }
+    )
+  }
+}
+
+// ── PATCH /api/letters/[id] — Update single letter ────────────────────────────
+export async function PATCH(request: NextRequest, { params }: Props) {
+  try {
+    const rateLimit = checkRateLimit(request, {
+      limit: 30,
+      windowSeconds: 60,
+      prefix: 'letters-id-patch',
+    })
+    if (!rateLimit.allowed) {
+      return createRateLimitResponse(rateLimit)
+    }
+
+    const { id } = await params
+    if (!id) {
+      return NextResponse.json(
+        { success: false, error: { message: 'ID is required', status: 400 } },
+        { status: 400 }
+      )
+    }
+
+    const existing = await getLetterById(id, true)
+    if (!existing) {
+      return NextResponse.json(
+        { success: false, error: { message: 'Letter not found', status: 404 } },
+        { status: 404 }
+      )
+    }
+
+    const serverUser = await getServerUser()
+    const isProduction = process.env.NODE_ENV === 'production'
+    if ((isProduction || isSupabaseConfigured) && existing.user_id && (!serverUser || existing.user_id !== serverUser.id)) {
+      return NextResponse.json(
+        { success: false, error: { message: 'Unauthorized modification', status: 403 } },
+        { status: 403 }
+      )
+    }
+
+    const body = await request.json()
+    const { updateLetter } = await import('@/lib/supabase/letters')
+
+    const contentToUse = body.letter_content || body.content || existing.content
+    const updated = await updateLetter(
+      id,
+      {
+        content: contentToUse,
+        letter_content: contentToUse,
+        title: body.title !== undefined ? body.title : existing.title,
+        receiver_name: body.receiver_name || existing.receiver_name,
+        relationship: body.relationship !== undefined ? body.relationship : existing.relationship,
+        emotion: body.emotion !== undefined ? body.emotion : existing.emotion,
+        theme: body.theme || existing.theme || 'vintage',
+        is_public: body.is_public !== undefined ? Boolean(body.is_public) : existing.is_public,
+        favorite: body.favorite !== undefined ? Boolean(body.favorite) : existing.favorite,
+        is_favorite: body.is_favorite !== undefined ? Boolean(body.is_favorite) : existing.is_favorite,
+      },
+      true
+    )
+
+    return NextResponse.json({
+      success: true,
+      letter: updated,
+    })
+  } catch (err) {
+    console.error('[PATCH /api/letters/[id]] Error:', err)
+    return NextResponse.json(
+      { success: false, error: { message: 'Failed to update letter', status: 500 } },
       { status: 500 }
     )
   }

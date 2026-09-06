@@ -1,5 +1,14 @@
 import type { NextConfig } from 'next'
 
+const isDev = process.env.NODE_ENV === 'development'
+
+const connectSrc = [
+  "'self'",
+  'https://*.supabase.co',
+  'wss://*.supabase.co',
+  ...(isDev ? ['ws:', 'http://localhost:*', 'ws://localhost:*'] : []),
+].join(' ')
+
 const securityHeaders = [
   {
     key: 'X-DNS-Prefetch-Control',
@@ -23,7 +32,7 @@ const securityHeaders = [
   },
   {
     key: 'Permissions-Policy',
-    value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()',
+    value: 'camera=(), microphone=(), geolocation=()',
   },
   {
     key: 'Content-Security-Policy',
@@ -33,7 +42,7 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com data:",
       "img-src 'self' data: blob: https:",
-      "connect-src 'self' https://*.supabase.co https://api.openai.com https://generativelanguage.googleapis.com",
+      `connect-src ${connectSrc}`,
       "frame-ancestors 'none'",
     ].join('; '),
   },
@@ -43,6 +52,21 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   compress: true,
+
+  images: {
+    formats: ['image/avif', 'image/webp'],
+    minimumCacheTTL: 60 * 60 * 24 * 30, // 30 days cache for static/generated assets
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '**.supabase.co',
+      },
+    ],
+  },
+
+  experimental: {
+    optimizePackageImports: ['lucide-react'],
+  },
 
   async headers() {
     return [

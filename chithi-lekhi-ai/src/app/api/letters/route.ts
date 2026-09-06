@@ -31,22 +31,37 @@ export async function GET(request: NextRequest) {
 
     // Prevent IDOR in production: strictly enforce server session user ID.
     // In local demo fallback mode, allow requestedUserId so offline testing is seamless.
+    const isProduction = process.env.NODE_ENV === 'production'
     let effectiveUserId: string
-    if (isSupabaseConfigured) {
-      if (serverUser) {
-        effectiveUserId = serverUser.id
+    if (serverUser) {
+      effectiveUserId = serverUser.id
+    } else if (isProduction || isSupabaseConfigured) {
+      if (requestedUserId === 'guest-user') {
+        effectiveUserId = 'guest-user'
       } else {
-        effectiveUserId = requestedUserId === 'guest-user' ? 'guest-user' : ''
+        return NextResponse.json(
+          { success: false, error: { message: 'Authentication required to view letters', status: 401 } },
+          { status: 401 }
+        )
       }
     } else {
-      effectiveUserId = serverUser?.id || requestedUserId || 'guest-user'
+      effectiveUserId = requestedUserId || 'guest-user'
     }
 
     const favoritesOnly = searchParams.get('favoritesOnly') === 'true'
+    const status = (searchParams.get('status') as 'published' | 'draft' | 'all') || undefined
+    const emotion = searchParams.get('emotion') || undefined
+    const relationship = searchParams.get('relationship') || undefined
+    const timeframe = (searchParams.get('timeframe') as 'today' | 'week' | 'month' | 'all') || undefined
+    const searchQuery = searchParams.get('searchQuery') || undefined
     const limit = Math.min(Math.max(1, parseInt(searchParams.get('limit') || '50', 10)), 100)
     const offset = Math.max(0, parseInt(searchParams.get('offset') || '0', 10))
 
-    const letters = await getUserLetters(effectiveUserId, { limit, offset, favoritesOnly }, true)
+    const letters = await getUserLetters(
+      effectiveUserId,
+      { limit, offset, favoritesOnly, status, emotion, relationship, timeframe, searchQuery },
+      true
+    )
 
     return NextResponse.json(
       {
@@ -97,7 +112,9 @@ export async function POST(request: NextRequest) {
     }
 
     const serverUser = await getServerUser()
-    const resolvedUserId = serverUser?.id || (body.user_id ? sanitizeInput(body.user_id) : null)
+    const isProduction = process.env.NODE_ENV === 'production'
+    // SECURITY: In production, unauthenticated clients cannot claim an arbitrary user_id
+    const resolvedUserId = serverUser?.id || (!isProduction && body.user_id ? sanitizeInput(body.user_id) : null)
 
     const saved = await createLetter(
       {
@@ -110,6 +127,7 @@ export async function POST(request: NextRequest) {
         language: body.language || 'bengali',
         memory_context: body.memory_context ? sanitizeInput(body.memory_context) : null,
         content: sanitizeInput(body.content),
+        status: body.status === 'draft' ? 'draft' : 'published',
         favorite: Boolean(body.favorite),
         is_public: Boolean(body.is_public),
         share_slug: body.share_slug ? sanitizeInput(body.share_slug) : undefined,
@@ -173,7 +191,8 @@ export async function PATCH(request: NextRequest) {
     }
 
     const serverUser = await getServerUser()
-    if (isSupabaseConfigured && existing.user_id && (!serverUser || existing.user_id !== serverUser.id)) {
+    const isProduction = process.env.NODE_ENV === 'production'
+    if ((isProduction || isSupabaseConfigured) && existing.user_id && (!serverUser || existing.user_id !== serverUser.id)) {
       return NextResponse.json(
         { success: false, error: { message: 'Unauthorized modification', status: 403 } },
         { status: 403 }
@@ -242,7 +261,8 @@ export async function DELETE(request: NextRequest) {
     }
 
     const serverUser = await getServerUser()
-    if (isSupabaseConfigured && existing.user_id && (!serverUser || existing.user_id !== serverUser.id)) {
+    const isProduction = process.env.NODE_ENV === 'production'
+    if ((isProduction || isSupabaseConfigured) && existing.user_id && (!serverUser || existing.user_id !== serverUser.id)) {
       return NextResponse.json(
         { success: false, error: { message: 'Unauthorized deletion', status: 403 } },
         { status: 403 }

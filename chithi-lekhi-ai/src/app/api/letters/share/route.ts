@@ -4,6 +4,8 @@ import { generateSlug } from '@/utils/helpers'
 import { checkRateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import type { ApiError } from '@/types'
 
+import { getServerUser, isSupabaseConfigured } from '@/lib/auth-server'
+
 export async function POST(request: NextRequest) {
   try {
     // Rate limit sharing requests (15 req/min per IP)
@@ -37,6 +39,16 @@ export async function POST(request: NextRequest) {
         status: 404,
       }
       return NextResponse.json({ success: false, error }, { status: 404 })
+    }
+
+    // SECURITY: Validate ownership before updating letter sharing status
+    const serverUser = await getServerUser()
+    const isProduction = process.env.NODE_ENV === 'production'
+    if (letter.user_id && (isProduction || isSupabaseConfigured) && (!serverUser || serverUser.id !== letter.user_id)) {
+      return NextResponse.json(
+        { success: false, error: { message: 'Unauthorized to share this letter', status: 403 } },
+        { status: 403 }
+      )
     }
 
     const slug = letter.share_slug || generateSlug(10)
