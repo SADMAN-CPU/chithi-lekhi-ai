@@ -1,7 +1,7 @@
 # 💌 Chithi Lekhi AI
 
 <p align="center">
-  <img src="./public/logo.png" width="120" alt="Chithi Lekhi AI Logo"/>
+  <img src="./docs/assets/logo.png" width="180" alt="Chithi Lekhi AI Logo"/>
 </p>
 
 <h1 align="center">
@@ -32,7 +32,7 @@
 
 ---
 
-# 🌸 About The Project
+# 🌸 About the Project
 
 **Chithi Lekhi AI** brings back the emotional beauty of handwritten letters in the modern digital era.
 
@@ -363,7 +363,7 @@ Make sure you have:
 
 
 ```bash
-git clone https://github.com/yourusername/chithi-lekhi-ai.git
+git clone https://github.com/SADMAN-CPU/chithi-lekhi-ai.git
 
 cd chithi-lekhi-ai
 ```
@@ -611,4 +611,68 @@ Created to preserve human emotions through Artificial Intelligence.
 
 **Chithi Lekhi AI**
 
+*"From feelings to letters, from letters to memories."* 
+---
+
+# © Ownership & Intellectual Property
+
+
+© 2026 Sadman Shahid. All Rights Reserved.
+
+
+## Chithi Lekhi AI
+
+An original AI-powered emotional letter writing platform designed, developed, and maintained by:
+
+
+# SADMAN SHAHID
+
+Founder & Lead Developer  
+Chithi Lekhi AI
+
+
+This project includes original work in:
+
+
+- AI emotional writing architecture
+- Human-centered AI workflow design
+- Bengali language storytelling system
+- Vintage letter rendering technology
+- Letter export and sharing experience
+- Product design and application architecture
+
+
+Unauthorized copying, redistribution, commercial use, resale, or claiming this project as your own work is strictly prohibited without written permission from the copyright owner.
+
+
+For collaboration, partnership, or licensing:
+
+**SADMAN SHAID**
+
+Founder & Creator of Chithi Lekhi AI
+
+
+---
+
+# 💌 Built With Love
+
+
+Created to preserve human emotions through Artificial Intelligence.
+
+
+**Chithi Lekhi AI**
+
 *"From feelings to letters, from letters to memories."*
+
+
+---
+
+### Developed & Created By
+
+## SADMAN SHAID
+
+Founder & Lead Developer  
+Chithi Lekhi AI
+
+
+© 2026 Sadman Shaid. All Rights Reserved.
