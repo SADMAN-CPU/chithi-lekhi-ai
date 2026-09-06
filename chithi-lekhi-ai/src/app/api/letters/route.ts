@@ -1,0 +1,264 @@
+import { NextRequest, NextResponse } from 'next/server'
+import {
+  createLetter,
+  getUserLetters,
+  getLetterById,
+  toggleLetterFavorite,
+  deleteLetter,
+  updateLetter,
+} from '@/lib/supabase/letters'
+import { sanitizeInput } from '@/utils/helpers'
+import { checkRateLimit, createRateLimitResponse } from '@/lib/rate-limit'
+import { getServerUser, isSupabaseConfigured } from '@/lib/auth-server'
+import type { ApiError } from '@/types'
+
+// ── GET /api/letters — Query letters ──────────────────────────────────────────
+export async function GET(request: NextRequest) {
+  try {
+    // 1. Rate Limit (60 req/min)
+    const rateLimit = checkRateLimit(request, {
+      limit: 60,
+      windowSeconds: 60,
+      prefix: 'letters-get',
+    })
+    if (!rateLimit.allowed) {
+      return createRateLimitResponse(rateLimit)
+    }
+
+    const { searchParams } = new URL(request.url)
+    const serverUser = await getServerUser()
+    const requestedUserId = searchParams.get('userId')
+
+    // Prevent IDOR in production: strictly enforce server session user ID.
+    // In local demo fallback mode, allow requestedUserId so offline testing is seamless.
+    let effectiveUserId: string
+    if (isSupabaseConfigured) {
+      if (serverUser) {
+        effectiveUserId = serverUser.id
+      } else {
+        effectiveUserId = requestedUserId === 'guest-user' ? 'guest-user' : ''
+      }
+    } else {
+      effectiveUserId = serverUser?.id || requestedUserId || 'guest-user'
+    }
+
+    const favoritesOnly = searchParams.get('favoritesOnly') === 'true'
+    const limit = Math.min(Math.max(1, parseInt(searchParams.get('limit') || '50', 10)), 100)
+    const offset = Math.max(0, parseInt(searchParams.get('offset') || '0', 10))
+
+    const letters = await getUserLetters(effectiveUserId, { limit, offset, favoritesOnly }, true)
+
+    return NextResponse.json(
+      {
+        success: true,
+        letters,
+        count: letters.length,
+      },
+      {
+        headers: {
+          'X-RateLimit-Limit': rateLimit.limit.toString(),
+          'X-RateLimit-Remaining': rateLimit.remaining.toString(),
+        },
+      }
+    )
+  } catch (err) {
+    console.error('[GET /api/letters] Error:', err)
+    const error: ApiError = {
+      message: 'Failed to fetch letters',
+      code: 'FETCH_ERROR',
+      status: 500,
+    }
+    return NextResponse.json({ success: false, error }, { status: 500 })
+  }
+}
+
+// ── POST /api/letters — Save letter ───────────────────────────────────────────
+export async function POST(request: NextRequest) {
+  try {
+    // Rate limit (30 req/min)
+    const rateLimit = checkRateLimit(request, {
+      limit: 30,
+      windowSeconds: 60,
+      prefix: 'letters-post',
+    })
+    if (!rateLimit.allowed) {
+      return createRateLimitResponse(rateLimit)
+    }
+
+    const body = await request.json()
+
+    if (!body.receiver_name || !body.content) {
+      const error: ApiError = {
+        message: 'receiver_name and content are required',
+        code: 'VALIDATION_ERROR',
+        status: 400,
+      }
+      return NextResponse.json({ success: false, error }, { status: 400 })
+    }
+
+    const serverUser = await getServerUser()
+    const resolvedUserId = serverUser?.id || (body.user_id ? sanitizeInput(body.user_id) : null)
+
+    const saved = await createLetter(
+      {
+        user_id: resolvedUserId,
+        receiver_name: sanitizeInput(body.receiver_name),
+        relationship: body.relationship ? sanitizeInput(body.relationship) : null,
+        emotion: body.emotion ? sanitizeInput(body.emotion) : null,
+        style: body.style ? sanitizeInput(body.style) : null,
+        era_style: body.era_style ? sanitizeInput(body.era_style) : null,
+        language: body.language || 'bengali',
+        memory_context: body.memory_context ? sanitizeInput(body.memory_context) : null,
+        content: sanitizeInput(body.content),
+        favorite: Boolean(body.favorite),
+        is_public: Boolean(body.is_public),
+        share_slug: body.share_slug ? sanitizeInput(body.share_slug) : undefined,
+      },
+      true
+    )
+
+    return NextResponse.json(
+      {
+        success: true,
+        letter: saved,
+      },
+      {
+        status: 201,
+        headers: {
+          'X-RateLimit-Limit': rateLimit.limit.toString(),
+          'X-RateLimit-Remaining': rateLimit.remaining.toString(),
+        },
+      }
+    )
+  } catch (err) {
+    console.error('[POST /api/letters] Save error:', err)
+    const error: ApiError = {
+      message: 'Failed to save letter',
+      code: 'SAVE_ERROR',
+      status: 500,
+    }
+    return NextResponse.json({ success: false, error }, { status: 500 })
+  }
+}
+
+// ── PATCH /api/letters — Toggle favorite or update ────────────────────────────
+export async function PATCH(request: NextRequest) {
+  try {
+    const rateLimit = checkRateLimit(request, {
+      limit: 30,
+      windowSeconds: 60,
+      prefix: 'letters-patch',
+    })
+    if (!rateLimit.allowed) {
+      return createRateLimitResponse(rateLimit)
+    }
+
+    const body = await request.json()
+    const { id, action, currentFavorite, content } = body
+
+    if (!id) {
+      return NextResponse.json(
+        { success: false, error: { message: 'Letter id is required', status: 400 } },
+        { status: 400 }
+      )
+    }
+
+    // Ownership verification
+    const existing = await getLetterById(id, true)
+    if (!existing) {
+      return NextResponse.json(
+        { success: false, error: { message: 'Letter not found', status: 404 } },
+        { status: 404 }
+      )
+    }
+
+    const serverUser = await getServerUser()
+    if (isSupabaseConfigured && existing.user_id && (!serverUser || existing.user_id !== serverUser.id)) {
+      return NextResponse.json(
+        { success: false, error: { message: 'Unauthorized modification', status: 403 } },
+        { status: 403 }
+      )
+    }
+
+    if (action === 'toggle-favorite') {
+      const newFavorite = await toggleLetterFavorite(id, Boolean(currentFavorite), true)
+      return NextResponse.json({
+        success: true,
+        id,
+        favorite: newFavorite,
+      })
+    }
+
+    if (action === 'update-content' && content) {
+      const updated = await updateLetter(id, { content: sanitizeInput(content) }, true)
+      return NextResponse.json({
+        success: true,
+        letter: updated,
+      })
+    }
+
+    return NextResponse.json(
+      { success: false, error: { message: 'Invalid action', status: 400 } },
+      { status: 400 }
+    )
+  } catch (err) {
+    console.error('[PATCH /api/letters] Update error:', err)
+    return NextResponse.json(
+      { success: false, error: { message: 'Failed to update letter', status: 500 } },
+      { status: 500 }
+    )
+  }
+}
+
+// ── DELETE /api/letters — Delete letter ────────────────────────────────────────
+export async function DELETE(request: NextRequest) {
+  try {
+    const rateLimit = checkRateLimit(request, {
+      limit: 30,
+      windowSeconds: 60,
+      prefix: 'letters-delete',
+    })
+    if (!rateLimit.allowed) {
+      return createRateLimitResponse(rateLimit)
+    }
+
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get('id')
+
+    if (!id) {
+      return NextResponse.json(
+        { success: false, error: { message: 'id is required', status: 400 } },
+        { status: 400 }
+      )
+    }
+
+    // Check ownership before deletion
+    const existing = await getLetterById(id, true)
+    if (!existing) {
+      return NextResponse.json(
+        { success: false, error: { message: 'Letter not found', status: 404 } },
+        { status: 404 }
+      )
+    }
+
+    const serverUser = await getServerUser()
+    if (isSupabaseConfigured && existing.user_id && (!serverUser || existing.user_id !== serverUser.id)) {
+      return NextResponse.json(
+        { success: false, error: { message: 'Unauthorized deletion', status: 403 } },
+        { status: 403 }
+      )
+    }
+
+    const deleted = await deleteLetter(id, true)
+    return NextResponse.json({
+      success: true,
+      deleted,
+    })
+  } catch (err) {
+    console.error('[DELETE /api/letters] Delete error:', err)
+    return NextResponse.json(
+      { success: false, error: { message: 'Failed to delete letter', status: 500 } },
+      { status: 500 }
+    )
+  }
+}
