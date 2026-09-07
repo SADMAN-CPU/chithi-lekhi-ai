@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from 'next'
 import { Inter, Hind_Siliguri, Lora } from 'next/font/google'
 import { JsonLd } from '@/components/seo/JsonLd'
 import './globals.css'
+import { ThemeProvider } from '@/components/providers/ThemeProvider'
+import { LanguageProvider } from '@/components/providers/LanguageProvider'
 
 const inter = Inter({
   variable: '--font-sans',
@@ -77,13 +79,23 @@ export default function RootLayout({
   return (
     <html
       lang="bn"
+      suppressHydrationWarning
       className={`${inter.variable} ${hindSiliguri.variable} ${lora.variable} h-full antialiased`}
     >
       <head>
         <JsonLd />
       </head>
-      <body className="min-h-full flex flex-col bg-background text-foreground">
-        {children}
+      <body className="min-h-full flex flex-col bg-background text-foreground transition-colors duration-200">
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <LanguageProvider>
+            {children}
+          </LanguageProvider>
+        </ThemeProvider>
       </body>
     </html>
   )

@@ -1,4 +1,3 @@
-import { cookies } from 'next/headers'
 import { createClient } from './supabase/server'
 
 export interface ServerUser {
@@ -35,9 +34,7 @@ export const isSupabaseConfigured = Boolean(
  * ============================================================================
  */
 export async function getServerUser(): Promise<ServerUser | null> {
-  const isProduction = process.env.NODE_ENV === 'production'
-
-  // 1. Primary & Production Auth: Cryptographically verified Supabase Auth session
+  // Primary & Production Auth: Cryptographically verified Supabase Auth session
   if (isSupabaseConfigured) {
     try {
       const supabase = await createClient()
@@ -51,23 +48,6 @@ export async function getServerUser(): Promise<ServerUser | null> {
     } catch (err) {
       console.warn('[getServerUser] Supabase session verification error:', err)
     }
-  }
-
-  // 2. In PRODUCTION: Never trust client-forged cookies or unverified fallback tokens.
-  if (isProduction) {
-    return null
-  }
-
-  // 3. DEVELOPMENT ONLY: Unsigned session cookie for offline/local test mocking.
-  // SECURITY: This block is unreachable in production (process.env.NODE_ENV === 'production').
-  try {
-    const cookieStore = await cookies()
-    const demoCookie = cookieStore.get('chithi_session')
-    if (demoCookie?.value) {
-      return { id: demoCookie.value }
-    }
-  } catch {
-    // If called in an environment where cookies cannot be read (e.g. static generation)
   }
 
   return null

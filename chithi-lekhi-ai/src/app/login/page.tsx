@@ -3,8 +3,9 @@
 import React, { useState, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Heart, Lock, Mail, ArrowRight, Sparkles, Feather } from 'lucide-react'
+import { Heart, Lock, Mail, ArrowRight, Feather } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
+import { useLanguage } from '@/components/providers/LanguageProvider'
 
 function LoginFormContent() {
   const router = useRouter()
@@ -12,6 +13,7 @@ function LoginFormContent() {
   const redirectedFrom = searchParams.get('redirectedFrom') || '/dashboard'
 
   const { signIn } = useAuth()
+  const { t, locale } = useLanguage()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -19,10 +21,11 @@ function LoginFormContent() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (loading) return
     setError(null)
 
     if (!email || !password) {
-      setError('ইমেইল ও পাসওয়ার্ড প্রদান করুন')
+      setError(t('auth.emailPasswordRequired'))
       return
     }
 
@@ -31,22 +34,17 @@ function LoginFormContent() {
     setLoading(false)
 
     if (authError || !user) {
-      setError(authError || 'লগইন করতে সমস্যা হয়েছে। তথ্য যাচাই করুন।')
+      setError(
+        authError ||
+          (locale === 'en'
+            ? 'Failed to sign in. Please verify your credentials.'
+            : 'সাইন ইন ব্যর্থ হয়েছে। অনুগ্রহ করে তথ্য যাচাই করুন।')
+      )
       return
     }
 
     router.push(redirectedFrom)
     router.refresh()
-  }
-
-  const handleDemoLogin = async () => {
-    setLoading(true)
-    const { user } = await signIn('demo@chithi.ai', 'demo123456')
-    setLoading(false)
-    if (user) {
-      router.push(redirectedFrom)
-      router.refresh()
-    }
   }
 
   return (
@@ -59,61 +57,73 @@ function LoginFormContent() {
               <Heart className="w-6 h-6 fill-white" />
             </div>
           </Link>
-          <h1 className="font-bengali text-2xl sm:text-3xl font-bold text-neutral-900 tracking-tight">
-            লগইন করুন
+          <h1 className="font-bengali text-2xl sm:text-3xl font-bold text-neutral-900 dark:text-neutral-100 tracking-tight">
+            {t('auth.loginTitle')}
           </h1>
-          <p className="font-bengali text-xs sm:text-sm text-neutral-600">
-            আপনার সংরক্ষিত সব চিঠি ও ড্যাশবোর্ডে প্রবেশ করুন
+          <p className="font-bengali text-xs sm:text-sm text-neutral-600 dark:text-neutral-400">
+            {t('auth.loginSubtitle')}
           </p>
         </div>
 
         {/* Auth Card */}
-        <div className="bg-white/90 backdrop-blur-md border border-rose-100/90 rounded-3xl p-6 sm:p-8 shadow-sm space-y-5">
+        <div className="bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md border border-rose-100/90 dark:border-neutral-800 rounded-3xl p-6 sm:p-8 shadow-sm space-y-5">
           {error && (
-            <div className="bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bengali p-3 rounded-xl">
+            <div
+              role="alert"
+              aria-live="polite"
+              className="bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900/50 text-rose-800 dark:text-rose-300 text-xs font-bengali p-3 rounded-xl"
+            >
               ⚠️ {error}
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
-              <label className="block text-xs font-bengali font-medium text-neutral-700">
-                ইমেইল ঠিকানা (Email)
+              <label
+                htmlFor="login-email"
+                className="block text-xs font-bengali font-medium text-neutral-700 dark:text-neutral-300 cursor-pointer"
+              >
+                {t('auth.email')}
               </label>
               <div className="relative">
-                <Mail className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <Mail className="w-4 h-4 text-neutral-400 dark:text-neutral-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
+                  id="login-email"
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="name@example.com"
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-neutral-200 focus:border-rose-400 focus:ring-2 focus:ring-rose-100 outline-none text-sm font-sans bg-neutral-50/40 focus:bg-white transition-all"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-700 focus:border-rose-400 focus:ring-2 focus:ring-rose-100 dark:focus:ring-rose-950 outline-none text-sm font-sans bg-neutral-50/40 dark:bg-neutral-800/80 focus:bg-white dark:focus:bg-neutral-800 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 transition-all min-h-[44px]"
                 />
               </div>
             </div>
 
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <label className="block text-xs font-bengali font-medium text-neutral-700">
-                  পাসওয়ার্ড (Password)
+                <label
+                  htmlFor="login-password"
+                  className="block text-xs font-bengali font-medium text-neutral-700 dark:text-neutral-300 cursor-pointer"
+                >
+                  {t('auth.password')}
                 </label>
                 <Link
                   href="/forgot-password"
-                  className="text-[11px] font-bengali text-rose-600 hover:underline"
+                  className="text-[11px] font-bengali text-rose-600 dark:text-rose-400 hover:underline"
                 >
-                  পাসওয়ার্ড ভুলে গেছেন?
+                  {t('auth.forgotPassword')}
                 </Link>
               </div>
               <div className="relative">
-                <Lock className="w-4 h-4 text-neutral-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <Lock className="w-4 h-4 text-neutral-400 dark:text-neutral-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
+                  id="login-password"
                   type="password"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-neutral-200 focus:border-rose-400 focus:ring-2 focus:ring-rose-100 outline-none text-sm font-sans bg-neutral-50/40 focus:bg-white transition-all"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-700 focus:border-rose-400 focus:ring-2 focus:ring-rose-100 dark:focus:ring-rose-950 outline-none text-sm font-sans bg-neutral-50/40 dark:bg-neutral-800/80 focus:bg-white dark:focus:bg-neutral-800 text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 transition-all min-h-[44px]"
                 />
               </div>
             </div>
@@ -121,9 +131,9 @@ function LoginFormContent() {
             <button
               type="submit"
               disabled={loading}
-              className={`w-full py-3 px-4 rounded-xl font-bengali font-semibold text-sm text-white transition-all shadow-xs flex items-center justify-center gap-2 ${
+              className={`w-full py-3 px-4 rounded-xl font-bengali font-semibold text-sm text-white transition-all shadow-xs flex items-center justify-center gap-2 min-h-[44px] cursor-pointer ${
                 loading
-                  ? 'bg-neutral-400 cursor-not-allowed'
+                  ? 'bg-neutral-400 dark:bg-neutral-700 cursor-not-allowed'
                   : 'bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 active:scale-[0.99] glow-pink'
               }`}
             >
@@ -131,31 +141,18 @@ function LoginFormContent() {
                 <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               ) : (
                 <>
-                  <span>প্রবেশ করুন</span>
+                  <span>{t('auth.loginBtn')}</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
             </button>
           </form>
 
-          {/* Quick Demo Login option */}
-          <div className="pt-2 border-t border-neutral-100 space-y-2">
-            <button
-              type="button"
-              onClick={handleDemoLogin}
-              disabled={loading}
-              className="w-full py-2.5 px-3 rounded-xl border border-rose-200/80 bg-rose-50/60 hover:bg-rose-100/70 text-rose-800 font-bengali text-xs font-medium transition-colors flex items-center justify-center gap-1.5"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-rose-500" />
-              <span>এক ক্লিকে ডেমো অ্যাকাউন্টে প্রবেশ (1-Click Demo)</span>
-            </button>
-          </div>
-
           <div className="text-center pt-2">
-            <p className="text-xs font-bengali text-neutral-500">
-              অ্যাকাউন্ট নেই?{' '}
-              <Link href="/signup" className="text-rose-600 font-semibold hover:underline">
-                এখানে নিবন্ধন করুন
+            <p className="text-xs font-bengali text-neutral-500 dark:text-neutral-400">
+              {t('auth.noAccount')}{' '}
+              <Link href="/signup" className="text-rose-600 dark:text-rose-400 font-semibold hover:underline">
+                {t('auth.signupLink')}
               </Link>
             </p>
           </div>
@@ -165,10 +162,10 @@ function LoginFormContent() {
         <div className="text-center">
           <Link
             href="/"
-            className="inline-flex items-center gap-1.5 text-xs font-bengali text-neutral-500 hover:text-neutral-800 transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs font-bengali text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 transition-colors py-2"
           >
             <Feather className="w-3.5 h-3.5" />
-            <span>মূল পাতায় ফিরে যান</span>
+            <span>{t('auth.backHome')}</span>
           </Link>
         </div>
       </div>

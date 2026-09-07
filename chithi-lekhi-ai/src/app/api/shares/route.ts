@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createShareRecord, type ShareExpiration } from '@/lib/shares'
-import { getLetterById } from '@/lib/supabase/letters'
+import { getLetterById, createLetter } from '@/lib/supabase/letters'
 import { checkRateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { getServerUser, isSupabaseConfigured } from '@/lib/auth-server'
 
@@ -18,26 +18,47 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { letter_id, is_public = true, expiration = 'never', audio_url } = body
 
-    if (!letter_id) {
-      return NextResponse.json(
-        { success: false, error: { message: 'letter_id is required', status: 400 } },
-        { status: 400 }
-      )
-    }
-
+    let targetLetterId = letter_id
     const serverUser = await getServerUser()
     const isProduction = process.env.NODE_ENV === 'production'
 
-    // SECURITY: Validate letter ownership before exposing private letters to public share tokens
-    const existingLetter = await getLetterById(letter_id, true)
-    if (existingLetter && (isProduction || isSupabaseConfigured) && existingLetter.user_id) {
-      if (!serverUser || serverUser.id !== existingLetter.user_id) {
+    // If letter_id is missing, ephemeral, or local, persist letter first so sharing is permanent and FK-valid
+    if (!targetLetterId || typeof targetLetterId !== 'string' || targetLetterId.startsWith('local-')) {
+      if (body.letter_content && body.receiver_name) {
+        const saved = await createLetter(
+          {
+            receiver_name: body.receiver_name,
+            content: body.letter_content,
+            relationship: body.relationship || null,
+            era_style: body.era_style || 'vintage',
+            language: body.language || 'bengali',
+            user_id: serverUser?.id || null,
+            is_public: Boolean(is_public),
+            status: 'published',
+            favorite: false,
+          },
+          true
+        )
+        targetLetterId = saved.id
+      } else {
         return NextResponse.json(
-          { success: false, error: { message: 'Unauthorized to share this letter', status: 403 } },
-          { status: 403 }
+          { success: false, error: { message: 'Valid letter_id or letter content is required', status: 400 } },
+          { status: 400 }
         )
       }
+    } else {
+      // SECURITY: Validate letter ownership before exposing private letters to public share tokens
+      const existingLetter = await getLetterById(targetLetterId, true)
+      if (existingLetter && (isProduction || isSupabaseConfigured) && existingLetter.user_id) {
+        if (!serverUser || serverUser.id !== existingLetter.user_id) {
+          return NextResponse.json(
+            { success: false, error: { message: 'Unauthorized to share this letter', status: 403 } },
+            { status: 403 }
+          )
+        }
+      }
     }
+
     const validExpirations: ShareExpiration[] = ['24h', '7d', 'never']
     const selectedExpiration: ShareExpiration = validExpirations.includes(expiration)
       ? expiration
@@ -45,7 +66,7 @@ export async function POST(request: NextRequest) {
 
     const share = await createShareRecord(
       {
-        letter_id,
+        letter_id: targetLetterId,
         user_id: serverUser?.id || null,
         is_public: Boolean(is_public),
         expiration: selectedExpiration,

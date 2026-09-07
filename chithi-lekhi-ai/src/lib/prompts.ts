@@ -195,6 +195,21 @@ export function buildLetterPrompt(params: GenerateLetterRequest): string {
 
   const feeling = params.feeling?.trim() || params.emotion?.trim() || 'Deep love and heartfelt remembrance'
 
+  const relStr = (params.relationship || '').toString().toLowerCase()
+  const isFather = relStr === 'father' || relStr.includes('বাবা') || relStr.includes('আব্বা')
+  const isMother = relStr === 'mother' || relStr.includes('মা') || relStr.includes('আম্মা')
+
+  let greetingRule = `1. Start directly with an affectionate greeting addressing ${params.receiverName} (e.g. "প্রিয় ${params.receiverName}," or appropriate intimate greeting).`
+  let closingRule = `5. End with a heartfelt, era- and personality-appropriate closing and emotional sign-off (e.g. "ইতি তোমার...", "ভালোবাসায়...", "সবসময় তোমারই...", "শুভকামনায়...").`
+
+  if (isFather) {
+    greetingRule = `1. Start with a respectful and deeply affectionate greeting for Father (e.g. "শ্রদ্ধেয় বাবা," or "বাবা," or "পূজনীয় বাবা,"). NEVER address a father casually as "প্রিয় ${params.receiverName}" as that is culturally inappropriate in Bengali heritage.`
+    closingRule = `5. End with a reverent and tender closing for Father (e.g. "ইতি আপনার স্নেহধন্য সন্তান...", "প্রণামান্তে...", "আপনার আদরের সন্তান..."). NEVER use romantic or peer phrases like "সবসময় তোমারই".`
+  } else if (isMother) {
+    greetingRule = `1. Start with a tender, reverent greeting for Mother (e.g. "শ্রদ্ধেয়া মা," or "মা," or "পূজনীয় মা,"). NEVER address a mother casually as "প্রিয় ${params.receiverName}".`
+    closingRule = `5. End with a warm, grateful, and devoted closing for Mother (e.g. "ইতি তোমার স্নেহধন্য সন্তান...", "প্রণাম নেবেন মা...", "তোমার আদরের সন্তান..."). NEVER use romantic or peer phrases like "সবসময় তোমারই".`
+  }
+
   return `Write a personal, emotional handwritten-style letter according to the following details:
 
 ══════════════════════════════════════════════════════
@@ -220,13 +235,14 @@ ${langInstruction}
 ══════════════════════════════════════════════════════
 MANDATORY LETTER COMPOSITION RULES (ANTI-AI HUMAN FEEL)
 ══════════════════════════════════════════════════════
-1. Start directly with an affectionate greeting addressing ${params.receiverName} (e.g. "প্রিয় ${params.receiverName}," or appropriate intimate greeting).
+${greetingRule}
 2. NEVER use artificial clichés like "আশা করি তুমি ভালো আছো", "আশা করি সুস্থ আছো", or "I hope this letter finds you well". Start immediately with raw feeling, a vivid memory, or an intimate confession.
 3. Bring in at least one evocative sensory detail (the scent of rain, an old song, the sound of a rustling curtain, a fading photograph, evening tea).
 4. Use human emotional pauses (যেমন: "...", "—") where words hesitate before confessing deep truths.
-5. End with a heartfelt, era- and personality-appropriate closing and emotional sign-off (e.g. "ইতি তোমার...", "ভালোবাসায়...", "সবসময় তোমারই...", "শুভকামনায়...").
-6. Complete ending guarantee: The letter MUST reach a full, natural conclusion. Never cut off mid-thought or omit the closing signature line.
-7. Output ONLY the raw letter text. No subject lines, no markdown titles, no quotes around the entire letter, no preamble or postscript explanation.
+${closingRule}
+6. If the context indicates a Birthday, Anniversary, or special milestone, honor the celebration with warmth, blessings, and sincere gratitude.
+7. Complete ending guarantee: The letter MUST reach a full, natural conclusion. Never cut off mid-thought or omit the closing signature line.
+8. Output ONLY the raw letter text. No subject lines, no markdown titles, no quotes around the entire letter, no preamble or postscript explanation.
 
 Write the letter now:`
 }

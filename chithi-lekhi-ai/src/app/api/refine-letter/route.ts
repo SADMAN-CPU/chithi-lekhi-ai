@@ -149,10 +149,7 @@ export async function POST(request: NextRequest) {
   } catch (err: unknown) {
     console.error('[POST /api/refine-letter] Refine error:', err)
     const error: ApiError = {
-      message:
-        err instanceof Error
-          ? err.message
-          : 'চিঠি পরিমার্জন করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।',
+      message: 'চিঠি পরিমার্জন করতে সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন। (Failed to refine letter. Please try again.)',
       code: 'REFINE_ERROR',
       status: 500,
     }

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef, useCallback, useMemo } from 'react'
+import React, { useState, useRef, useCallback, useMemo, useEffect } from 'react'
 import {
   Download,
   Share2,
@@ -26,6 +26,7 @@ import {
   getSafePixelRatio,
 } from '@/lib/export-utils'
 import { shareLetter } from '@/lib/share-engine'
+import { useLanguage } from '@/components/providers/LanguageProvider'
 import { LetterCanvas, type CanvasThemeId } from './LetterCanvas'
 
 export type VintageCardStyle =
@@ -58,6 +59,7 @@ interface VintageLetterVisualProps {
   relationship?: string
   date?: string
   shareUrl?: string
+  language?: string
   onClose?: () => void
 }
 
@@ -67,8 +69,10 @@ export function VintageLetterVisualStudio({
   relationship,
   date,
   shareUrl,
+  language,
   onClose,
 }: VintageLetterVisualProps) {
+  const { locale } = useLanguage()
   // ── Studio state ────────────────────────────────────────────────────────
   const [cardStyle, setCardStyle] = useState<VintageCardStyle>('90s-paper')
   const [aspectRatio, setAspectRatio] = useState<TargetAspectRatio>('portrait')
@@ -105,14 +109,26 @@ export function VintageLetterVisualStudio({
   const qualitySetting = QUALITY_CONFIG[qualityTier]
   const themeId = STYLE_TO_THEME[cardStyle]
 
+  const statusTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (statusTimeoutRef.current) {
+        clearTimeout(statusTimeoutRef.current)
+      }
+    }
+  }, [])
+
   // ── Status helpers ───────────────────────────────────────────────────────
   const showStatus = (msg: string, durationMs = 2800) => {
     setStatusMessage(msg)
-    setTimeout(() => setStatusMessage(null), durationMs)
+    if (statusTimeoutRef.current) clearTimeout(statusTimeoutRef.current)
+    statusTimeoutRef.current = setTimeout(() => setStatusMessage(null), durationMs)
   }
 
   // ── Download: Single page (or merged canvas) ─────────────────────────────
   const handleDownloadCurrentPage = useCallback(async () => {
+    if (downloading) return
     setDownloading(true)
     setStatusMessage(`${qualitySetting.labelBn} এ রেন্ডার হচ্ছে...`)
     try {
@@ -141,6 +157,7 @@ export function VintageLetterVisualStudio({
       setDownloading(false)
     }
   }, [
+    downloading,
     isMergedMode,
     qualitySetting,
     receiverName,
@@ -151,6 +168,7 @@ export function VintageLetterVisualStudio({
 
   // ── Download: All pages (batch, no state mutation mid-loop) ─────────────
   const handleDownloadAllPages = useCallback(async () => {
+    if (downloading) return
     if (totalPages <= 1) {
       await handleDownloadCurrentPage()
       return
@@ -181,25 +199,29 @@ export function VintageLetterVisualStudio({
         for (let i = 0; i < totalPages; i++) {
           setCurrentPageIndex(i)
           setStatusMessage(`পৃষ্ঠা ${i + 1}/${totalPages} রেন্ডার হচ্ছে...`)
-          await new Promise((r) => setTimeout(r, 350))
+          await new Promise((r) => setTimeout(r, 400))
           if (cardRef.current) {
             const dataUrl = await captureElementAsPng(cardRef.current, safePR, qualitySetting.quality)
             const link = document.createElement('a')
             link.download = `chithi-${(receiverName || 'letter').replace(/\s+/g, '-').toLowerCase()}-page-${i + 1}.png`
             link.href = dataUrl
+            document.body.appendChild(link)
             link.click()
+            document.body.removeChild(link)
           }
         }
       } else {
         // Fast path: all pages pre-rendered in batch container, no state mutation
         for (let i = 0; i < batchEls.length; i++) {
           setStatusMessage(`পৃষ্ঠা ${i + 1}/${batchEls.length} ডাউনলোড হচ্ছে...`)
-          await new Promise((r) => setTimeout(r, 60))
+          await new Promise((r) => setTimeout(r, 400))
           const dataUrl = await captureElementAsPng(batchEls[i], safePR, qualitySetting.quality)
           const link = document.createElement('a')
           link.download = `chithi-${(receiverName || 'letter').replace(/\s+/g, '-').toLowerCase()}-page-${i + 1}.png`
           link.href = dataUrl
+          document.body.appendChild(link)
           link.click()
+          document.body.removeChild(link)
         }
       }
 
@@ -275,17 +297,17 @@ export function VintageLetterVisualStudio({
 
   // ── Container style per ratio ────────────────────────────────────────────
   const ratioContainerStyles: Record<TargetAspectRatio, string> = {
-    portrait: 'max-w-[440px] min-h-[550px]',
-    square: 'max-w-[480px] min-h-[480px]',
-    a4: 'max-w-[460px] min-h-[650px]',
-    natural: 'max-w-[500px]', // auto-height, no min
+    portrait: 'w-full max-w-[440px] min-h-[420px] sm:min-h-[550px]',
+    square: 'w-full max-w-[480px] min-h-[320px] sm:min-h-[480px]',
+    a4: 'w-full max-w-[460px] min-h-[500px] sm:min-h-[650px]',
+    natural: 'w-full max-w-[500px]', // auto-height, no min
   }
 
   return (
     <div className="w-full max-w-4xl mx-auto space-y-5">
 
       {/* ── Studio Controls ──────────────────────────────────────────────── */}
-      <div className="bg-white/95 backdrop-blur-md border border-rose-100 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
+      <div className="bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md border border-rose-100 dark:border-neutral-800 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-rose-500 to-amber-400 flex items-center justify-center text-white shadow-xs">
@@ -293,10 +315,10 @@ export function VintageLetterVisualStudio({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="font-bengali font-bold text-base text-neutral-900 leading-tight">
+                <h3 className="font-bengali font-bold text-base text-neutral-900 dark:text-neutral-100 leading-tight">
                   ফুল লেটার ইমেজ রেন্ডারিং ইঞ্জিন
                 </h3>
-                <span className="text-[10px] font-bengali font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <span className="text-[10px] font-bengali font-medium px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
                   {isMergedMode
                     ? 'একটানা মার্জড ছবি'
                     : layout.metrics.category === 'short'
@@ -306,7 +328,7 @@ export function VintageLetterVisualStudio({
                     : `দীর্ঘ চিঠি (${totalPages} পৃষ্ঠা • জিরো ক্রপ)`}
                 </span>
               </div>
-              <p className="text-[11px] font-bengali text-neutral-500">
+              <p className="text-[11px] font-bengali text-neutral-500 dark:text-neutral-400">
                 চিঠির কোনো অংশ ক্রপ হবে না — সম্ভাষণ, বডি ও স্বাক্ষর ১০০% অক্ষুণ্ণ
               </p>
             </div>
@@ -316,7 +338,7 @@ export function VintageLetterVisualStudio({
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-colors"
+              className="p-2 rounded-xl text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -325,7 +347,7 @@ export function VintageLetterVisualStudio({
 
         {/* 1. Theme Selection */}
         <div className="space-y-1.5">
-          <label className="block text-xs font-bengali font-medium text-neutral-700">
+          <label className="block text-xs font-bengali font-medium text-neutral-700 dark:text-neutral-300">
             কার্ডের ভিন্টেজ থিম:
           </label>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -337,15 +359,15 @@ export function VintageLetterVisualStudio({
                   key={stKey}
                   type="button"
                   onClick={() => setCardStyle(stKey)}
-                  className={`p-2.5 rounded-xl border text-left transition-all ${
+                  className={`p-2.5 rounded-xl border text-left transition-all min-h-[44px] cursor-pointer ${
                     isSelected
-                      ? 'border-rose-400 bg-rose-50/80 ring-1 ring-rose-300 shadow-xs'
-                      : 'border-neutral-200 bg-white hover:bg-neutral-50'
+                      ? 'border-rose-400 dark:border-rose-700 bg-rose-50/80 dark:bg-rose-950/40 ring-1 ring-rose-300 dark:ring-rose-800 shadow-xs'
+                      : 'border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-750'
                   }`}
                 >
                   <div className="flex items-center gap-1.5">
                     <span className="text-base">{cfg.emoji}</span>
-                    <span className="font-bengali font-semibold text-xs text-neutral-900 block truncate">
+                    <span className="font-bengali font-semibold text-xs text-neutral-900 dark:text-neutral-100 block truncate">
                       {cfg.name}
                     </span>
                   </div>
@@ -356,9 +378,9 @@ export function VintageLetterVisualStudio({
         </div>
 
         {/* 2. Aspect Ratio / Mode Controls */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-neutral-100">
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-neutral-100 dark:border-neutral-800">
           <div className="flex flex-wrap items-center gap-1.5 text-xs font-bengali">
-            <span className="text-neutral-500">মোড / রেশিও:</span>
+            <span className="text-neutral-500 dark:text-neutral-400">মোড / রেশিও:</span>
             {(
               [
                 { ratio: 'portrait', label: '📱 ৪:৫', sub: '(১০৮০×১৩৫০)' },
@@ -373,10 +395,10 @@ export function VintageLetterVisualStudio({
                   setAspectRatio(ratio)
                   setCurrentPageIndex(0)
                 }}
-                className={`px-2.5 py-1 rounded-lg border transition-all ${
+                className={`px-2.5 py-1.5 rounded-xl border transition-all min-h-[40px] cursor-pointer ${
                   aspectRatio === ratio
-                    ? 'border-rose-400 bg-rose-50 text-rose-800 font-semibold shadow-xs'
-                    : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
+                    ? 'border-rose-400 dark:border-rose-700 bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-200 font-semibold shadow-xs'
+                    : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800'
                 }`}
               >
                 {label} <span className="opacity-60 text-[10px]">{sub}</span>
@@ -388,29 +410,29 @@ export function VintageLetterVisualStudio({
                 setAspectRatio('natural')
                 setCurrentPageIndex(0)
               }}
-              className={`px-2.5 py-1 rounded-lg border transition-all flex items-center gap-1 ${
+              className={`px-2.5 py-1.5 rounded-xl border transition-all flex items-center gap-1 min-h-[40px] cursor-pointer ${
                 aspectRatio === 'natural'
-                  ? 'border-emerald-500 bg-emerald-50 text-emerald-800 font-semibold shadow-xs'
-                  : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
+                  ? 'border-emerald-500 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 font-semibold shadow-xs'
+                  : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800'
               }`}
             >
-              <Merge className="w-3 h-3 text-emerald-600" />
+              <Merge className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
               <span>একটানা (সম্পূর্ণ)</span>
             </button>
           </div>
 
           {/* Typography Scale */}
           <div className="flex items-center gap-1 text-xs font-bengali">
-            <span className="text-neutral-500 mr-1">ফন্ট:</span>
+            <span className="text-neutral-500 dark:text-neutral-400 mr-1">ফন্ট:</span>
             {(['auto', 'small', 'normal', 'large'] as const).map((sz) => (
               <button
                 key={sz}
                 type="button"
                 onClick={() => setFontSizeChoice(sz)}
-                className={`px-2 py-0.5 rounded-md border text-[11px] font-bengali ${
+                className={`px-2 py-1 rounded-lg border text-[11px] font-bengali min-h-[36px] cursor-pointer ${
                   fontSizeChoice === sz
-                    ? 'border-rose-400 bg-rose-50 text-rose-800 font-semibold'
-                    : 'border-neutral-200 text-neutral-500'
+                    ? 'border-rose-400 dark:border-rose-700 bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-200 font-semibold'
+                    : 'border-neutral-200 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400'
                 }`}
               >
                 {sz === 'auto' ? 'অটো' : sz === 'small' ? 'ছোট' : sz === 'normal' ? 'স্বাভাবিক' : 'বড়'}
@@ -420,9 +442,9 @@ export function VintageLetterVisualStudio({
         </div>
 
         {/* 3. Image Quality */}
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-neutral-100">
-          <div className="flex items-center gap-1.5 text-xs font-bengali text-neutral-600">
-            <Sliders className="w-3.5 h-3.5 text-neutral-500" />
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-neutral-100 dark:border-neutral-800">
+          <div className="flex items-center gap-1.5 text-xs font-bengali text-neutral-600 dark:text-neutral-400">
+            <Sliders className="w-3.5 h-3.5 text-neutral-500 dark:text-neutral-400" />
             <span className="font-medium">ইমেজ কোয়ালিটি:</span>
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
@@ -434,13 +456,13 @@ export function VintageLetterVisualStudio({
                   key={tier}
                   type="button"
                   onClick={() => setQualityTier(tier)}
-                  className={`px-2.5 py-1 rounded-lg border text-xs font-bengali transition-all flex items-center gap-1 ${
+                  className={`px-2.5 py-1.5 rounded-xl border text-xs font-bengali transition-all flex items-center gap-1 min-h-[40px] cursor-pointer ${
                     isSelected
-                      ? 'border-rose-400 bg-rose-50 text-rose-800 font-semibold shadow-xs'
-                      : 'border-neutral-200 text-neutral-600 hover:bg-neutral-50'
+                      ? 'border-rose-400 dark:border-rose-700 bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-200 font-semibold shadow-xs'
+                      : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800'
                   }`}
                 >
-                  {isSelected && <CheckCircle2 className="w-3 h-3 text-rose-600" />}
+                  {isSelected && <CheckCircle2 className="w-3 h-3 text-rose-600 dark:text-rose-400" />}
                   <span>{item.labelBn}</span>
                 </button>
               )
@@ -450,21 +472,21 @@ export function VintageLetterVisualStudio({
 
         {/* 4. Multi-page pagination bar */}
         {!isMergedMode && totalPages > 1 && (
-          <div className="flex items-center justify-between p-2.5 bg-amber-50/70 border border-amber-200/60 rounded-xl text-xs font-bengali text-amber-900">
+          <div className="flex items-center justify-between p-2.5 bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200/60 dark:border-amber-900/50 rounded-xl text-xs font-bengali text-amber-900 dark:text-amber-200">
             <div className="flex items-center gap-1.5">
-              <Layers className="w-4 h-4 text-amber-600" />
+              <Layers className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
               <span>
                 চিঠি দীর্ঘ হওয়ায় <strong>{totalPages}টি পৃষ্ঠায়</strong> বিভক্ত (কোনো বাক্য কাটা পড়বে না)
               </span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
                 disabled={activePageIndex === 0}
                 onClick={() => setCurrentPageIndex((p) => Math.max(0, p - 1))}
-                className="p-1 rounded-md border border-amber-200 bg-white disabled:opacity-40"
+                className="p-1.5 rounded-lg border border-amber-200 dark:border-amber-800 bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 disabled:opacity-40 min-h-[36px] min-w-[36px] flex items-center justify-center cursor-pointer"
               >
-                <ChevronLeft className="w-3.5 h-3.5" />
+                <ChevronLeft className="w-4 h-4" />
               </button>
               <span className="font-semibold text-xs">
                 পৃষ্ঠা {activePageIndex + 1} / {totalPages}
@@ -473,9 +495,9 @@ export function VintageLetterVisualStudio({
                 type="button"
                 disabled={activePageIndex === totalPages - 1}
                 onClick={() => setCurrentPageIndex((p) => Math.min(totalPages - 1, p + 1))}
-                className="p-1 rounded-md border border-amber-200 bg-white disabled:opacity-40"
+                className="p-1.5 rounded-lg border border-amber-200 dark:border-amber-800 bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 disabled:opacity-40 min-h-[36px] min-w-[36px] flex items-center justify-center cursor-pointer"
               >
-                <ChevronRight className="w-3.5 h-3.5" />
+                <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -483,7 +505,7 @@ export function VintageLetterVisualStudio({
       </div>
 
       {/* ── Letter Canvas Preview ─────────────────────────────────────────── */}
-      <div className="flex justify-center p-2 overflow-x-auto bg-neutral-100/50 rounded-2xl border border-neutral-200/60">
+      <div className="flex justify-center p-2 sm:p-4 overflow-x-auto bg-neutral-100/50 dark:bg-neutral-950/50 rounded-2xl border border-neutral-200/60 dark:border-neutral-800">
         {isMergedMode ? (
           /* Merged / Continuous canvas — entire letter in one scrollable card */
           <LetterCanvas
@@ -496,6 +518,7 @@ export function VintageLetterVisualStudio({
             receiverName={receiverName}
             relationship={relationship}
             date={date}
+            language={language || (locale === 'en' ? 'english' : 'bengali')}
             themeId={themeId}
             fontSizeClass={layout.computedFontSize.cssClass}
             merged
@@ -513,6 +536,7 @@ export function VintageLetterVisualStudio({
             receiverName={receiverName}
             relationship={relationship}
             date={date}
+            language={language || (locale === 'en' ? 'english' : 'bengali')}
             themeId={themeId}
             fontSizeClass={layout.computedFontSize.cssClass}
             className={`w-full ${ratioContainerStyles[aspectRatio]}`}
@@ -546,6 +570,7 @@ export function VintageLetterVisualStudio({
                 receiverName={receiverName}
                 relationship={relationship}
                 date={date}
+                language={language || (locale === 'en' ? 'english' : 'bengali')}
                 themeId={themeId}
                 fontSizeClass={layout.computedFontSize.cssClass}
                 style={{ width: '460px' }}
@@ -556,10 +581,10 @@ export function VintageLetterVisualStudio({
       )}
 
       {/* ── Download & Share Actions ──────────────────────────────────────── */}
-      <div className="bg-white/95 backdrop-blur-md border border-rose-100 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
-        <div className="text-xs font-bengali text-neutral-600">
+      <div className="bg-white/95 dark:bg-neutral-900/95 backdrop-blur-md border border-rose-100 dark:border-neutral-800 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
+        <div className="text-xs font-bengali text-neutral-600 dark:text-neutral-400">
           {statusMessage ? (
-            <span className="text-rose-600 font-semibold flex items-center gap-1">
+            <span className="text-rose-600 dark:text-rose-400 font-semibold flex items-center gap-1">
               <Sparkles className="w-3.5 h-3.5 text-rose-500 animate-pulse" />
               {statusMessage}
             </span>
@@ -574,9 +599,9 @@ export function VintageLetterVisualStudio({
             type="button"
             disabled={downloading}
             onClick={handleDownloadCurrentPage}
-            className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl font-bengali text-xs sm:text-sm font-semibold text-white shadow-xs transition-all ${
+            className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl font-bengali text-xs sm:text-sm font-semibold text-white shadow-xs transition-all min-h-[44px] cursor-pointer ${
               downloading
-                ? 'bg-neutral-400 cursor-not-allowed'
+                ? 'bg-neutral-400 dark:bg-neutral-700 cursor-not-allowed'
                 : 'bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 active:scale-[0.99] glow-pink'
             }`}
           >
@@ -600,9 +625,9 @@ export function VintageLetterVisualStudio({
               type="button"
               disabled={downloading}
               onClick={handleDownloadAllPages}
-              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 py-2.5 px-3.5 rounded-xl font-bengali text-xs sm:text-sm font-semibold bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 transition-colors"
+              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 py-2.5 px-3.5 rounded-xl font-bengali text-xs sm:text-sm font-semibold bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/50 text-amber-900 dark:text-amber-300 border border-amber-200 dark:border-amber-900/50 transition-colors min-h-[44px] cursor-pointer"
             >
-              <Layers className="w-4 h-4 text-amber-600" />
+              <Layers className="w-4 h-4 text-amber-600 dark:text-amber-400" />
               <span>সব পৃষ্ঠা ডাউনলোড ({totalPages}টি)</span>
             </button>
           )}
@@ -612,7 +637,7 @@ export function VintageLetterVisualStudio({
             type="button"
             disabled={sharing}
             onClick={handleShareImage}
-            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl font-bengali text-xs sm:text-sm font-semibold bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 transition-colors"
+            className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl font-bengali text-xs sm:text-sm font-semibold bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-900/50 transition-colors min-h-[44px] cursor-pointer"
           >
             {sharing ? (
               <div className="w-4 h-4 border-2 border-rose-600/30 border-t-rose-600 rounded-full animate-spin" />

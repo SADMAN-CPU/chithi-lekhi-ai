@@ -12,13 +12,18 @@ export function generateSlug(length = 8): string {
   return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
 }
 
-/** Format a date in a human-readable way */
-export function formatDate(dateString: string): string {
-  return new Intl.DateTimeFormat('bn-BD', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  }).format(new Date(dateString))
+/** Format a date in a human-readable way (Bengali or English) */
+export function formatDate(dateString: string, locale: string = 'bn'): string {
+  const intlLocale = locale === 'en' ? 'en-US' : 'bn-BD'
+  try {
+    return new Intl.DateTimeFormat(intlLocale, {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    }).format(new Date(dateString))
+  } catch {
+    return dateString
+  }
 }
 
 /** Truncate text to a given length with ellipsis */

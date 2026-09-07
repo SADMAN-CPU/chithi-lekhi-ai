@@ -83,21 +83,21 @@ export default async function PublicLetterPage({ params }: Props) {
       <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-8 sm:py-12 flex flex-col items-center justify-center">
         {/* Status 1: Expired Letter */}
         {lookup.status === 'expired' ? (
-          <div className="bg-white/90 backdrop-blur-md border border-amber-200 rounded-3xl p-8 sm:p-12 text-center max-w-md w-full space-y-4 shadow-sm animate-in fade-in duration-300">
-            <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 mx-auto">
+          <div className="bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md border border-amber-200 dark:border-amber-900/50 rounded-3xl p-8 sm:p-12 text-center max-w-md w-full space-y-4 shadow-sm animate-in fade-in duration-300">
+            <div className="w-14 h-14 rounded-2xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800/60 flex items-center justify-center text-amber-600 dark:text-amber-400 mx-auto">
               <Clock className="w-7 h-7" />
             </div>
-            <h2 className="font-bengali font-bold text-xl text-neutral-900">
+            <h2 className="font-bengali font-bold text-xl text-neutral-900 dark:text-neutral-100">
               চিঠির মেয়াদ শেষ হয়ে গেছে
             </h2>
-            <p className="font-bengali text-xs sm:text-sm text-neutral-600 leading-relaxed">
+            <p className="font-bengali text-xs sm:text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">
               চিঠির প্রেরক এটি সাময়িক সময়ের (২৪ ঘণ্টা / ৭ দিন) জন্য সক্রিয় রেখেছিলেন। বর্তমানে লিংকটির মেয়াদ
               উত্তীর্ণ হয়েছে।
             </p>
             <div className="pt-2">
               <Link
                 href="/"
-                className="inline-flex items-center gap-1.5 py-2.5 px-4 rounded-xl font-bengali text-xs font-semibold bg-rose-500 hover:bg-rose-600 text-white shadow-xs transition-colors"
+                className="inline-flex items-center gap-1.5 py-2.5 px-4 rounded-xl font-bengali text-xs font-semibold bg-rose-500 hover:bg-rose-600 text-white shadow-xs transition-colors min-h-[44px]"
               >
                 <Feather className="w-4 h-4" />
                 <span>নতুন চিঠি লিখুন</span>
@@ -106,20 +106,20 @@ export default async function PublicLetterPage({ params }: Props) {
           </div>
         ) : lookup.status === 'private' ? (
           /* Status 2: Private Letter */
-          <div className="bg-white/90 backdrop-blur-md border border-rose-200 rounded-3xl p-8 sm:p-12 text-center max-w-md w-full space-y-4 shadow-sm animate-in fade-in duration-300">
-            <div className="w-14 h-14 rounded-2xl bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-500 mx-auto">
+          <div className="bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md border border-rose-200 dark:border-neutral-800 rounded-3xl p-8 sm:p-12 text-center max-w-md w-full space-y-4 shadow-sm animate-in fade-in duration-300">
+            <div className="w-14 h-14 rounded-2xl bg-rose-50 dark:bg-rose-950/50 border border-rose-100 dark:border-rose-900/40 flex items-center justify-center text-rose-500 dark:text-rose-400 mx-auto">
               <Lock className="w-7 h-7" />
             </div>
-            <h2 className="font-bengali font-bold text-xl text-neutral-900">
+            <h2 className="font-bengali font-bold text-xl text-neutral-900 dark:text-neutral-100">
               এটি একটি ব্যক্তিগত চিঠি
             </h2>
-            <p className="font-bengali text-xs sm:text-sm text-neutral-600 leading-relaxed">
+            <p className="font-bengali text-xs sm:text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">
               প্রেরক এই চিঠিটি প্রাইভেট বা সুরক্ষিত রেখেছেন। এটি সবার জন্য উন্মুক্ত নয়।
             </p>
             <div className="pt-2">
               <Link
                 href="/"
-                className="inline-flex items-center gap-1.5 py-2.5 px-4 rounded-xl font-bengali text-xs font-semibold bg-neutral-800 hover:bg-neutral-900 text-white shadow-xs transition-colors"
+                className="inline-flex items-center gap-1.5 py-2.5 px-4 rounded-xl font-bengali text-xs font-semibold bg-neutral-800 dark:bg-neutral-700 hover:bg-neutral-900 dark:hover:bg-neutral-600 text-white shadow-xs transition-colors min-h-[44px]"
               >
                 <span>হোমপেজে ফিরে যান</span>
               </Link>
@@ -127,20 +127,20 @@ export default async function PublicLetterPage({ params }: Props) {
           </div>
         ) : !publicRecord ? (
           /* Status 3: Not Found */
-          <div className="bg-white/90 backdrop-blur-md border border-rose-100 rounded-3xl p-8 sm:p-12 text-center max-w-md w-full space-y-4 shadow-sm animate-in fade-in duration-300">
-            <div className="w-14 h-14 rounded-2xl bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-500 mx-auto">
+          <div className="bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md border border-rose-100 dark:border-neutral-800 rounded-3xl p-8 sm:p-12 text-center max-w-md w-full space-y-4 shadow-sm animate-in fade-in duration-300">
+            <div className="w-14 h-14 rounded-2xl bg-rose-50 dark:bg-rose-950/50 border border-rose-100 dark:border-rose-900/40 flex items-center justify-center text-rose-500 dark:text-rose-400 mx-auto">
               <FileQuestion className="w-7 h-7" />
             </div>
-            <h2 className="font-bengali font-bold text-xl text-neutral-900">
+            <h2 className="font-bengali font-bold text-xl text-neutral-900 dark:text-neutral-100">
               চিঠিটি খুঁজে পাওয়া যায়নি
             </h2>
-            <p className="font-bengali text-xs sm:text-sm text-neutral-600 leading-relaxed">
+            <p className="font-bengali text-xs sm:text-sm text-neutral-600 dark:text-neutral-400 leading-relaxed">
               এই চিঠিটির লিংক ভুল হতে পারে অথবা প্রেরক এটি সরিয়ে ফেলেছেন।
             </p>
             <div className="pt-2">
               <Link
                 href="/"
-                className="inline-flex items-center gap-1.5 py-2.5 px-4 rounded-xl font-bengali text-xs font-semibold bg-rose-500 hover:bg-rose-600 text-white shadow-xs transition-colors"
+                className="inline-flex items-center gap-1.5 py-2.5 px-4 rounded-xl font-bengali text-xs font-semibold bg-rose-500 hover:bg-rose-600 text-white shadow-xs transition-colors min-h-[44px]"
               >
                 <Feather className="w-4 h-4" />
                 <span>নতুন একটি চিঠি লিখুন</span>
@@ -153,12 +153,12 @@ export default async function PublicLetterPage({ params }: Props) {
         )}
       </main>
 
-      <footer className="w-full border-t border-rose-100/80 bg-white/60 backdrop-blur-xs py-6 mt-12">
+      <footer className="w-full border-t border-rose-100/80 dark:border-neutral-800 bg-white/60 dark:bg-neutral-900/60 backdrop-blur-xs py-6 mt-12">
         <div className="max-w-4xl mx-auto px-4 text-center space-y-1">
-          <p className="font-bengali text-xs text-neutral-600 font-medium">
+          <p className="font-bengali text-xs text-neutral-600 dark:text-neutral-400 font-medium">
             চিঠি লেখাই AI (Chithi Lekhi AI) — &ldquo;যে কথা মুখে বলা যায় না, চিঠিতে লিখে ফেলুন।&rdquo;
           </p>
-          <p className="text-[11px] text-neutral-400 font-sans">
+          <p className="text-[11px] text-neutral-400 dark:text-neutral-500 font-sans">
             100% Private, Anonymous & Beautiful
           </p>
         </div>

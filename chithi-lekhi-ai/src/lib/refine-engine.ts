@@ -2,6 +2,12 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/ge
 import type { RefineAction } from './validations'
 import { SYSTEM_PERSONA } from './prompts'
 import { openai } from './openai'
+import {
+  classifyAITask,
+  compressPrompt,
+  calculateOptimalTokens,
+  validateAndCleanResponse,
+} from './ai-router'
 
 const geminiApiKey = process.env.GEMINI_API_KEY
 const geminiModelName = process.env.GEMINI_MODEL || 'gemini-1.5-flash'
@@ -401,43 +407,46 @@ function localRefineFallback(letter: string, action: RefineAction, customInstruc
 export async function refineLetterContent(
   params: RefineLetterParams
 ): Promise<{ refinedLetter: string; provider: 'gemini' | 'openai' | 'fallback'; audit: LetterQualityAudit }> {
-  const prompt = buildRefinementPrompt(params)
+  const route = classifyAITask({ action: params.action, text: params.letter })
+  const rawPrompt = buildRefinementPrompt(params)
+  const prompt = compressPrompt(rawPrompt)
+  const optimalTokens = calculateOptimalTokens({
+    language: params.language || 'bengali',
+    targetWordCount: 220,
+    taskType: route.taskType,
+  })
 
-  // 1. Primary: Google Gemini API
-  if (genAI) {
+  // Helper function to call Gemini
+  const tryGemini = async (): Promise<string | null> => {
+    if (!genAI) return null
     try {
       const model = genAI.getGenerativeModel({
         model: geminiModelName,
         systemInstruction: SYSTEM_PERSONA,
         safetySettings,
         generationConfig: {
-          temperature: 0.82,
+          temperature: route.temperature,
           topP: 0.95,
           topK: 40,
-          maxOutputTokens: 1800,
+          maxOutputTokens: optimalTokens,
         },
       })
-
       const result = await model.generateContent(prompt)
       const response = await result.response
-      let rawText = response.text()?.trim()
-
-      if (rawText && rawText.length > 30) {
-        rawText = cleanAiArtifacts(rawText)
-        rawText = ensureCompleteSignoff(rawText, params.receiverName)
-        const audit = evaluateLetterQuality(rawText, {
-          relationship: params.relationship,
-          receiverName: params.receiverName,
-        })
-        return { refinedLetter: rawText, provider: 'gemini', audit }
+      const text = response.text()?.trim()
+      if (text && text.length > 30) {
+        const validated = validateAndCleanResponse(text, params.language || 'bengali')
+        return cleanAiArtifacts(validated.cleanedText)
       }
-    } catch (geminiErr) {
-      console.warn('[Refine Engine] Gemini API error, falling back to OpenAI:', geminiErr)
+    } catch (err) {
+      console.warn('[Refine Engine] Gemini attempt error:', err)
     }
+    return null
   }
 
-  // 2. Secondary: OpenAI Fallback
-  if (openai && process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.startsWith('sk-')) {
+  // Helper function to call OpenAI
+  const tryOpenAI = async (): Promise<string | null> => {
+    if (!openai || !process.env.OPENAI_API_KEY || !process.env.OPENAI_API_KEY.startsWith('sk-')) return null
     try {
       const completion = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
@@ -445,26 +454,45 @@ export async function refineLetterContent(
           { role: 'system', content: SYSTEM_PERSONA },
           { role: 'user', content: prompt },
         ],
-        temperature: 0.82,
-        max_tokens: 1500,
+        temperature: route.temperature,
+        max_tokens: optimalTokens,
       })
-
-      let rawText = completion.choices[0]?.message?.content?.trim()
-      if (rawText && rawText.length > 30) {
-        rawText = cleanAiArtifacts(rawText)
-        rawText = ensureCompleteSignoff(rawText, params.receiverName)
-        const audit = evaluateLetterQuality(rawText, {
-          relationship: params.relationship,
-          receiverName: params.receiverName,
-        })
-        return { refinedLetter: rawText, provider: 'openai', audit }
+      const text = completion.choices[0]?.message?.content?.trim()
+      if (text && text.length > 30) {
+        const validated = validateAndCleanResponse(text, params.language || 'bengali')
+        return cleanAiArtifacts(validated.cleanedText)
       }
-    } catch (openAiErr) {
-      console.warn('[Refine Engine] OpenAI fallback failed:', openAiErr)
+    } catch (err) {
+      console.warn('[Refine Engine] OpenAI attempt error:', err)
+    }
+    return null
+  }
+
+  // Intelligent Provider Ordering
+  const providers =
+    route.preferredProvider === 'openai'
+      ? [
+          { name: 'openai' as const, fn: tryOpenAI },
+          { name: 'gemini' as const, fn: tryGemini },
+        ]
+      : [
+          { name: 'gemini' as const, fn: tryGemini },
+          { name: 'openai' as const, fn: tryOpenAI },
+        ]
+
+  for (const { name, fn } of providers) {
+    const output = await fn()
+    if (output) {
+      const finalized = ensureCompleteSignoff(output, params.receiverName)
+      const audit = evaluateLetterQuality(finalized, {
+        relationship: params.relationship,
+        receiverName: params.receiverName,
+      })
+      return { refinedLetter: finalized, provider: name, audit }
     }
   }
 
-  // 3. Tertiary: High-Fidelity Local Storyteller Refiner
+  // Tertiary: High-Fidelity Local Storyteller Refiner
   let fallbackText = localRefineFallback(params.letter, params.action, params.customInstruction)
   fallbackText = ensureCompleteSignoff(fallbackText, params.receiverName)
   const audit = evaluateLetterQuality(fallbackText, {

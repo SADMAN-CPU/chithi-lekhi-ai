@@ -81,6 +81,7 @@ export function checkRateLimit(
   record.timestamps = record.timestamps.filter((ts) => ts > windowStart)
 
   if (record.timestamps.length >= limit) {
+    recordSecurityEvent(ip, prefix, 'rate_limit_exceeded')
     const oldest = record.timestamps[0]
     const resetInSeconds = Math.max(1, Math.ceil((oldest + windowMs - now) / 1000))
     return {
@@ -99,6 +100,37 @@ export function checkRateLimit(
     remaining,
     resetInSeconds: windowSeconds,
   }
+}
+
+export interface SecurityEvent {
+  id: string
+  ip: string
+  prefix: string
+  type: 'rate_limit_exceeded' | 'suspicious_activity'
+  timestamp: string
+}
+
+const securityEvents: SecurityEvent[] = []
+
+export function recordSecurityEvent(
+  ip: string,
+  prefix: string,
+  type: 'rate_limit_exceeded' | 'suspicious_activity' = 'rate_limit_exceeded'
+) {
+  securityEvents.unshift({
+    id: `sec-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    ip,
+    prefix,
+    type,
+    timestamp: new Date().toISOString(),
+  })
+  if (securityEvents.length > 500) {
+    securityEvents.pop()
+  }
+}
+
+export function getSecurityEvents(): SecurityEvent[] {
+  return securityEvents
 }
 
 /**

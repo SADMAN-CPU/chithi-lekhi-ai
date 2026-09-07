@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import {
   Heart,
@@ -15,7 +15,8 @@ import {
   Clock,
   Sparkles,
 } from 'lucide-react'
-import { buildWhatsAppUrl, formatDate } from '@/utils/helpers'
+import { formatDate } from '@/utils/helpers'
+import { shareLetter } from '@/lib/share-engine'
 import { PDF_THEMES, type PdfThemeId } from '@/lib/export-utils'
 import dynamic from 'next/dynamic'
 import type { PublicLetterRow } from '@/types/database'
@@ -34,6 +35,16 @@ export function PublicLetterViewer({ letter }: PublicLetterViewerProps) {
   const [copiedLink, setCopiedLink] = useState(false)
   const [showStudio, setShowStudio] = useState(false)
 
+  const copyTextTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const copyLinkTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (copyTextTimeoutRef.current) clearTimeout(copyTextTimeoutRef.current)
+      if (copyLinkTimeoutRef.current) clearTimeout(copyLinkTimeoutRef.current)
+    }
+  }, [])
+
   // Map theme or default to 90s-post
   const themeKey = (letter.theme in PDF_THEMES ? letter.theme : '90s-post') as PdfThemeId
   const theme = PDF_THEMES[themeKey] || PDF_THEMES['90s-post']
@@ -43,15 +54,21 @@ export function PublicLetterViewer({ letter }: PublicLetterViewerProps) {
       ? `${window.location.origin}/c/${letter.short_id}`
       : `https://chithilekhi.com/c/${letter.short_id}`
 
-  const whatsappUrl = buildWhatsAppUrl(
-    `💌 ${letter.receiver_name}-এর জন্য একটি বিশেষ চিঠি এসেছে, পড়ে দেখো:\n\n${shareUrl}\n\n— চিঠি লেখাই AI (Chithi Lekhi AI)`
-  )
+  const handleWhatsApp = async () => {
+    await shareLetter({
+      platform: 'whatsapp',
+      shareUrl,
+      receiverName: letter.receiver_name,
+      letterText: letter.letter_content,
+    })
+  }
 
   const handleCopyText = async () => {
     try {
       await navigator.clipboard.writeText(letter.letter_content)
       setCopiedText(true)
-      setTimeout(() => setCopiedText(false), 2000)
+      if (copyTextTimeoutRef.current) clearTimeout(copyTextTimeoutRef.current)
+      copyTextTimeoutRef.current = setTimeout(() => setCopiedText(false), 2000)
     } catch {
       // Fallback
     }
@@ -61,7 +78,8 @@ export function PublicLetterViewer({ letter }: PublicLetterViewerProps) {
     try {
       await navigator.clipboard.writeText(shareUrl)
       setCopiedLink(true)
-      setTimeout(() => setCopiedLink(false), 2000)
+      if (copyLinkTimeoutRef.current) clearTimeout(copyLinkTimeoutRef.current)
+      copyLinkTimeoutRef.current = setTimeout(() => setCopiedLink(false), 2000)
     } catch {
       // Fallback
     }
@@ -71,27 +89,27 @@ export function PublicLetterViewer({ letter }: PublicLetterViewerProps) {
     <div className="w-full max-w-2xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-3 duration-500">
       {/* Top Banner / Info Strip */}
       <div className="text-center space-y-2 pb-1">
-        <div className="inline-flex items-center gap-2 bg-rose-50 text-rose-700 text-xs font-bengali px-3 py-1 rounded-full border border-rose-200/60 shadow-2xs">
+        <div className="inline-flex items-center gap-2 bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 text-xs font-bengali px-3 py-1 rounded-full border border-rose-200/60 dark:border-rose-900/40 shadow-2xs">
           <Heart className="w-3.5 h-3.5 fill-rose-500 text-rose-500 animate-pulse" />
           <span>একটি বিশেষ চিঠি এসেছে</span>
-          <span className="text-neutral-300">•</span>
-          <span className="inline-flex items-center gap-1 font-sans text-neutral-600">
+          <span className="text-neutral-300 dark:text-neutral-600">•</span>
+          <span className="inline-flex items-center gap-1 font-sans text-neutral-600 dark:text-neutral-400">
             <Eye className="w-3 h-3 text-rose-500" />
             <span>{letter.views} views</span>
           </span>
         </div>
 
-        <h1 className="font-bengali text-2xl sm:text-3xl font-bold text-neutral-900 tracking-tight">
+        <h1 className="font-bengali text-2xl sm:text-3xl font-bold text-neutral-900 dark:text-neutral-100 tracking-tight">
           {letter.title || `প্রিয় ${letter.receiver_name}-এর চিঠি`}
         </h1>
-        <p className="font-bengali text-xs sm:text-sm text-neutral-600 max-w-md mx-auto">
+        <p className="font-bengali text-xs sm:text-sm text-neutral-600 dark:text-neutral-400 max-w-md mx-auto">
           কেউ একজন মনের গভীর ভালোবাসা ও শ্রদ্ধা নিয়ে এই চিঠিটি পাঠিয়েছে।
         </p>
 
         {/* Expiration Tag if applicable */}
         {letter.expiration !== 'permanent' && letter.expires_at && (
-          <div className="inline-flex items-center gap-1.5 text-[11px] font-bengali text-amber-800 bg-amber-50/90 border border-amber-200/80 px-2.5 py-0.5 rounded-md mt-1">
-            <Clock className="w-3 h-3 text-amber-600" />
+          <div className="inline-flex items-center gap-1.5 text-[11px] font-bengali text-amber-800 dark:text-amber-300 bg-amber-50/90 dark:bg-amber-950/50 border border-amber-200/80 dark:border-amber-900/50 px-2.5 py-0.5 rounded-md mt-1">
+            <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
             <span>
               চিঠিটি {letter.expiration === '24h' ? '২৪ ঘণ্টার' : '৭ দিনের'} জন্য সক্রিয় (মেয়াদ:{' '}
               {formatDate(letter.expires_at)})
@@ -178,16 +196,16 @@ export function PublicLetterViewer({ letter }: PublicLetterViewerProps) {
         <button
           type="button"
           onClick={handleCopyText}
-          className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bengali text-xs sm:text-sm font-medium bg-white hover:bg-neutral-50 text-neutral-800 border border-neutral-200 shadow-2xs transition-colors"
+          className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bengali text-xs sm:text-sm font-medium bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-100 border border-neutral-200 dark:border-neutral-700 shadow-2xs transition-colors min-h-[44px] cursor-pointer"
         >
           {copiedText ? (
             <>
-              <Check className="w-3.5 h-3.5 text-emerald-600" />
+              <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
               <span>কপি হয়েছে</span>
             </>
           ) : (
             <>
-              <Copy className="w-3.5 h-3.5 text-neutral-500" />
+              <Copy className="w-3.5 h-3.5 text-neutral-500 dark:text-neutral-400" />
               <span>চিঠি কপি</span>
             </>
           )}
@@ -197,60 +215,59 @@ export function PublicLetterViewer({ letter }: PublicLetterViewerProps) {
         <button
           type="button"
           onClick={handleCopyLink}
-          className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bengali text-xs sm:text-sm font-medium bg-white hover:bg-neutral-50 text-neutral-800 border border-neutral-200 shadow-2xs transition-colors"
+          className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bengali text-xs sm:text-sm font-medium bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-100 border border-neutral-200 dark:border-neutral-700 shadow-2xs transition-colors min-h-[44px] cursor-pointer"
         >
           {copiedLink ? (
             <>
-              <Check className="w-3.5 h-3.5 text-emerald-600" />
+              <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
               <span>লিংক কপি!</span>
             </>
           ) : (
             <>
-              <LinkIcon className="w-3.5 h-3.5 text-rose-500" />
+              <LinkIcon className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400" />
               <span>লিংক কপি</span>
             </>
           )}
         </button>
 
         {/* WhatsApp Share */}
-        <a
-          href={whatsappUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bengali text-xs sm:text-sm font-medium bg-[#25D366] hover:bg-[#20bd5a] text-white shadow-2xs transition-colors"
+        <button
+          type="button"
+          onClick={handleWhatsApp}
+          className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bengali text-xs sm:text-sm font-medium bg-[#25D366] hover:bg-[#20bd5a] text-white shadow-2xs transition-colors min-h-[44px] cursor-pointer"
         >
           <Share2 className="w-3.5 h-3.5" />
           <span>হোয়াটসঅ্যাপ</span>
-        </a>
+        </button>
 
         {/* Visual Image Studio */}
         <button
           type="button"
           onClick={() => setShowStudio(true)}
-          className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bengali text-xs sm:text-sm font-semibold bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 shadow-2xs transition-colors"
+          className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bengali text-xs sm:text-sm font-semibold bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-800 dark:text-rose-200 border border-rose-200 dark:border-rose-900/50 shadow-2xs transition-colors min-h-[44px] cursor-pointer"
         >
-          <ImageIcon className="w-3.5 h-3.5 text-rose-600" />
+          <ImageIcon className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
           <span>ইমেজ কার্ড</span>
         </button>
       </div>
 
       {/* Chithi Lekhi AI CTA Card */}
-      <div className="bg-white/90 backdrop-blur-xs border border-rose-100 rounded-3xl p-6 text-center space-y-2.5 shadow-xs">
-        <div className="inline-flex items-center gap-1 text-xs font-bengali font-semibold text-rose-600 bg-rose-50 px-2.5 py-0.5 rounded-full">
+      <div className="bg-white/90 dark:bg-neutral-900/90 backdrop-blur-xs border border-rose-100 dark:border-neutral-800 rounded-3xl p-6 text-center space-y-2.5 shadow-xs">
+        <div className="inline-flex items-center gap-1 text-xs font-bengali font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/50 px-2.5 py-0.5 rounded-full">
           <Sparkles className="w-3 h-3 text-amber-500" />
           <span>চিঠি লেখাই এআই</span>
         </div>
-        <h3 className="font-bengali font-bold text-base sm:text-lg text-neutral-900">
+        <h3 className="font-bengali font-bold text-base sm:text-lg text-neutral-900 dark:text-neutral-100">
           আপনিও কি কাউকে মনের কথা বলতে চান?
         </h3>
-        <p className="font-bengali text-xs sm:text-sm text-neutral-600 max-w-md mx-auto leading-relaxed">
+        <p className="font-bengali text-xs sm:text-sm text-neutral-600 dark:text-neutral-400 max-w-md mx-auto leading-relaxed">
           যে কথা কখনো মুখে বলা হয়নি, আমাদের এআই দিয়ে তা একটি নিখুঁত ভিন্টেজ চিঠিতে রূপ দিন সম্পূর্ণ
           বিনামূল্যে।
         </p>
         <div className="pt-2">
           <Link
             href="/"
-            className="inline-flex items-center gap-2 py-2.5 px-5 rounded-xl font-bengali text-xs sm:text-sm font-semibold text-white bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 shadow-xs transition-all glow-pink"
+            className="inline-flex items-center gap-2 py-2.5 px-5 rounded-xl font-bengali text-xs sm:text-sm font-semibold text-white bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 shadow-xs transition-all glow-pink min-h-[44px]"
           >
             <span>একটি চিঠি লিখুন</span>
             <ArrowRight className="w-4 h-4" />

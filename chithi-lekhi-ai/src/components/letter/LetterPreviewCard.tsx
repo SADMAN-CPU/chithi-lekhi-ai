@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useRef, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import {
   Copy,
@@ -27,6 +27,7 @@ import { shareLetter } from '@/lib/share-engine'
 import { WRITING_PERSONALITIES } from '@/constants'
 import type { EraStyle, Language, LetterLength } from '@/types'
 import type { RefineAction } from '@/lib/validations'
+import { useLanguage } from '@/components/providers/LanguageProvider'
 
 // Heavy visual and export modals are code-split and loaded asynchronously on demand
 const VintageLetterVisualStudio = dynamic(
@@ -74,45 +75,45 @@ interface RefineQuickChip {
 const REFINE_QUICK_CHIPS: RefineQuickChip[] = [
   {
     id: 'more-emotional',
-    labelBn: '❤️ More Emotional',
+    labelBn: '❤️ আরও আবেগঘন',
     labelEn: 'More Emotional',
-    icon: <Heart className="w-3.5 h-3.5 text-rose-600" />,
-    colorClass: 'border-rose-200 bg-rose-50/70 hover:bg-rose-100/80 text-rose-900',
+    icon: <Heart className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />,
+    colorClass: 'border-rose-200 dark:border-rose-900/50 bg-rose-50/70 dark:bg-rose-950/30 hover:bg-rose-100/80 dark:hover:bg-rose-900/40 text-rose-900 dark:text-rose-200',
   },
   {
     id: 'more-romantic',
-    labelBn: '🌹 Romantic',
+    labelBn: '🌹 রোমান্টিক',
     labelEn: 'Romantic',
-    icon: <Sparkles className="w-3.5 h-3.5 text-pink-600" />,
-    colorClass: 'border-pink-200 bg-pink-50/70 hover:bg-pink-100/80 text-pink-900',
+    icon: <Sparkles className="w-3.5 h-3.5 text-pink-600 dark:text-pink-400" />,
+    colorClass: 'border-pink-200 dark:border-pink-900/50 bg-pink-50/70 dark:bg-pink-950/30 hover:bg-pink-100/80 dark:hover:bg-pink-900/40 text-pink-900 dark:text-pink-200',
   },
   {
     id: 'vintage-90s',
-    labelBn: '📜 90s Style',
+    labelBn: '📜 ৯০-এর ধাঁচে',
     labelEn: '90s Style',
-    icon: <Scroll className="w-3.5 h-3.5 text-amber-700" />,
-    colorClass: 'border-amber-200 bg-amber-50/70 hover:bg-amber-100/80 text-amber-900',
+    icon: <Scroll className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400" />,
+    colorClass: 'border-amber-200 dark:border-amber-900/50 bg-amber-50/70 dark:bg-amber-950/30 hover:bg-amber-100/80 dark:hover:bg-amber-900/40 text-amber-900 dark:text-amber-200',
   },
   {
     id: 'better-writing',
-    labelBn: '✍ Better Writing',
+    labelBn: '✍ সুন্দর ভাষা',
     labelEn: 'Better Writing',
-    icon: <PenTool className="w-3.5 h-3.5 text-indigo-600" />,
-    colorClass: 'border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100/80 text-indigo-900',
+    icon: <PenTool className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />,
+    colorClass: 'border-indigo-200 dark:border-indigo-900/50 bg-indigo-50/70 dark:bg-indigo-950/30 hover:bg-indigo-100/80 dark:hover:bg-indigo-900/40 text-indigo-900 dark:text-indigo-200',
   },
   {
     id: 'deeper-feeling',
-    labelBn: '😭 Deeper Feeling',
+    labelBn: '😭 গভীর অনুভূতি',
     labelEn: 'Deeper Feeling',
-    icon: <Flame className="w-3.5 h-3.5 text-orange-600" />,
-    colorClass: 'border-orange-200 bg-orange-50/70 hover:bg-orange-100/80 text-orange-900',
+    icon: <Flame className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />,
+    colorClass: 'border-orange-200 dark:border-orange-900/50 bg-orange-50/70 dark:bg-orange-950/30 hover:bg-orange-100/80 dark:hover:bg-orange-900/40 text-orange-900 dark:text-orange-200',
   },
   {
     id: 'make-shorter',
-    labelBn: '✂ Short Version',
+    labelBn: '✂ সংক্ষিপ্ত',
     labelEn: 'Short Version',
-    icon: <Scissors className="w-3.5 h-3.5 text-teal-600" />,
-    colorClass: 'border-teal-200 bg-teal-50/70 hover:bg-teal-100/80 text-teal-900',
+    icon: <Scissors className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />,
+    colorClass: 'border-teal-200 dark:border-teal-900/50 bg-teal-50/70 dark:bg-teal-950/30 hover:bg-teal-100/80 dark:hover:bg-teal-900/40 text-teal-900 dark:text-teal-200',
   },
 ]
 
@@ -128,6 +129,7 @@ function LetterPreviewCardInner({
   onReset,
   onEdit,
 }: LetterPreviewCardProps) {
+  const { t, locale } = useLanguage()
   // Current active letter (supports live refinement & undo)
   const [currentLetter, setCurrentLetter] = useState(letter)
   const [originalLetter] = useState(letter)
@@ -143,6 +145,19 @@ function LetterPreviewCardInner({
   const [showSaveModal, setShowSaveModal] = useState(false)
   const [activeLetterId, setActiveLetterId] = useState<string | undefined>(letterId)
 
+  // Timeout refs to prevent unmounted component state updates
+  const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const txtTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const whatsappTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
+      if (txtTimeoutRef.current) clearTimeout(txtTimeoutRef.current)
+      if (whatsappTimeoutRef.current) clearTimeout(whatsappTimeoutRef.current)
+    }
+  }, [])
+
   // AI Assistant States
   const [isRefining, setIsRefining] = useState(false)
   const [refiningStatus, setRefiningStatus] = useState<string | null>(null)
@@ -155,7 +170,8 @@ function LetterPreviewCardInner({
     try {
       await navigator.clipboard.writeText(currentLetter)
       setCopied(true)
-      setTimeout(() => setCopied(false), 2500)
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
+      copyTimeoutRef.current = setTimeout(() => setCopied(false), 2500)
     } catch {
       const textarea = document.createElement('textarea')
       textarea.value = currentLetter
@@ -164,7 +180,8 @@ function LetterPreviewCardInner({
       document.execCommand('copy')
       document.body.removeChild(textarea)
       setCopied(true)
-      setTimeout(() => setCopied(false), 2500)
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
+      copyTimeoutRef.current = setTimeout(() => setCopied(false), 2500)
     }
   }, [currentLetter])
 
@@ -176,7 +193,8 @@ function LetterPreviewCardInner({
       relationship,
     })
     setTxtDownloaded(true)
-    setTimeout(() => setTxtDownloaded(false), 2500)
+    if (txtTimeoutRef.current) clearTimeout(txtTimeoutRef.current)
+    txtTimeoutRef.current = setTimeout(() => setTxtDownloaded(false), 2500)
   }, [currentLetter, receiverName, relationship])
 
   // Handle WhatsApp Share via universal share engine
@@ -187,16 +205,30 @@ function LetterPreviewCardInner({
       letterText: currentLetter,
       receiverName,
     })
-    setTimeout(() => setWhatsappSharing(false), 2000)
+    if (whatsappTimeoutRef.current) clearTimeout(whatsappTimeoutRef.current)
+    whatsappTimeoutRef.current = setTimeout(() => setWhatsappSharing(false), 2000)
   }, [currentLetter, receiverName])
 
   // Handle AI Refinement Request
   const handleRefine = useCallback(
     async (action: RefineAction, customInstruction?: string) => {
+      if (isRefining) return
       setIsRefining(true)
       setRefineError(null)
       setRefiningStatus(
-        action === 'more-emotional'
+        locale === 'en'
+          ? action === 'more-emotional'
+            ? 'Adding deep emotional resonance...'
+            : action === 'more-romantic'
+            ? 'Adding romantic touches...'
+            : action === 'vintage-90s'
+            ? 'Infusing 90s vintage nostalgia...'
+            : action === 'make-shorter'
+            ? 'Condensing letter essence...'
+            : action === 'better-writing'
+            ? 'Polishing literary quality...'
+            : 'Refining letter with AI...'
+          : action === 'more-emotional'
           ? 'শব্দে গভীর আবেগ ছড়ানো হচ্ছে...'
           : action === 'more-romantic'
           ? 'মিষ্টি রোমান্টিক সুবাস যোগ করা হচ্ছে...'
@@ -227,7 +259,7 @@ function LetterPreviewCardInner({
 
         const data = await res.json()
         if (!res.ok || !data.success) {
-          throw new Error(data.error?.message || 'চিঠি পরিমার্জন ব্যর্থ হয়েছে')
+          throw new Error(data.error?.message || (locale === 'en' ? 'Failed to refine letter' : 'চিঠি পরিমার্জন ব্যর্থ হয়েছে'))
         }
 
         if (data.letter) {
@@ -240,13 +272,19 @@ function LetterPreviewCardInner({
         }
       } catch (err: unknown) {
         console.error('Refine failed:', err)
-        setRefineError(err instanceof Error ? err.message : 'চিঠি পরিমার্জনে সাময়িক সমস্যা হয়েছে')
+        setRefineError(
+          err instanceof Error
+            ? err.message
+            : locale === 'en'
+            ? 'Failed to refine letter'
+            : 'চিঠি পরিমার্জনে সাময়িক সমস্যা হয়েছে'
+        )
       } finally {
         setIsRefining(false)
         setRefiningStatus(null)
       }
     },
-    [currentLetter, personality, relationship, receiverName, language]
+    [isRefining, currentLetter, personality, relationship, receiverName, language, locale]
   )
 
   // Revert back to original letter
@@ -260,9 +298,9 @@ function LetterPreviewCardInner({
 
 
   const eraLabels: Record<EraStyle, string> = {
-    '90s-handwritten': '✉️ ৯০-এর হাতে লেখা',
-    vintage: '📜 ভিন্টেজ ক্লাসিক্যাল',
-    modern: '✨ আধুনিক প্রকাশ',
+    '90s-handwritten': locale === 'en' ? '✉️ 90s Handwritten' : '✉️ ৯০-এর হাতে লেখা',
+    vintage: locale === 'en' ? '📜 Vintage Classical' : '📜 ভিন্টেজ ক্লাসিক্যাল',
+    modern: locale === 'en' ? '✨ Modern Style' : '✨ আধুনিক প্রকাশ',
   }
 
   const languageLabels: Record<Language, string> = {
@@ -272,101 +310,101 @@ function LetterPreviewCardInner({
   }
 
   const lengthLabels: Record<LetterLength, string> = {
-    short: 'সংক্ষিপ্ত',
-    medium: 'আদর্শ',
-    long: 'দীর্ঘ',
+    short: locale === 'en' ? 'Short' : 'সংক্ষিপ্ত',
+    medium: locale === 'en' ? 'Medium' : 'আদর্শ',
+    long: locale === 'en' ? 'Long' : 'দীর্ঘ',
   }
 
 
   return (
     <div className="w-full max-w-2xl mx-auto space-y-5 animate-in fade-in-50 duration-500">
       {/* Top action bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-white/70 backdrop-blur-sm border border-rose-100 px-4 py-2.5 rounded-xl shadow-xs">
+      <div className="flex flex-wrap items-center justify-between gap-2.5 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-md border border-rose-100/80 dark:border-neutral-800 px-3.5 py-2.5 rounded-2xl shadow-xs transition-colors">
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="inline-flex items-center gap-1 text-xs font-bengali font-medium text-rose-700 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200/60">
+          <span className="inline-flex items-center gap-1 text-xs font-bengali font-medium text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-lg border border-rose-200/60 dark:border-rose-900/40">
             <Sparkles className="w-3 h-3 text-rose-500" />
-            চিঠি প্রস্তুত
+            {t('preview.ready')}
           </span>
-          <span className="text-[11px] text-neutral-600 bg-neutral-100 px-2 py-0.5 rounded-md font-bengali">
+          <span className="text-[11px] text-neutral-600 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 px-2 py-1 rounded-lg font-bengali">
             {eraLabels[eraStyle]}
           </span>
-          <span className="text-[11px] text-neutral-600 bg-neutral-100 px-2 py-0.5 rounded-md font-bengali">
+          <span className="text-[11px] text-neutral-600 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 px-2 py-1 rounded-lg font-bengali">
             {languageLabels[language]} • {lengthLabels[letterLength]}
           </span>
           {personality && (
-            <span className="text-[11px] text-rose-700 bg-rose-50 border border-rose-200/60 px-2 py-0.5 rounded-md font-bengali font-medium">
+            <span className="text-[11px] text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200/60 dark:border-rose-900/40 px-2 py-1 rounded-lg font-bengali font-medium">
               {WRITING_PERSONALITIES.find((p) => p.value === personality)?.emoji}{' '}
               {WRITING_PERSONALITIES.find((p) => p.value === personality)?.label || personality}
             </span>
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
           <button
             type="button"
             onClick={() => setShowSaveModal(true)}
-            className="inline-flex items-center gap-1.5 text-xs font-bengali font-bold text-white bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 px-3 py-1.5 rounded-lg transition-all shadow-xs glow-pink active:scale-95"
+            className="inline-flex items-center gap-1.5 text-xs font-bengali font-bold text-white bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 px-3 py-2 rounded-xl transition-all shadow-xs glow-pink active:scale-95 min-h-[40px] cursor-pointer"
           >
             <Heart className="w-3.5 h-3.5 fill-white" />
-            <span>Save Letter ❤️</span>
+            <span>{t('preview.saveLetter')}</span>
           </button>
           <button
             type="button"
             onClick={onEdit}
-            className="text-xs font-bengali text-neutral-600 hover:text-neutral-900 bg-neutral-100 hover:bg-neutral-200/80 px-2.5 py-1.5 rounded-lg transition-colors"
+            className="text-xs font-bengali text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200/80 dark:hover:bg-neutral-700 px-2.5 py-2 rounded-xl transition-colors min-h-[40px] cursor-pointer"
           >
-            তথ্য পরিবর্তন
+            {t('preview.editInfo')}
           </button>
           <button
             type="button"
             onClick={onReset}
-            className="inline-flex items-center gap-1 text-xs font-bengali text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100/80 px-2.5 py-1.5 rounded-lg transition-colors border border-rose-200/50"
+            className="inline-flex items-center gap-1 text-xs font-bengali text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100/80 dark:hover:bg-rose-900/50 px-2.5 py-2 rounded-xl transition-colors border border-rose-200/50 dark:border-rose-900/40 min-h-[40px] cursor-pointer"
           >
             <RefreshCw className="w-3 h-3" />
-            নতুন চিঠি
+            {t('preview.newLetter')}
           </button>
         </div>
       </div>
 
       {/* Realistic Paper Letter Card */}
-      <div className="relative paper-card rounded-2xl p-6 sm:p-10 transition-all duration-300 overflow-hidden shadow-md">
+      <div className="relative paper-card rounded-2xl sm:rounded-3xl p-4 xs:p-6 sm:p-10 transition-all duration-300 overflow-hidden shadow-md">
         {/* Vintage Postmark / Stamp Decorator */}
-        <div className="absolute top-5 right-5 sm:top-7 sm:right-7 flex flex-col items-center pointer-events-none select-none opacity-85">
-          <div className="w-14 h-16 sm:w-16 sm:h-20 border-2 border-dashed border-rose-400/70 bg-rose-50/60 rounded-md flex flex-col items-center justify-center p-1 shadow-xs transform rotate-3">
-            <Feather className="w-5 h-5 sm:w-6 sm:h-6 text-rose-600 mb-0.5" />
-            <span className="text-[8px] sm:text-[9px] font-sans font-bold text-rose-700 uppercase tracking-widest">
+        <div className="absolute top-4 right-4 sm:top-7 sm:right-7 flex flex-col items-center pointer-events-none select-none opacity-85">
+          <div className="w-12 h-14 sm:w-16 sm:h-20 border-2 border-dashed border-rose-400/70 bg-rose-50/60 dark:bg-rose-950/40 rounded-md flex flex-col items-center justify-center p-1 shadow-xs transform rotate-3">
+            <Feather className="w-4 h-4 sm:w-6 sm:h-6 text-rose-600 dark:text-rose-400 mb-0.5" />
+            <span className="text-[7px] sm:text-[9px] font-sans font-bold text-rose-700 dark:text-rose-300 uppercase tracking-widest">
               CHITHI
             </span>
-            <span className="text-[7px] sm:text-[8px] font-bengali text-rose-600/80">
-              ডাকটিকিট
+            <span className="text-[6px] sm:text-[8px] font-bengali text-rose-600/80 dark:text-rose-400/80">
+              {t('preview.stampTitle')}
             </span>
           </div>
-          <div className="absolute -bottom-2 -left-3 w-9 h-9 sm:w-11 sm:h-11 rounded-full border border-rose-800/40 flex items-center justify-center -rotate-12 bg-white/30 backdrop-blur-xs">
-            <span className="text-[6px] sm:text-[7px] font-mono text-rose-900/60 font-semibold tracking-tighter">
+          <div className="absolute -bottom-2 -left-2 w-8 h-8 sm:w-11 sm:h-11 rounded-full border border-rose-800/40 dark:border-rose-400/40 flex items-center justify-center -rotate-12 bg-white/30 dark:bg-neutral-900/50 backdrop-blur-xs">
+            <span className="text-[5px] sm:text-[7px] font-mono text-rose-900/60 dark:text-rose-300/80 font-semibold tracking-tighter">
               DHAKA 90s
             </span>
           </div>
         </div>
 
         {/* Letter Header */}
-        <div className="mb-6 sm:mb-8 pr-20">
+        <div className="mb-6 sm:mb-8 pr-14 sm:pr-20">
           <div className="flex items-center gap-2">
-            <p className="text-xs uppercase tracking-widest text-neutral-400 font-sans font-medium mb-1">
+            <p className="text-xs uppercase tracking-widest text-neutral-400 dark:text-neutral-500 font-sans font-medium mb-1">
               PERSONAL LETTER
             </p>
             {isRefined && (
-              <span className="text-[10px] font-bengali font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+              <span className="text-[10px] font-bengali font-semibold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
                 <Sparkles className="w-3 h-3 text-amber-600" />
-                এআই পরিমার্জিত {qualityScore ? `• ${qualityScore}/১০০` : ''}
+                {t('preview.refinedBadge')} {qualityScore ? `• ${qualityScore}/১০০` : ''}
               </span>
             )}
           </div>
           <div className="flex flex-wrap items-baseline gap-2">
-            <h2 className="font-bengali text-xl sm:text-2xl font-bold text-neutral-900">
-              {receiverName ? `প্রিয় ${receiverName}` : 'কাছের মানুষ'}
+            <h2 className="font-bengali text-xl sm:text-2xl font-bold text-neutral-900 dark:text-neutral-100">
+              {receiverName ? `${t('preview.dear')} ${receiverName}` : t('preview.anonymousDear')}
             </h2>
             {relationship && (
-              <span className="text-xs font-bengali text-rose-600/80 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-100">
+              <span className="text-xs font-bengali text-rose-600/80 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/50 px-2 py-0.5 rounded-full border border-rose-100 dark:border-rose-900/50">
                 {relationship}
               </span>
             )}
@@ -375,14 +413,14 @@ function LetterPreviewCardInner({
         </div>
 
         {/* Letter Body */}
-        <div className="letter-body font-bengali text-neutral-800 text-base sm:text-lg leading-relaxed sm:leading-loose whitespace-pre-wrap select-text">
+        <div className="letter-body font-bengali text-neutral-800 dark:text-neutral-100 text-base sm:text-lg leading-relaxed sm:leading-loose whitespace-pre-wrap select-text">
           {currentLetter}
         </div>
 
         {/* Bottom Vintage Footer Line */}
-        <div className="mt-8 sm:mt-10 pt-4 border-t border-rose-200/50 flex items-center justify-between text-[11px] text-neutral-400 font-bengali">
-          <span>চিঠি লেখাই এআই • Chithi Lekhi AI</span>
-          <span>যে কথা মুখে বলা যায় না 💌</span>
+        <div className="mt-8 sm:mt-10 pt-4 border-t border-rose-200/50 dark:border-neutral-700/50 flex items-center justify-between text-[11px] text-neutral-400 dark:text-neutral-500 font-bengali">
+          <span>{t('preview.footerBrand')}</span>
+          <span>{t('preview.footerQuote')}</span>
         </div>
       </div>
 
@@ -398,19 +436,19 @@ function LetterPreviewCardInner({
       {/* ─────────────────────────────────────────────────────────────
           PHASE 7: LETTER AI ASSISTANT UI ("Improve with AI ✨")
          ───────────────────────────────────────────────────────────── */}
-      <div className="bg-white/95 border border-rose-200/80 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
-        <div className="flex items-center justify-between">
+      <div className="bg-white/95 dark:bg-neutral-900/90 border border-rose-200/80 dark:border-neutral-800 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-rose-500 to-amber-400 flex items-center justify-center text-white shadow-2xs">
               <Wand2 className="w-3.5 h-3.5" />
             </div>
             <div>
-              <h4 className="font-bengali font-bold text-sm text-neutral-900 leading-tight flex items-center gap-1.5">
+              <h4 className="font-bengali font-bold text-sm text-neutral-900 dark:text-neutral-100 leading-tight flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                <span>Improve with AI (এআই দিয়ে চিঠি উন্নত করুন ✨)</span>
+                <span>{t('preview.aiAssistantTitle')}</span>
               </h4>
-              <p className="text-[11px] font-bengali text-neutral-500">
-                এক ক্লিকে চিঠির অনুভূতি, ভাষা বা গভীরতা মনের মতো সাজিয়ে নিন
+              <p className="text-[11px] font-bengali text-neutral-500 dark:text-neutral-400">
+                {t('preview.aiAssistantSubtitle')}
               </p>
             </div>
           </div>
@@ -419,10 +457,10 @@ function LetterPreviewCardInner({
             <button
               type="button"
               onClick={handleUndo}
-              className="inline-flex items-center gap-1 text-xs font-bengali text-neutral-600 hover:text-neutral-900 bg-neutral-100 hover:bg-neutral-200 px-2.5 py-1 rounded-lg transition-colors border border-neutral-200"
+              className="inline-flex items-center gap-1 text-xs font-bengali text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 px-2.5 py-1.5 rounded-xl transition-colors border border-neutral-200 dark:border-neutral-700 min-h-[40px] cursor-pointer"
             >
               <RotateCcw className="w-3 h-3" />
-              পূর্বের চিঠি ফেরত আনুন
+              {t('preview.undoButton')}
             </button>
           )}
         </div>
@@ -435,56 +473,58 @@ function LetterPreviewCardInner({
               type="button"
               disabled={isRefining}
               onClick={() => handleRefine(chip.id)}
-              className={`p-2 rounded-xl border text-left flex items-center gap-2 transition-all text-xs font-bengali font-semibold shadow-2xs active:scale-[0.98] disabled:opacity-50 ${chip.colorClass}`}
+              className={`p-2.5 rounded-xl border text-left flex items-center gap-2 transition-all text-xs font-bengali font-semibold shadow-2xs active:scale-[0.98] disabled:opacity-50 min-h-[44px] cursor-pointer ${chip.colorClass}`}
             >
-              <span className="p-1 rounded-md bg-white/70 shadow-2xs">{chip.icon}</span>
-              <span className="truncate">{chip.labelBn}</span>
+              <span className="p-1 rounded-md bg-white/70 dark:bg-neutral-800/80 shadow-2xs">{chip.icon}</span>
+              <span className="truncate">{language === 'english' ? chip.labelEn : chip.labelBn}</span>
             </button>
           ))}
         </div>
 
         {/* Custom AI Instruction Box */}
-        <div className="pt-2 border-t border-neutral-100 space-y-2">
-          <label className="block text-xs font-bengali font-medium text-neutral-700">
-            Tell AI how you want to improve (এআই-কে আপনার মনের মতো নির্দেশনা দিন):
+        <div className="pt-2 border-t border-neutral-100 dark:border-neutral-800 space-y-2">
+          <label className="block text-xs font-bengali font-medium text-neutral-700 dark:text-neutral-300">
+            {t('preview.customPromptLabel')}
           </label>
-          <div className="flex gap-2">
+          <div className="flex flex-col xs:flex-row gap-2">
             <input
               type="text"
+              maxLength={500}
               value={customPrompt}
               onChange={(e) => setCustomPrompt(e.target.value)}
-              placeholder='যেমন: "Make this like a son writing to his mother" / "মায়ের প্রতি এক সন্তানের গভীর ভালোবাসার মতো করো..."'
+              placeholder={t('preview.customPromptPlaceholder')}
               disabled={isRefining}
-              className="flex-1 px-3.5 py-2 rounded-xl border border-neutral-200 bg-neutral-50/70 text-xs sm:text-sm font-bengali text-neutral-900 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-rose-400/40 focus:border-rose-400 transition-all"
+              className="flex-1 px-3.5 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50/70 dark:bg-neutral-800/80 text-xs sm:text-sm font-bengali text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-rose-400/40 focus:border-rose-400 transition-all min-h-[44px]"
             />
             <button
               type="button"
               disabled={isRefining || !customPrompt.trim()}
               onClick={() => {
-                if (customPrompt.trim()) {
-                  handleRefine('custom', customPrompt.trim())
+                const trimmed = customPrompt.trim().slice(0, 500)
+                if (trimmed) {
+                  handleRefine('custom', trimmed)
                   setCustomPrompt('')
                 }
               }}
-              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl font-bengali text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white shadow-xs transition-all disabled:opacity-40"
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl font-bengali text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white shadow-xs transition-all disabled:opacity-40 min-h-[44px] cursor-pointer shrink-0"
             >
               <Send className="w-3.5 h-3.5" />
-              <span>উন্নত করুন</span>
+              <span>{t('preview.customPromptSubmit')}</span>
             </button>
           </div>
         </div>
 
         {/* Loading / Processing Indicator */}
         {isRefining && (
-          <div className="p-3 bg-rose-50/70 border border-rose-200 rounded-xl flex items-center gap-2.5 text-xs font-bengali text-rose-800 animate-pulse">
+          <div className="p-3 bg-rose-50/70 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 rounded-xl flex items-center gap-2.5 text-xs font-bengali text-rose-800 dark:text-rose-300 animate-pulse">
             <div className="w-4 h-4 border-2 border-rose-500 border-t-transparent rounded-full animate-spin" />
-            <span>{refiningStatus || 'চিঠি পরিমার্জন চলছে...'}</span>
+            <span>{refiningStatus || t('preview.refiningProgress')}</span>
           </div>
         )}
 
         {/* Error Indicator */}
         {refineError && (
-          <div className="p-2.5 bg-red-50 border border-red-200 rounded-xl text-xs font-bengali text-red-700">
+          <div className="p-2.5 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 rounded-xl text-xs font-bengali text-red-700 dark:text-red-300">
             {refineError}
           </div>
         )}
@@ -493,17 +533,17 @@ function LetterPreviewCardInner({
       {/* Featured Banners: Anonymous Share & Visual Image */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {/* Anonymous Web Link Banner */}
-        <div className="bg-white/90 border border-rose-100 rounded-2xl p-3.5 flex items-center justify-between gap-2 shadow-2xs">
+        <div className="bg-white/90 dark:bg-neutral-900/90 border border-rose-100 dark:border-neutral-800 rounded-2xl p-3.5 flex flex-col xs:flex-row xs:items-center justify-between gap-2.5 shadow-2xs transition-colors">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
               <LinkIcon className="w-4 h-4" />
             </div>
             <div>
-              <h5 className="font-bengali font-bold text-xs text-neutral-900 leading-tight">
-                গোপন ওয়েব রিডিং লিংক
+              <h5 className="font-bengali font-bold text-xs text-neutral-900 dark:text-neutral-100 leading-tight">
+                {t('preview.anonymousLinkTitle')}
               </h5>
-              <p className="text-[10px] font-bengali text-neutral-500">
-                পরিচয় গোপন রেখে লিংকটি কাউকে পাঠান
+              <p className="text-[10px] font-bengali text-neutral-500 dark:text-neutral-400">
+                {t('preview.anonymousLinkDesc')}
               </p>
             </div>
           </div>
@@ -511,25 +551,25 @@ function LetterPreviewCardInner({
           <button
             type="button"
             onClick={() => setShowShareModal(true)}
-            className="py-1.5 px-3 rounded-xl font-bengali text-xs font-semibold bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/60 transition-all flex items-center gap-1.5"
+            className="py-2 px-3 rounded-xl font-bengali text-xs font-semibold bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 border border-rose-200/60 dark:border-rose-900/50 transition-all flex items-center justify-center gap-1.5 min-h-[44px] cursor-pointer shrink-0"
           >
             <LinkIcon className="w-3.5 h-3.5" />
-            <span>শেয়ার লিংক তৈরি</span>
+            <span>{t('preview.anonymousLinkBtn')}</span>
           </button>
         </div>
 
         {/* Visual Card Studio Banner */}
-        <div className="bg-white/90 border border-rose-100 rounded-2xl p-3.5 flex items-center justify-between gap-2 shadow-2xs">
+        <div className="bg-white/90 dark:bg-neutral-900/90 border border-rose-100 dark:border-neutral-800 rounded-2xl p-3.5 flex flex-col xs:flex-row xs:items-center justify-between gap-2.5 shadow-2xs transition-colors">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 flex items-center justify-center shrink-0">
               <ImageIcon className="w-4 h-4" />
             </div>
             <div>
-              <h5 className="font-bengali font-bold text-xs text-neutral-900 leading-tight">
-                ভিজ্যুয়াল ইমেজ কার্ড
+              <h5 className="font-bengali font-bold text-xs text-neutral-900 dark:text-neutral-100 leading-tight">
+                {t('preview.visualStudioTitle')}
               </h5>
-              <p className="text-[10px] font-bengali text-neutral-500">
-                জিরো-ক্রপ সম্পূর্ণ চিঠি PNG আকারে সংরক্ষণ
+              <p className="text-[10px] font-bengali text-neutral-500 dark:text-neutral-400">
+                {t('preview.visualStudioDesc')}
               </p>
             </div>
           </div>
@@ -537,9 +577,9 @@ function LetterPreviewCardInner({
           <button
             type="button"
             onClick={() => setShowVisualStudio(true)}
-            className="py-1.5 px-3 rounded-xl font-bengali text-xs font-semibold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/60 transition-colors"
+            className="py-2 px-3 rounded-xl font-bengali text-xs font-semibold bg-amber-50 dark:bg-amber-950/50 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-300 border border-amber-200/60 dark:border-amber-900/50 transition-colors flex items-center justify-center min-h-[44px] cursor-pointer shrink-0"
           >
-            <span>ইমেজ স্টুডিও</span>
+            <span>{t('preview.visualStudioBtn')}</span>
           </button>
         </div>
       </div>
@@ -550,21 +590,21 @@ function LetterPreviewCardInner({
         <button
           type="button"
           onClick={handleCopy}
-          className={`flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bengali text-xs sm:text-sm font-medium transition-all shadow-xs ${
+          className={`flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bengali text-xs sm:text-sm font-medium transition-all shadow-xs min-h-[44px] cursor-pointer ${
             copied
               ? 'bg-emerald-600 text-white shadow-emerald-200'
-              : 'bg-white hover:bg-neutral-50 text-neutral-800 border border-neutral-200'
+              : 'bg-white dark:bg-neutral-900 hover:bg-neutral-50 dark:hover:bg-neutral-800 text-neutral-800 dark:text-neutral-200 border border-neutral-200 dark:border-neutral-800'
           }`}
         >
           {copied ? (
             <>
               <Check className="w-4 h-4 text-white" />
-              <span>কপি হয়েছে!</span>
+              <span>{t('preview.copied')}</span>
             </>
           ) : (
             <>
-              <Copy className="w-4 h-4 text-neutral-500" />
-              <span>চিঠি কপি</span>
+              <Copy className="w-4 h-4 text-neutral-500 dark:text-neutral-400" />
+              <span>{t('preview.copyBtn')}</span>
             </>
           )}
         </button>
@@ -574,7 +614,7 @@ function LetterPreviewCardInner({
           type="button"
           onClick={handleWhatsAppShare}
           disabled={whatsappSharing}
-          className={`flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bengali text-xs sm:text-sm font-medium shadow-xs transition-all ${
+          className={`flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bengali text-xs sm:text-sm font-medium shadow-xs transition-all min-h-[44px] cursor-pointer ${
             whatsappSharing
               ? 'bg-[#25D366]/70 text-white cursor-not-allowed'
               : 'bg-[#25D366] hover:bg-[#20bd5a] text-white'
@@ -585,28 +625,28 @@ function LetterPreviewCardInner({
           ) : (
             <Share2 className="w-4 h-4" />
           )}
-          <span>হোয়াটসঅ্যাপ</span>
+          <span>{t('preview.whatsappBtn')}</span>
         </button>
 
         {/* Formatted TXT Export Button — shows success feedback */}
         <button
           type="button"
           onClick={handleDownloadTxt}
-          className={`flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bengali text-xs sm:text-sm font-medium transition-all ${
+          className={`flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bengali text-xs sm:text-sm font-medium transition-all min-h-[44px] cursor-pointer ${
             txtDownloaded
               ? 'bg-emerald-600 text-white shadow-xs'
-              : 'bg-neutral-50 hover:bg-neutral-100 text-neutral-800 border border-neutral-200'
+              : 'bg-neutral-50 dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-800 dark:text-neutral-200 border border-neutral-200 dark:border-neutral-800'
           }`}
         >
           {txtDownloaded ? (
             <>
               <Check className="w-4 h-4 text-white" />
-              <span>TXT হয়েছে!</span>
+              <span>{locale === 'en' ? 'TXT Saved!' : 'TXT হয়েছে!'}</span>
             </>
           ) : (
             <>
-              <Download className="w-4 h-4 text-neutral-600" />
-              <span>ফরম্যাটেড TXT</span>
+              <Download className="w-4 h-4 text-neutral-600 dark:text-neutral-400" />
+              <span>{t('preview.txtBtn')}</span>
             </>
           )}
         </button>
@@ -615,10 +655,10 @@ function LetterPreviewCardInner({
         <button
           type="button"
           onClick={() => setShowPdfModal(true)}
-          className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bengali text-xs sm:text-sm font-semibold bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 transition-colors shadow-xs"
+          className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bengali text-xs sm:text-sm font-semibold bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-900/50 transition-colors shadow-xs min-h-[44px] cursor-pointer"
         >
-          <Printer className="w-4 h-4 text-rose-600" />
-          <span>এ৪ পিডিএফ</span>
+          <Printer className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+          <span>{t('preview.pdfBtn')}</span>
         </button>
       </div>
 
@@ -630,6 +670,7 @@ function LetterPreviewCardInner({
               letter={currentLetter}
               receiverName={receiverName}
               relationship={relationship}
+              language={language}
               onClose={() => setShowVisualStudio(false)}
             />
           </div>
@@ -642,6 +683,7 @@ function LetterPreviewCardInner({
           letter={currentLetter}
           receiverName={receiverName}
           relationship={relationship}
+          language={language}
           onClose={() => setShowPdfModal(false)}
         />
       )}

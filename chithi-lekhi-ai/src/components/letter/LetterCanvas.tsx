@@ -123,6 +123,8 @@ export interface LetterCanvasProps {
   relationship?: string
   /** Optional date string (ISO or formatted) */
   date?: string
+  /** Letter language or user locale for authentic salutations & dates */
+  language?: string
   /** Theme to apply */
   themeId?: CanvasThemeId
   /** Font size CSS class */
@@ -164,6 +166,7 @@ export const LetterCanvas = forwardRef<HTMLDivElement, LetterCanvasProps>(functi
     receiverName,
     relationship,
     date,
+    language,
     themeId = '90s-paper',
     fontSizeClass = 'text-base',
     merged = false,
@@ -174,11 +177,34 @@ export const LetterCanvas = forwardRef<HTMLDivElement, LetterCanvasProps>(functi
   ref
 ) {
   const theme = CANVAS_THEMES[themeId] || CANVAS_THEMES['90s-paper']
+  const isEnglish = language === 'english' || language === 'en'
+
+  const salutation = (() => {
+    const relLower = relationship?.toLowerCase() || ''
+    if (isEnglish) {
+      if (relLower.includes('father') || relLower.includes('বাবা')) {
+        return `Dearest Father${receiverName ? ` (${receiverName})` : ''}`
+      }
+      if (relLower.includes('mother') || relLower.includes('মা')) {
+        return `Dearest Mother${receiverName ? ` (${receiverName})` : ''}`
+      }
+      return `Dear ${receiverName || 'Special Someone'}`
+    }
+    // Bengali default
+    if (relLower.includes('father') || relLower.includes('বাবা')) {
+      return `শ্রদ্ধেয় বাবা${receiverName ? ` (${receiverName})` : ''}`
+    }
+    if (relLower.includes('mother') || relLower.includes('মা')) {
+      return `শ্রদ্ধেয়া মা${receiverName ? ` (${receiverName})` : ''}`
+    }
+    return `প্রিয় ${receiverName || 'কাছের মানুষ'}`
+  })()
+
   const formattedDate = date
     ? /^\d{4}-\d{2}-\d{2}/.test(date)
-      ? formatDate(date)
+      ? formatDate(date, isEnglish ? 'en' : 'bn')
       : date
-    : formatDate(new Date().toISOString())
+    : formatDate(new Date().toISOString(), isEnglish ? 'en' : 'bn')
 
   // Use dot texture for 90s themes by default
   const showDotTexture =
@@ -198,12 +224,12 @@ export const LetterCanvas = forwardRef<HTMLDivElement, LetterCanvasProps>(functi
         border-4
         rounded-2xl
         shadow-xl
-        p-8 sm:p-11
+        p-4 xs:p-6 sm:p-11
         flex flex-col
         relative
         transition-colors duration-300
         select-text
-        ${merged ? 'min-h-0' : 'min-h-[550px]'}
+        ${merged ? 'min-h-0' : 'min-h-[420px] sm:min-h-[550px]'}
         ${className}
       `}
       style={{
@@ -226,7 +252,7 @@ export const LetterCanvas = forwardRef<HTMLDivElement, LetterCanvasProps>(functi
                 : 'PERSONAL AIRMAIL LETTER'}
             </span>
             <h2 className={`font-bengali font-bold text-xl leading-tight ${theme.textClass}`}>
-              প্রিয় {receiverName || 'কাছের মানুষ'}
+              {salutation}
             </h2>
             {relationship && (
               <span className={`text-[10px] font-bengali opacity-60 block mt-0.5 ${theme.textClass}`}>
@@ -250,7 +276,7 @@ export const LetterCanvas = forwardRef<HTMLDivElement, LetterCanvasProps>(functi
                 CHITHI
               </span>
               <span className={`text-[6px] sm:text-[7px] font-bengali opacity-70 ${theme.textClass}`}>
-                ডাকটিকিট
+                {isEnglish ? 'POSTAGE' : 'ডাকটিকিট'}
               </span>
             </div>
             <div
@@ -268,10 +294,10 @@ export const LetterCanvas = forwardRef<HTMLDivElement, LetterCanvasProps>(functi
           className={`flex items-center justify-between border-b border-black/10 pb-3 mb-5 select-none text-xs font-bengali opacity-60 ${theme.textClass}`}
         >
           <span>
-            চিঠি লেখাই এআই • প্রিয় {receiverName}
+            {isEnglish ? `Chithi Lekhi AI • ${salutation}` : `চিঠি লেখাই এআই • ${salutation}`}
           </span>
           <span>
-            পৃষ্ঠা {pageNum} / {totalPages}
+            {isEnglish ? `Page ${pageNum} / ${totalPages}` : `পৃষ্ঠা ${pageNum} / ${totalPages}`}
           </span>
         </div>
       )}
@@ -291,15 +317,15 @@ export const LetterCanvas = forwardRef<HTMLDivElement, LetterCanvasProps>(functi
           <>
             <span className="tracking-widest font-serif">{theme.ornament || '❦ ❧'}</span>
             <span className="font-sans font-medium tracking-tight">
-              chithi.ai • যে কথা মুখে বলা যায় না 💌
+              {isEnglish ? 'chithi.ai • words the heart longs to say 💌' : 'chithi.ai • যে কথা মুখে বলা যায় না 💌'}
             </span>
           </>
         ) : (
           <>
             <span>
-              পৃষ্ঠা {pageNum} / {totalPages}
+              {isEnglish ? `Page ${pageNum} / ${totalPages}` : `পৃষ্ঠা ${pageNum} / ${totalPages}`}
             </span>
-            <span>পরবর্তী পৃষ্ঠায় সমাপ্য... ➔</span>
+            <span>{isEnglish ? 'Continues on next page... ➔' : 'পরবর্তী পৃষ্ঠায় সমাপ্য... ➔'}</span>
           </>
         )}
       </div>

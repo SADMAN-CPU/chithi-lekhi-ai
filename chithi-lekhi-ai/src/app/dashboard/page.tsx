@@ -25,8 +25,10 @@ import {
   Edit3,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
+import { useLanguage } from '@/components/providers/LanguageProvider'
 import { formatDate } from '@/utils/helpers'
 import { shareLetter } from '@/lib/share-engine'
+import { SettingsButton } from '@/components/ui/SettingsButton'
 import { RELATIONSHIP_OPTIONS, EMOTIONS } from '@/constants'
 import type { LetterRow, DownloadHistoryRow, PublicLetterRow } from '@/types/database'
 import dynamic from 'next/dynamic'
@@ -66,6 +68,8 @@ const DashboardLetterCard = React.memo(function DashboardLetterCard({
   onVisual,
   onRead,
 }: DashboardLetterCardProps) {
+  const { locale } = useLanguage()
+
   const handleWhatsAppShare = () => {
     shareLetter({
       platform: 'whatsapp',
@@ -80,10 +84,10 @@ const DashboardLetterCard = React.memo(function DashboardLetterCard({
       <div className="space-y-2">
         <div className="flex items-start justify-between gap-2">
           <div>
-            <span className="text-[10px] uppercase font-sans text-neutral-400 font-semibold tracking-wider block">
+            <span className="text-[10px] uppercase font-sans text-neutral-400 dark:text-neutral-500 font-semibold tracking-wider block">
               FOR
             </span>
-            <h3 className="font-bengali font-bold text-base text-neutral-900 group-hover:text-rose-600 transition-colors">
+            <h3 className="font-bengali font-bold text-base text-neutral-900 dark:text-neutral-100 group-hover:text-rose-600 dark:group-hover:text-rose-400 transition-colors">
               {letter.receiver_name}
             </h3>
           </div>
@@ -93,11 +97,19 @@ const DashboardLetterCard = React.memo(function DashboardLetterCard({
             <button
               type="button"
               onClick={() => onToggleFavorite(letter.id, letter.favorite)}
-              title={letter.favorite ? 'প্রিয় থেকে সরান' : 'প্রিয়তে যোগ করুন'}
-              className={`p-1.5 rounded-lg transition-all ${
+              title={
                 letter.favorite
-                  ? 'text-rose-500 bg-rose-50 hover:bg-rose-100'
-                  : 'text-neutral-400 hover:text-rose-500 hover:bg-rose-50'
+                  ? locale === 'en'
+                    ? 'Remove from favorites'
+                    : 'প্রিয় থেকে সরান'
+                  : locale === 'en'
+                  ? 'Add to favorites'
+                  : 'প্রিয়তে যোগ করুন'
+              }
+              className={`p-2 rounded-xl transition-all min-h-[36px] min-w-[36px] flex items-center justify-center cursor-pointer ${
+                letter.favorite
+                  ? 'text-rose-500 bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 dark:hover:bg-rose-900/60'
+                  : 'text-neutral-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-neutral-800'
               }`}
             >
               <Heart className={`w-4 h-4 ${letter.favorite ? 'fill-rose-500' : ''}`} />
@@ -107,8 +119,8 @@ const DashboardLetterCard = React.memo(function DashboardLetterCard({
             <button
               type="button"
               onClick={() => onDelete(letter.id)}
-              title="চিঠি মুছে ফেলুন"
-              className="p-1.5 rounded-lg text-neutral-400 hover:text-red-600 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100"
+              title={locale === 'en' ? 'Delete letter' : 'চিঠি মুছে ফেলুন'}
+              className="p-2 rounded-xl text-neutral-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 transition-all opacity-100 sm:opacity-0 sm:group-hover:opacity-100 min-h-[36px] min-w-[36px] flex items-center justify-center cursor-pointer"
             >
               <Trash2 className="w-4 h-4" />
             </button>
@@ -118,17 +130,17 @@ const DashboardLetterCard = React.memo(function DashboardLetterCard({
         {/* Badges */}
         <div className="flex flex-wrap items-center gap-1.5">
           {letter.status === 'draft' && (
-            <span className="text-[10px] font-bengali bg-amber-50 text-amber-800 px-2 py-0.5 rounded-md border border-amber-200">
-              খসড়া (Draft)
+            <span className="text-[10px] font-bengali bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 px-2 py-0.5 rounded-md border border-amber-200 dark:border-amber-800">
+              {locale === 'en' ? 'Draft' : 'খসড়া (Draft)'}
             </span>
           )}
           {letter.relationship && (
-            <span className="text-[10px] font-bengali bg-rose-50 text-rose-700 px-2 py-0.5 rounded-md border border-rose-100">
+            <span className="text-[10px] font-bengali bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 px-2 py-0.5 rounded-md border border-rose-100 dark:border-rose-900/40">
               {letter.relationship}
             </span>
           )}
           {letter.emotion && (
-            <span className="text-[10px] font-bengali bg-neutral-100 text-neutral-600 px-2 py-0.5 rounded-md">
+            <span className="text-[10px] font-bengali bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 px-2 py-0.5 rounded-md">
               {letter.emotion}
             </span>
           )}
@@ -136,26 +148,26 @@ const DashboardLetterCard = React.memo(function DashboardLetterCard({
       </div>
 
       {/* Content Preview */}
-      <p className="font-bengali text-xs sm:text-sm text-neutral-700 line-clamp-4 leading-relaxed whitespace-pre-wrap">
+      <p className="font-bengali text-xs sm:text-sm text-neutral-700 dark:text-neutral-200 line-clamp-4 leading-relaxed whitespace-pre-wrap">
         {letter.content}
       </p>
 
       {/* Footer Actions */}
-      <div className="pt-3 border-t border-rose-100/60 flex items-center justify-between text-xs text-neutral-400 font-bengali">
+      <div className="pt-3 border-t border-rose-100/60 dark:border-neutral-800 flex items-center justify-between text-xs text-neutral-400 dark:text-neutral-500 font-bengali">
         <div className="flex items-center gap-1">
           <Calendar className="w-3 h-3" />
-          <span>{formatDate(letter.created_at)}</span>
+          <span>{formatDate(letter.created_at, locale)}</span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 flex-wrap">
           <button
             type="button"
             onClick={() => onCopy(letter.id, letter.content)}
-            title="কপি করুন"
-            className="text-neutral-500 hover:text-neutral-800 p-1 rounded transition-colors"
+            title={locale === 'en' ? 'Copy letter' : 'কপি করুন'}
+            className="text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 p-1.5 rounded-lg transition-colors cursor-pointer"
           >
             {isCopied ? (
-              <Check className="w-3.5 h-3.5 text-emerald-600" />
+              <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
             ) : (
               <Copy className="w-3.5 h-3.5" />
             )}
@@ -164,8 +176,8 @@ const DashboardLetterCard = React.memo(function DashboardLetterCard({
           <button
             type="button"
             onClick={handleWhatsAppShare}
-            title="হোয়াটসঅ্যাপে শেয়ার"
-            className="text-neutral-500 hover:text-[#25D366] p-1 rounded transition-colors"
+            title={locale === 'en' ? 'Share on WhatsApp' : 'হোয়াটসঅ্যাপে শেয়ার'}
+            className="text-neutral-500 dark:text-neutral-400 hover:text-[#25D366] p-1.5 rounded-lg transition-colors cursor-pointer"
           >
             <Share2 className="w-3.5 h-3.5" />
           </button>
@@ -173,40 +185,40 @@ const DashboardLetterCard = React.memo(function DashboardLetterCard({
           <button
             type="button"
             onClick={() => onEdit(letter)}
-            title="চিঠি সম্পাদনা করুন"
-            className="inline-flex items-center gap-1 font-semibold text-neutral-600 hover:text-neutral-900 bg-neutral-100 hover:bg-neutral-200 px-2 py-1 rounded-md text-[11px] transition-colors"
+            title={locale === 'en' ? 'Edit letter' : 'চিঠি সম্পাদনা করুন'}
+            className="inline-flex items-center gap-1 font-semibold text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 px-2 py-1 rounded-md text-[11px] transition-colors cursor-pointer"
           >
             <Edit3 className="w-3 h-3" />
-            <span>সম্পাদনা</span>
+            <span>{locale === 'en' ? 'Edit' : 'সম্পাদনা'}</span>
           </button>
 
           <button
             type="button"
             onClick={() => onPdf(letter)}
-            title="এ৪ পিডিএফ তৈরি করুন"
-            className="inline-flex items-center gap-1 font-semibold text-rose-700 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 px-2 py-1 rounded-md text-[11px] transition-colors border border-rose-200/50"
+            title={locale === 'en' ? 'Download A4 PDF' : 'এ৪ পিডিএফ তৈরি করুন'}
+            className="inline-flex items-center gap-1 font-semibold text-rose-700 dark:text-rose-300 hover:text-rose-800 dark:hover:text-rose-200 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 px-2 py-1 rounded-md text-[11px] transition-colors border border-rose-200/50 dark:border-rose-900/40 cursor-pointer"
           >
-            <FileText className="w-3 h-3 text-rose-600" />
-            <span>পিডিএফ</span>
+            <FileText className="w-3 h-3 text-rose-600 dark:text-rose-400" />
+            <span>{locale === 'en' ? 'PDF' : 'পিডিএফ'}</span>
           </button>
 
           <button
             type="button"
             onClick={() => onVisual(letter)}
-            title="ইমেজ কার্ড তৈরি করুন"
-            className="inline-flex items-center gap-1 font-semibold text-amber-800 hover:text-amber-900 bg-amber-50 hover:bg-amber-100/80 px-2 py-1 rounded-md text-[11px] transition-colors border border-amber-200/50"
+            title={locale === 'en' ? 'Generate Image Card' : 'ইমেজ কার্ড তৈরি করুন'}
+            className="inline-flex items-center gap-1 font-semibold text-amber-800 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-200 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100/80 dark:hover:bg-amber-900/50 px-2 py-1 rounded-md text-[11px] transition-colors border border-amber-200/50 dark:border-amber-900/40 cursor-pointer"
           >
-            <ImageIcon className="w-3 h-3 text-amber-600" />
-            <span>ইমেজ</span>
+            <ImageIcon className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+            <span>{locale === 'en' ? 'Card' : 'ইমেজ'}</span>
           </button>
 
           <button
             type="button"
             onClick={() => onRead(letter)}
-            className="inline-flex items-center gap-1 font-semibold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-2 py-1 rounded-md text-[11px] transition-colors"
+            className="inline-flex items-center gap-1 font-semibold text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 px-2 py-1 rounded-md text-[11px] transition-colors cursor-pointer"
           >
             <Eye className="w-3 h-3" />
-            <span>পড়ুন</span>
+            <span>{locale === 'en' ? 'Read' : 'পড়ুন'}</span>
           </button>
         </div>
       </div>
@@ -216,6 +228,7 @@ const DashboardLetterCard = React.memo(function DashboardLetterCard({
 
 export default function DashboardPage() {
   const { user, loading: authLoading, signOut } = useAuth()
+  const { t, locale } = useLanguage()
 
   // Tab State
   const [activeTab, setActiveTab] = useState<DashboardTab>('my-letters')
@@ -311,7 +324,7 @@ export default function DashboardPage() {
     loadDashboardData()
   }, [user, authLoading, effectiveUserId])
 
-  // Handle Toggle Favorite
+  // Handle Toggle Favorite (with rollback on failure)
   const handleToggleFavorite = useCallback(async (letterId: string, currentFavorite: boolean) => {
     // Optimistic UI update
     setLetters((prev) =>
@@ -319,7 +332,7 @@ export default function DashboardPage() {
     )
 
     try {
-      await fetch('/api/letters', {
+      const res = await fetch('/api/letters', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -328,28 +341,52 @@ export default function DashboardPage() {
           currentFavorite,
         }),
       })
+      if (!res.ok) {
+        throw new Error('Server returned error')
+      }
     } catch (err) {
       console.error('Toggle favorite error:', err)
+      // Rollback to original favorite status
+      setLetters((prev) =>
+        prev.map((l) => (l.id === letterId ? { ...l, favorite: currentFavorite } : l))
+      )
     }
   }, [])
 
-  // Handle Delete Letter
+  // Handle Delete Letter (with rollback on failure)
   const handleDeleteLetter = useCallback(async (letterId: string) => {
-    if (!confirm('আপনি কি নিশ্চিত যে এই চিঠিটি মুছে ফেলতে চান?')) return
+    const confirmMsg = locale === 'en'
+      ? 'Are you sure you want to delete this letter?'
+      : 'আপনি কি নিশ্চিত যে এই চিঠিটি মুছে ফেলতে চান?'
+    if (!confirm(confirmMsg)) return
 
-    setLetters((prev) => prev.filter((l) => l.id !== letterId))
+    let previousLetters: LetterRow[] = []
+    setLetters((prev) => {
+      previousLetters = prev
+      return prev.filter((l) => l.id !== letterId)
+    })
     setReadingLetter((prev) => (prev?.id === letterId ? null : prev))
 
     try {
-      await fetch(`/api/letters?id=${encodeURIComponent(letterId)}`, {
+      const res = await fetch(`/api/letters?id=${encodeURIComponent(letterId)}`, {
         method: 'DELETE',
       })
+      if (!res.ok) {
+        throw new Error('Failed to delete letter from database')
+      }
     } catch (err) {
       console.error('Delete letter error:', err)
+      // Rollback UI to previous letters
+      setLetters(previousLetters)
+      alert(
+        locale === 'en'
+          ? 'Failed to delete letter. Please try again.'
+          : 'চিঠি মুছে ফেলা সম্ভব হয়নি। আবার চেষ্টা করুন।'
+      )
     }
-  }, [])
+  }, [locale])
 
-  // Handle Save Edit
+  // Handle Save Edit (with robust response validation)
   const handleSaveEdit = async () => {
     if (!editingLetter) return
     setIsSavingEdit(true)
@@ -365,15 +402,26 @@ export default function DashboardPage() {
         }),
       })
 
+      if (!res.ok) {
+        throw new Error(`Server returned error status ${res.status}`)
+      }
+
       const data = await res.json()
       if (data.success && data.letter) {
         setLetters((prev) =>
           prev.map((l) => (l.id === editingLetter.id ? { ...l, ...data.letter } : l))
         )
         setEditingLetter(null)
+      } else {
+        throw new Error(data.error?.message || 'Failed to update letter')
       }
     } catch (err) {
       console.error('Save edit error:', err)
+      alert(
+        locale === 'en'
+          ? 'Failed to save changes. Please try again.'
+          : 'চিঠির পরিবর্তন সংরক্ষণ করতে সমস্যা হয়েছে। আবার চেষ্টা করুন।'
+      )
     } finally {
       setIsSavingEdit(false)
     }
@@ -510,7 +558,9 @@ export default function DashboardPage() {
       <div className="min-h-screen bg-chithi-gradient flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 border-3 border-rose-400 border-t-transparent rounded-full animate-spin" />
-          <p className="font-bengali text-sm text-neutral-600">ড্যাশবোর্ড লোড হচ্ছে...</p>
+          <p className="font-bengali text-sm text-neutral-600 dark:text-neutral-300">
+            {locale === 'en' ? 'Loading dashboard...' : 'ড্যাশবোর্ড লোড হচ্ছে...'}
+          </p>
         </div>
       </div>
     )
@@ -519,24 +569,25 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-chithi-gradient flex flex-col selection:bg-rose-100 selection:text-rose-800">
       {/* Top Header */}
-      <header className="sticky top-0 z-30 w-full border-b border-rose-100/80 bg-white/80 backdrop-blur-md">
+      <header className="sticky top-0 z-30 w-full border-b border-rose-100/80 dark:border-neutral-800 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-md">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-rose-400 to-pink-500 flex items-center justify-center text-white shadow-xs">
               <Heart className="w-5 h-5 fill-white" />
             </div>
-            <span className="font-bengali font-bold text-base sm:text-lg text-neutral-900">
-              চিঠি ড্যাশবোর্ড
+            <span className="font-bengali font-bold text-base sm:text-lg text-neutral-900 dark:text-neutral-100">
+              {t('dashboard.title')}
             </span>
           </Link>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <SettingsButton />
             <Link
               href="/"
-              className="inline-flex items-center gap-1.5 py-2 px-3.5 rounded-xl font-bengali text-xs sm:text-sm font-semibold bg-rose-500 hover:bg-rose-600 text-white shadow-xs transition-colors"
+              className="inline-flex items-center gap-1.5 py-2 px-3.5 rounded-xl font-bengali text-xs sm:text-sm font-semibold bg-rose-500 hover:bg-rose-600 text-white shadow-xs transition-colors min-h-[40px]"
             >
               <Plus className="w-4 h-4" />
-              <span>নতুন চিঠি লিখুন</span>
+              <span>{t('dashboard.newLetterBtn')}</span>
             </Link>
 
             {user ? (
@@ -544,14 +595,14 @@ export default function DashboardPage() {
                 type="button"
                 onClick={signOut}
                 title="লগআউট"
-                className="p-2 rounded-xl text-neutral-500 hover:text-rose-600 hover:bg-rose-50 transition-colors border border-transparent hover:border-rose-100"
+                className="p-2 rounded-xl text-neutral-500 dark:text-neutral-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-neutral-800 transition-colors border border-transparent hover:border-rose-100 min-h-[40px] min-w-[40px] flex items-center justify-center cursor-pointer"
               >
                 <LogOut className="w-4 h-4" />
               </button>
             ) : (
               <Link
                 href="/login?redirectedFrom=/dashboard"
-                className="py-2 px-3 rounded-xl text-xs font-bengali font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 transition-colors"
+                className="py-2 px-3 rounded-xl text-xs font-bengali font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/50 hover:bg-rose-100 dark:hover:bg-rose-900/60 transition-colors min-h-[40px] flex items-center"
               >
                 লগইন
               </Link>
@@ -562,160 +613,132 @@ export default function DashboardPage() {
 
       {/* Main Container */}
       <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
-        {/* Anonymous Guest Banner (Non-blocking) */}
-        {!user && (
-          <div className="bg-gradient-to-r from-rose-50 to-amber-50 border border-rose-200/80 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
-            <div className="space-y-0.5">
-              <h4 className="font-bengali font-bold text-sm text-neutral-900 flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-amber-500" />
-                <span>আপনি অতিথি (Guest) হিসেবে ব্যবহার করছেন</span>
-              </h4>
-              <p className="font-bengali text-xs text-neutral-600">
-                বিনামূল্যে একাউন্ট তৈরি করে আপনার সব চিঠি আজীবনের জন্য ক্লাউডে সংরক্ষণ করুন।
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Link
-                href="/signup?redirectedFrom=/dashboard"
-                className="py-1.5 px-3.5 rounded-xl font-bengali text-xs font-semibold bg-rose-500 hover:bg-rose-600 text-white shadow-2xs transition-colors"
-              >
-                একাউন্ট তৈরি করুন
-              </Link>
-              <Link
-                href="/login?redirectedFrom=/dashboard"
-                className="py-1.5 px-3 rounded-xl font-bengali text-xs font-semibold text-neutral-700 hover:bg-white/80 transition-colors"
-              >
-                লগইন
-              </Link>
-            </div>
-          </div>
-        )}
 
         {/* Welcome & 5 SaaS Quick Stats */}
-        <div className="bg-white/90 backdrop-blur-xs border border-rose-100/80 rounded-3xl p-5 sm:p-6 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+        <div className="bg-white/90 dark:bg-neutral-900/90 backdrop-blur-xs border border-rose-100/80 dark:border-neutral-800 rounded-3xl p-5 sm:p-6 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-5">
           <div className="space-y-1">
-            <div className="inline-flex items-center gap-1.5 text-xs font-bengali text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200/50">
+            <div className="inline-flex items-center gap-1.5 text-xs font-bengali text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-0.5 rounded-full border border-rose-200/50 dark:border-rose-900/40">
               <Sparkles className="w-3 h-3 text-rose-500" />
               <span>চিঠির সংগ্রহশালা ও নিয়ন্ত্রণ কেন্দ্র</span>
             </div>
-            <h1 className="font-bengali text-2xl sm:text-3xl font-bold text-neutral-900">
-              স্বাগতম, {user?.name || 'প্রিয় অতিথি'} 👋
+            <h1 className="font-bengali text-2xl sm:text-3xl font-bold text-neutral-900 dark:text-neutral-100">
+              {t('dashboard.welcome')} {user?.name || t('dashboard.guest')} 👋
             </h1>
-            <p className="font-bengali text-xs sm:text-sm text-neutral-500">
-              আপনার রচিত সব চিঠি, খসড়া, ডাউনলোড ও শেয়ার করা লিংক সহজে পরিচালনা করুন
+            <p className="font-bengali text-xs sm:text-sm text-neutral-500 dark:text-neutral-400">
+              {t('dashboard.headerDesc')}
             </p>
           </div>
 
           {/* 5 Stats Counter Grid */}
-          <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 sm:gap-3">
-            <div className="bg-rose-50/70 border border-rose-100/80 p-2.5 rounded-2xl text-center">
-              <span className="text-lg sm:text-xl font-bold font-sans text-rose-600 block leading-tight">
+          <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-5 gap-2 sm:gap-3">
+            <div className="bg-rose-50/70 dark:bg-rose-950/40 border border-rose-100/80 dark:border-rose-900/50 p-2.5 rounded-2xl text-center">
+              <span className="text-lg sm:text-xl font-bold font-sans text-rose-600 dark:text-rose-400 block leading-tight">
                 {stats.published}
               </span>
-              <span className="text-[11px] font-bengali text-neutral-600">আমার চিঠি</span>
+              <span className="text-[11px] font-bengali text-neutral-600 dark:text-neutral-400">{t('dashboard.tabMyLetters')}</span>
             </div>
-            <div className="bg-pink-50/70 border border-pink-100/80 p-2.5 rounded-2xl text-center">
-              <span className="text-lg sm:text-xl font-bold font-sans text-pink-600 block leading-tight">
+            <div className="bg-pink-50/70 dark:bg-pink-950/40 border border-pink-100/80 dark:border-pink-900/50 p-2.5 rounded-2xl text-center">
+              <span className="text-lg sm:text-xl font-bold font-sans text-pink-600 dark:text-pink-400 block leading-tight">
                 {stats.favorites}
               </span>
-              <span className="text-[11px] font-bengali text-neutral-600">প্রিয় চিঠি</span>
+              <span className="text-[11px] font-bengali text-neutral-600 dark:text-neutral-400">{t('dashboard.tabFavorites')}</span>
             </div>
-            <div className="bg-amber-50/70 border border-amber-100/80 p-2.5 rounded-2xl text-center">
-              <span className="text-lg sm:text-xl font-bold font-sans text-amber-700 block leading-tight">
+            <div className="bg-amber-50/70 dark:bg-amber-950/40 border border-amber-100/80 dark:border-amber-900/50 p-2.5 rounded-2xl text-center">
+              <span className="text-lg sm:text-xl font-bold font-sans text-amber-700 dark:text-amber-400 block leading-tight">
                 {stats.drafts}
               </span>
-              <span className="text-[11px] font-bengali text-neutral-600">খসড়া</span>
+              <span className="text-[11px] font-bengali text-neutral-600 dark:text-neutral-400">{t('dashboard.tabDrafts')}</span>
             </div>
-            <div className="bg-indigo-50/70 border border-indigo-100/80 p-2.5 rounded-2xl text-center">
-              <span className="text-lg sm:text-xl font-bold font-sans text-indigo-600 block leading-tight">
+            <div className="bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-100/80 dark:border-indigo-900/50 p-2.5 rounded-2xl text-center">
+              <span className="text-lg sm:text-xl font-bold font-sans text-indigo-600 dark:text-indigo-400 block leading-tight">
                 {stats.shared}
               </span>
-              <span className="text-[11px] font-bengali text-neutral-600">শেয়ারকৃত</span>
+              <span className="text-[11px] font-bengali text-neutral-600 dark:text-neutral-400">{t('dashboard.tabShared')}</span>
             </div>
-            <div className="bg-emerald-50/70 border border-emerald-100/80 p-2.5 rounded-2xl text-center col-span-2 sm:col-span-1">
-              <span className="text-lg sm:text-xl font-bold font-sans text-emerald-600 block leading-tight">
+            <div className="bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-100/80 dark:border-emerald-900/50 p-2.5 rounded-2xl text-center col-span-2 xs:col-span-1">
+              <span className="text-lg sm:text-xl font-bold font-sans text-emerald-600 dark:text-emerald-400 block leading-tight">
                 {stats.downloadCount}
               </span>
-              <span className="text-[11px] font-bengali text-neutral-600">ডাউনলোড</span>
+              <span className="text-[11px] font-bengali text-neutral-600 dark:text-neutral-400">{t('dashboard.tabDownloads')}</span>
             </div>
           </div>
         </div>
 
         {/* 5 Tab Navigation Strip */}
-        <div className="flex border-b border-neutral-200/80 gap-1 sm:gap-2 overflow-x-auto no-scrollbar">
+        <div className="flex border-b border-neutral-200/80 dark:border-neutral-800 gap-1 sm:gap-2 overflow-x-auto no-scrollbar">
           <button
             type="button"
             onClick={() => setActiveTab('my-letters')}
-            className={`pb-3 px-3 sm:px-4 font-bengali text-xs sm:text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 whitespace-nowrap ${
+            className={`pb-3 px-3 sm:px-4 font-bengali text-xs sm:text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 whitespace-nowrap min-h-[44px] cursor-pointer ${
               activeTab === 'my-letters'
-                ? 'border-rose-500 text-rose-600'
-                : 'border-transparent text-neutral-500 hover:text-neutral-800'
+                ? 'border-rose-500 text-rose-600 dark:text-rose-400'
+                : 'border-transparent text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200'
             }`}
           >
             <BookOpen className="w-4 h-4" />
-            <span>আমার চিঠি ({stats.published})</span>
+            <span>{t('dashboard.tabMyLetters')} ({stats.published})</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('favorites')}
-            className={`pb-3 px-3 sm:px-4 font-bengali text-xs sm:text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 whitespace-nowrap ${
+            className={`pb-3 px-3 sm:px-4 font-bengali text-xs sm:text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 whitespace-nowrap min-h-[44px] cursor-pointer ${
               activeTab === 'favorites'
-                ? 'border-rose-500 text-rose-600'
-                : 'border-transparent text-neutral-500 hover:text-neutral-800'
+                ? 'border-rose-500 text-rose-600 dark:text-rose-400'
+                : 'border-transparent text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200'
             }`}
           >
-            <Heart className="w-4 h-4 fill-rose-500 text-rose-500" />
-            <span>প্রিয় চিঠি ({stats.favorites})</span>
+            <Heart className="w-4 h-4 fill-rose-500 text-rose-500 dark:text-rose-400" />
+            <span>{t('dashboard.tabFavorites')} ({stats.favorites})</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('drafts')}
-            className={`pb-3 px-3 sm:px-4 font-bengali text-xs sm:text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 whitespace-nowrap ${
+            className={`pb-3 px-3 sm:px-4 font-bengali text-xs sm:text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 whitespace-nowrap min-h-[44px] cursor-pointer ${
               activeTab === 'drafts'
-                ? 'border-rose-500 text-rose-600'
-                : 'border-transparent text-neutral-500 hover:text-neutral-800'
+                ? 'border-rose-500 text-rose-600 dark:text-rose-400'
+                : 'border-transparent text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200'
             }`}
           >
             <Edit3 className="w-4 h-4" />
-            <span>খসড়া ({stats.drafts})</span>
+            <span>{t('dashboard.tabDrafts')} ({stats.drafts})</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('shared')}
-            className={`pb-3 px-3 sm:px-4 font-bengali text-xs sm:text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 whitespace-nowrap ${
+            className={`pb-3 px-3 sm:px-4 font-bengali text-xs sm:text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 whitespace-nowrap min-h-[44px] cursor-pointer ${
               activeTab === 'shared'
-                ? 'border-rose-500 text-rose-600'
-                : 'border-transparent text-neutral-500 hover:text-neutral-800'
+                ? 'border-rose-500 text-rose-600 dark:text-rose-400'
+                : 'border-transparent text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200'
             }`}
           >
             <Globe className="w-4 h-4" />
-            <span>শেয়ারকৃত ({stats.shared})</span>
+            <span>{t('dashboard.tabShared')} ({stats.shared})</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('downloads')}
-            className={`pb-3 px-3 sm:px-4 font-bengali text-xs sm:text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 whitespace-nowrap ${
+            className={`pb-3 px-3 sm:px-4 font-bengali text-xs sm:text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 whitespace-nowrap min-h-[44px] cursor-pointer ${
               activeTab === 'downloads'
-                ? 'border-rose-500 text-rose-600'
-                : 'border-transparent text-neutral-500 hover:text-neutral-800'
+                ? 'border-rose-500 text-rose-600 dark:text-rose-400'
+                : 'border-transparent text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200'
             }`}
           >
             <Download className="w-4 h-4" />
-            <span>ডাউনলোড ({stats.downloadCount})</span>
+            <span>{t('dashboard.tabDownloads')} ({stats.downloadCount})</span>
           </button>
 
           {user && (
             <button
               type="button"
               onClick={() => setActiveTab('profile')}
-              className={`pb-3 px-3 sm:px-4 font-bengali text-xs sm:text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 whitespace-nowrap ml-auto ${
+              className={`pb-3 px-3 sm:px-4 font-bengali text-xs sm:text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 whitespace-nowrap ml-auto min-h-[44px] cursor-pointer ${
                 activeTab === 'profile'
-                  ? 'border-rose-500 text-rose-600'
-                  : 'border-transparent text-neutral-500 hover:text-neutral-800'
+                  ? 'border-rose-500 text-rose-600 dark:text-rose-400'
+                  : 'border-transparent text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200'
               }`}
             >
               <User className="w-4 h-4" />
@@ -730,7 +753,7 @@ export default function DashboardPage() {
         {['my-letters', 'favorites', 'drafts'].includes(activeTab) && (
           <div className="space-y-6">
             {/* Search & Multi-Filters Toolbar */}
-            <div className="bg-white/80 border border-neutral-200/80 rounded-2xl p-3 sm:p-4 shadow-2xs space-y-3">
+            <div className="bg-white/80 dark:bg-neutral-900/80 border border-neutral-200/80 dark:border-neutral-800 rounded-2xl p-3 sm:p-4 shadow-2xs space-y-3">
               <div className="flex flex-col sm:flex-row gap-2.5">
                 {/* Search Bar */}
                 <div className="relative flex-1">
@@ -740,13 +763,13 @@ export default function DashboardPage() {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="প্রাপকের নাম বা চিঠির কোনো অংশ খুঁজুন..."
-                    className="w-full pl-10 pr-4 py-2 rounded-xl border border-neutral-200 bg-white text-xs sm:text-sm font-bengali focus:border-rose-400 focus:ring-2 focus:ring-rose-100 outline-none transition-all"
+                    className="w-full pl-10 pr-4 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-xs sm:text-sm font-bengali text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 focus:border-rose-400 focus:ring-2 focus:ring-rose-100 dark:focus:ring-rose-950 outline-none transition-all min-h-[44px]"
                   />
                   {searchQuery && (
                     <button
                       type="button"
                       onClick={() => setSearchQuery('')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -754,12 +777,12 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Emotion Filter */}
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 w-full sm:w-auto">
                   <select
                     value={emotionFilter}
                     onChange={(e) => setEmotionFilter(e.target.value)}
                     aria-label="আবেগ অনুযায়ী ফিল্টার"
-                    className="py-2 px-3 rounded-xl border border-neutral-200 bg-white text-xs font-bengali text-neutral-700 outline-none focus:border-rose-400"
+                    className="py-2 px-3 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-xs font-bengali text-neutral-700 dark:text-neutral-200 outline-none focus:border-rose-400 min-h-[44px] w-full sm:w-auto cursor-pointer"
                   >
                     <option value="all">সব অনুভূতি</option>
                     {EMOTIONS.map((em) => (
@@ -771,12 +794,12 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Relationship Filter */}
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 w-full sm:w-auto">
                   <select
                     value={relationshipFilter}
                     onChange={(e) => setRelationshipFilter(e.target.value)}
                     aria-label="সম্পর্ক অনুযায়ী ফিল্টার"
-                    className="py-2 px-3 rounded-xl border border-neutral-200 bg-white text-xs font-bengali text-neutral-700 outline-none focus:border-rose-400"
+                    className="py-2 px-3 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-xs font-bengali text-neutral-700 dark:text-neutral-200 outline-none focus:border-rose-400 min-h-[44px] w-full sm:w-auto cursor-pointer"
                   >
                     <option value="all">সব সম্পর্ক</option>
                     {RELATIONSHIP_OPTIONS.map((rel) => (
@@ -788,14 +811,14 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Date / Timeframe Filter */}
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 w-full sm:w-auto">
                   <select
                     value={timeframeFilter}
                     onChange={(e) =>
                       setTimeframeFilter(e.target.value as 'all' | 'today' | 'week' | 'month')
                     }
                     aria-label="তারিখ অনুযায়ী ফিল্টার"
-                    className="py-2 px-3 rounded-xl border border-neutral-200 bg-white text-xs font-bengali text-neutral-700 outline-none focus:border-rose-400"
+                    className="py-2 px-3 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-xs font-bengali text-neutral-700 dark:text-neutral-200 outline-none focus:border-rose-400 min-h-[44px] w-full sm:w-auto cursor-pointer"
                   >
                     <option value="all">সব সময়</option>
                     <option value="today">আজকের চিঠি</option>
@@ -805,12 +828,12 @@ export default function DashboardPage() {
                 </div>
 
                 {/* Sort Filter: Newest vs Oldest */}
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 w-full sm:w-auto">
                   <select
                     value={sortOrder}
                     onChange={(e) => setSortOrder(e.target.value as 'newest' | 'oldest')}
                     aria-label="চিঠি সাজান"
-                    className="py-2 px-3 rounded-xl border border-rose-200/80 bg-rose-50/50 text-xs font-bengali text-rose-900 font-semibold outline-none focus:border-rose-400"
+                    className="py-2 px-3 rounded-xl border border-rose-200/80 dark:border-rose-900/50 bg-rose-50/50 dark:bg-rose-950/40 text-xs font-bengali text-rose-900 dark:text-rose-200 font-semibold outline-none focus:border-rose-400 min-h-[44px] w-full sm:w-auto cursor-pointer"
                   >
                     <option value="newest">নতুনতম (Newest)</option>
                     <option value="oldest">পুরাতনতম (Oldest)</option>
@@ -823,21 +846,21 @@ export default function DashboardPage() {
             {dataLoading ? (
               <div className="py-16 text-center">
                 <div className="w-8 h-8 border-2 border-rose-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-                <p className="font-bengali text-xs text-neutral-500">চিঠিগুলো সাজানো হচ্ছে...</p>
+                <p className="font-bengali text-xs text-neutral-500 dark:text-neutral-400">চিঠিগুলো সাজানো হচ্ছে...</p>
               </div>
             ) : filteredLetters.length === 0 ? (
-              <div className="bg-white/70 border border-dashed border-rose-200 rounded-3xl p-10 text-center space-y-3">
-                <div className="w-12 h-12 rounded-2xl bg-rose-50 flex items-center justify-center text-rose-500 mx-auto">
+              <div className="bg-white/70 dark:bg-neutral-900/70 border border-dashed border-rose-200 dark:border-neutral-800 rounded-3xl p-10 text-center space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-rose-50 dark:bg-rose-950/50 flex items-center justify-center text-rose-500 dark:text-rose-400 mx-auto">
                   <FileText className="w-6 h-6" />
                 </div>
-                <h3 className="font-bengali font-bold text-neutral-800 text-lg">
+                <h3 className="font-bengali font-bold text-neutral-800 dark:text-neutral-100 text-lg">
                   {activeTab === 'favorites'
                     ? 'কোনো প্রিয় চিঠি পাওয়া যায়নি'
                     : activeTab === 'drafts'
                     ? 'কোনো খসড়া চিঠি নেই'
                     : 'চিঠি পাওয়া যায়নি'}
                 </h3>
-                <p className="font-bengali text-xs sm:text-sm text-neutral-500 max-w-sm mx-auto">
+                <p className="font-bengali text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 max-w-sm mx-auto">
                   {activeTab === 'favorites'
                     ? 'যেকোনো চিঠির ওপর হার্ট আইকন ক্লিক করে প্রিয় তালিকায় যুক্ত করুন।'
                     : 'আপনার নতুন আবেগঘন চিঠি লিখতে এখনই শুরু করুন।'}
@@ -845,7 +868,7 @@ export default function DashboardPage() {
                 <div className="pt-2">
                   <Link
                     href="/"
-                    className="inline-flex items-center gap-1.5 py-2.5 px-4 rounded-xl font-bengali text-xs font-semibold bg-rose-500 hover:bg-rose-600 text-white shadow-xs transition-colors"
+                    className="inline-flex items-center gap-1.5 py-2.5 px-4 rounded-xl font-bengali text-xs font-semibold bg-rose-500 hover:bg-rose-600 text-white shadow-xs transition-colors min-h-[44px]"
                   >
                     <Plus className="w-4 h-4" />
                     <span>নতুন চিঠি লিখুন</span>
@@ -877,7 +900,7 @@ export default function DashboardPage() {
                     <button
                       type="button"
                       onClick={() => setPage((p) => p + 1)}
-                      className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl border border-rose-200 bg-white hover:bg-rose-50/80 text-rose-800 font-bengali text-xs sm:text-sm font-semibold transition-all shadow-xs"
+                      className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl border border-rose-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 hover:bg-rose-50/80 dark:hover:bg-neutral-700 text-rose-800 dark:text-rose-300 font-bengali text-xs sm:text-sm font-semibold transition-all shadow-xs min-h-[44px] cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       <span>আরও চিঠি লোড করুন ({paginatedLetters.length} / {filteredLetters.length})</span>
@@ -896,24 +919,24 @@ export default function DashboardPage() {
           <div className="space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-bengali font-bold text-lg text-neutral-900">
+                <h3 className="font-bengali font-bold text-lg text-neutral-900 dark:text-neutral-100">
                   অনলাইনে শেয়ার করা চিঠি ({sharedLetters.length})
                 </h3>
-                <p className="text-xs font-bengali text-neutral-500">
+                <p className="text-xs font-bengali text-neutral-500 dark:text-neutral-400">
                   আপনার তৈরি করা প্রতিটি পাবলিক লিংক এবং তাদের ভিউ সংখ্যা
                 </p>
               </div>
             </div>
 
             {sharedLetters.length === 0 ? (
-              <div className="bg-white/70 border border-dashed border-rose-200 rounded-3xl p-10 text-center space-y-3">
-                <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 mx-auto">
+              <div className="bg-white/70 dark:bg-neutral-900/70 border border-dashed border-rose-200 dark:border-neutral-800 rounded-3xl p-10 text-center space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 mx-auto">
                   <Globe className="w-6 h-6" />
                 </div>
-                <h3 className="font-bengali font-bold text-neutral-800 text-lg">
+                <h3 className="font-bengali font-bold text-neutral-800 dark:text-neutral-100 text-lg">
                   এখনও কোনো চিঠি শেয়ার করা হয়নি
                 </h3>
-                <p className="font-bengali text-xs sm:text-sm text-neutral-500 max-w-sm mx-auto">
+                <p className="font-bengali text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 max-w-sm mx-auto">
                   যেকোনো চিঠি তৈরির পর &ldquo;শেয়ার লিংক তৈরি&rdquo; বাটনে ক্লিক করে শর্ট লিংক তৈরি করুন।
                 </p>
               </div>
@@ -926,39 +949,39 @@ export default function DashboardPage() {
                   return (
                     <div
                       key={shared.id}
-                      className="bg-white/90 border border-neutral-200/80 rounded-2xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between space-y-3"
+                      className="bg-white/90 dark:bg-neutral-900/90 border border-neutral-200/80 dark:border-neutral-800 rounded-2xl p-4 sm:p-5 shadow-2xs flex flex-col justify-between space-y-3"
                     >
                       <div className="space-y-1.5">
                         <div className="flex items-start justify-between gap-2">
-                          <h4 className="font-bengali font-bold text-sm sm:text-base text-neutral-900">
+                          <h4 className="font-bengali font-bold text-sm sm:text-base text-neutral-900 dark:text-neutral-100">
                             {shared.title}
                           </h4>
-                          <span className="inline-flex items-center gap-1 font-sans text-xs font-semibold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-100">
+                          <span className="inline-flex items-center gap-1 font-sans text-xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/50 px-2 py-0.5 rounded-full border border-rose-100 dark:border-rose-900/40">
                             <Eye className="w-3 h-3" />
                             <span>{shared.views} views</span>
                           </span>
                         </div>
 
-                        <p className="text-xs font-bengali text-neutral-600 line-clamp-2">
+                        <p className="text-xs font-bengali text-neutral-600 dark:text-neutral-300 line-clamp-2">
                           {shared.letter_content}
                         </p>
 
-                        <div className="flex items-center gap-2 text-[11px] font-bengali text-neutral-400">
+                        <div className="flex items-center gap-2 text-[11px] font-bengali text-neutral-400 dark:text-neutral-500">
                           <span>তৈরি: {formatDate(shared.created_at)}</span>
                           <span>•</span>
                           <span className="capitalize">{shared.theme}</span>
                           {shared.expiration !== 'permanent' && (
                             <>
                               <span>•</span>
-                              <span className="text-amber-700">মেয়াদ: {shared.expiration}</span>
+                              <span className="text-amber-700 dark:text-amber-400">মেয়াদ: {shared.expiration}</span>
                             </>
                           )}
                         </div>
                       </div>
 
                       {/* Link & Action Box */}
-                      <div className="pt-2 border-t border-neutral-100 flex items-center justify-between gap-2">
-                        <span className="font-mono text-xs text-neutral-600 truncate bg-neutral-50 px-2 py-1 rounded-lg flex-1">
+                      <div className="pt-2 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between gap-2">
+                        <span className="font-mono text-xs text-neutral-600 dark:text-neutral-300 truncate bg-neutral-50 dark:bg-neutral-800 px-2 py-1 rounded-lg flex-1">
                           /c/{shared.short_id}
                         </span>
 
@@ -966,11 +989,11 @@ export default function DashboardPage() {
                           <button
                             type="button"
                             onClick={() => handleCopy(shared.short_id, shareUrl)}
-                            className="p-1.5 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-700 transition-colors"
+                            className="p-2 min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 transition-colors cursor-pointer"
                             title="লিংক কপি করুন"
                           >
                             {isCopied ? (
-                              <Check className="w-3.5 h-3.5 text-emerald-600" />
+                              <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                             ) : (
                               <Copy className="w-3.5 h-3.5" />
                             )}
@@ -980,10 +1003,10 @@ export default function DashboardPage() {
                             href={shareUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="p-1.5 rounded-lg border border-neutral-200 bg-white hover:bg-neutral-50 text-neutral-700 transition-colors"
+                            className="p-2 min-h-[40px] min-w-[40px] flex items-center justify-center rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 transition-colors cursor-pointer"
                             title="খুলুন"
                           >
-                            <ExternalLink className="w-3.5 h-3.5 text-rose-500" />
+                            <ExternalLink className="w-3.5 h-3.5 text-rose-500 dark:text-rose-400" />
                           </a>
                         </div>
                       </div>
@@ -1001,48 +1024,48 @@ export default function DashboardPage() {
         {activeTab === 'downloads' && (
           <div className="space-y-6">
             <div>
-              <h3 className="font-bengali font-bold text-lg text-neutral-900">
+              <h3 className="font-bengali font-bold text-lg text-neutral-900 dark:text-neutral-100">
                 ডাউনলোড হিস্ট্রি ({downloads.length})
               </h3>
-              <p className="text-xs font-bengali text-neutral-500">
+              <p className="text-xs font-bengali text-neutral-500 dark:text-neutral-400">
                 আপনার ডাউনলোড করা পিডিএফ, ইমেজ এবং টেক্সট ফাইলের রেকর্ড
               </p>
             </div>
 
             {downloads.length === 0 ? (
-              <div className="bg-white/70 border border-dashed border-rose-200 rounded-3xl p-10 text-center space-y-3">
-                <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600 mx-auto">
+              <div className="bg-white/70 dark:bg-neutral-900/70 border border-dashed border-rose-200 dark:border-neutral-800 rounded-3xl p-10 text-center space-y-3">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 flex items-center justify-center text-emerald-600 dark:text-emerald-400 mx-auto">
                   <Download className="w-6 h-6" />
                 </div>
-                <h3 className="font-bengali font-bold text-neutral-800 text-lg">
+                <h3 className="font-bengali font-bold text-neutral-800 dark:text-neutral-100 text-lg">
                   এখনও কোনো ফাইল ডাউনলোড করা হয়নি
                 </h3>
-                <p className="font-bengali text-xs sm:text-sm text-neutral-500 max-w-sm mx-auto">
+                <p className="font-bengali text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 max-w-sm mx-auto">
                   চিঠি তৈরির পর এ৪ পিডিএফ বা ইমেজ কার্ড ডাউনলোড করলে তা এখানে তালিকাভুক্ত থাকবে।
                 </p>
               </div>
             ) : (
-              <div className="bg-white/90 border border-neutral-200/80 rounded-2xl divide-y divide-neutral-100 overflow-hidden shadow-2xs">
+              <div className="bg-white/90 dark:bg-neutral-900/90 border border-neutral-200/80 dark:border-neutral-800 rounded-2xl divide-y divide-neutral-100 dark:divide-neutral-800 overflow-hidden shadow-2xs">
                 {downloads.map((item) => (
                   <div
                     key={item.id}
-                    className="p-4 flex items-center justify-between gap-3 hover:bg-neutral-50/60 transition-colors"
+                    className="p-4 flex items-center justify-between gap-3 hover:bg-neutral-50/60 dark:hover:bg-neutral-800/60 transition-colors"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-600 font-bold text-xs uppercase">
+                      <div className="w-9 h-9 rounded-xl bg-rose-50 dark:bg-rose-950/50 border border-rose-100 dark:border-rose-900/50 flex items-center justify-center text-rose-600 dark:text-rose-400 font-bold text-xs uppercase">
                         {item.format}
                       </div>
                       <div>
-                        <h4 className="font-bengali font-semibold text-xs sm:text-sm text-neutral-900">
+                        <h4 className="font-bengali font-semibold text-xs sm:text-sm text-neutral-900 dark:text-neutral-100">
                           {item.format.toUpperCase()} ফাইল ডাউনলোড
                         </h4>
-                        <span className="text-[11px] font-bengali text-neutral-400">
+                        <span className="text-[11px] font-bengali text-neutral-400 dark:text-neutral-500">
                           {formatDate(item.created_at)}
                         </span>
                       </div>
                     </div>
 
-                    <span className="text-xs font-bengali font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+                    <span className="text-xs font-bengali font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-900/50 px-2.5 py-0.5 rounded-full">
                       সম্পন্ন
                     </span>
                   </div>
@@ -1056,37 +1079,55 @@ export default function DashboardPage() {
             TAB 6: PROFILE & ACCOUNT SETTINGS
            ───────────────────────────────────────────────────────────── */}
         {activeTab === 'profile' && user && (
-          <div className="max-w-xl mx-auto bg-white/90 backdrop-blur-md border border-rose-100 rounded-3xl p-6 sm:p-8 shadow-xs space-y-6 animate-in fade-in duration-300">
-            <div className="flex items-center gap-4 border-b border-neutral-100 pb-5">
+          <div className="max-w-xl mx-auto bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md border border-rose-100 dark:border-neutral-800 rounded-3xl p-6 sm:p-8 shadow-xs space-y-6 animate-in fade-in duration-300">
+            <div className="flex items-center gap-4 border-b border-neutral-100 dark:border-neutral-800 pb-5">
               <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-rose-400 to-amber-300 flex items-center justify-center text-white text-xl font-bold shadow-xs">
                 {user.name?.[0]?.toUpperCase() || 'U'}
               </div>
               <div>
-                <h2 className="font-bengali font-bold text-xl text-neutral-900">
+                <h2 className="font-bengali font-bold text-xl text-neutral-900 dark:text-neutral-100">
                   {user.name || 'ব্যবহারকারী'}
                 </h2>
-                <p className="text-xs text-neutral-500 font-sans">{user.email}</p>
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 font-sans">{user.email}</p>
               </div>
             </div>
 
             <div className="space-y-4 font-bengali text-sm">
-              <h3 className="font-semibold text-neutral-800 text-base">আপনার অ্যাকাউন্টের বিবরণ</h3>
+              <h3 className="font-semibold text-neutral-800 dark:text-neutral-200 text-base">আপনার অ্যাকাউন্টের বিবরণ</h3>
               <div className="grid grid-cols-2 gap-3">
-                <div className="p-3.5 rounded-xl bg-neutral-50 border border-neutral-200/60">
-                  <span className="text-xs text-neutral-500 block">মোট চিঠি</span>
-                  <span className="text-xl font-bold font-sans text-neutral-900">{stats.published} টি</span>
+                <div className="p-3.5 rounded-xl bg-neutral-50 dark:bg-neutral-800 border border-neutral-200/60 dark:border-neutral-700">
+                  <span className="text-xs text-neutral-500 dark:text-neutral-400 block">মোট চিঠি</span>
+                  <span className="text-xl font-bold font-sans text-neutral-900 dark:text-neutral-100">{stats.published} টি</span>
                 </div>
-                <div className="p-3.5 rounded-xl bg-neutral-50 border border-neutral-200/60">
-                  <span className="text-xs text-neutral-500 block">পছন্দের চিঠি</span>
-                  <span className="text-xl font-bold font-sans text-rose-600">{stats.favorites} টি</span>
+                <div className="p-3.5 rounded-xl bg-neutral-50 dark:bg-neutral-800 border border-neutral-200/60 dark:border-neutral-700">
+                  <span className="text-xs text-neutral-500 dark:text-neutral-400 block">পছন্দের চিঠি</span>
+                  <span className="text-xl font-bold font-sans text-rose-600 dark:text-rose-400">{stats.favorites} টি</span>
                 </div>
               </div>
             </div>
 
-            <div className="pt-4 border-t border-neutral-100 flex items-center justify-between">
+            {/* App Settings Card in Profile */}
+            <div className="space-y-3 pt-2">
+              <h3 className="font-semibold text-neutral-800 dark:text-neutral-200 text-base font-bengali">
+                {t('settings.title')} (Preferences)
+              </h3>
+              <div className="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200/60 dark:border-neutral-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h4 className="font-bengali font-bold text-sm text-neutral-900 dark:text-neutral-100">
+                    Appearance • Language • Letter Defaults
+                  </h4>
+                  <p className="text-xs text-neutral-500 dark:text-neutral-400 font-bengali mt-0.5">
+                    {t('settings.subtitle')}
+                  </p>
+                </div>
+                <SettingsButton showLabel className="shrink-0 self-start sm:self-auto" />
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between">
               <Link
                 href="/"
-                className="text-xs font-bengali text-rose-600 hover:text-rose-700 font-medium"
+                className="text-xs font-bengali text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 font-medium py-2 px-1 min-h-[44px] flex items-center"
               >
                 ← চিঠি তৈরিতে ফিরে যান
               </Link>
@@ -1094,7 +1135,7 @@ export default function DashboardPage() {
               <button
                 type="button"
                 onClick={signOut}
-                className="inline-flex items-center gap-1.5 py-2 px-3.5 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bengali font-medium transition-colors"
+                className="inline-flex items-center gap-1.5 py-2 px-3.5 rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/50 text-red-700 dark:text-red-300 text-xs font-bengali font-medium transition-colors min-h-[44px] cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span>লগআউট করুন</span>
@@ -1107,33 +1148,34 @@ export default function DashboardPage() {
       {/* Full Letter Reader Modal */}
       {readingLetter && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-10 shadow-2xl space-y-6 relative border border-rose-100">
+          <div className="bg-white dark:bg-neutral-900 rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-10 shadow-2xl space-y-6 relative border border-rose-100 dark:border-neutral-800">
             <button
               type="button"
               onClick={() => setReadingLetter(null)}
-              className="absolute top-5 right-5 p-2 rounded-full text-neutral-400 hover:text-neutral-800 hover:bg-neutral-100 transition-colors"
+              className="absolute top-5 right-5 p-2 rounded-full text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center cursor-pointer"
+              title="বন্ধ করুন"
             >
               <X className="w-5 h-5" />
             </button>
 
             <div>
-              <span className="text-xs uppercase font-sans text-neutral-400 tracking-widest block mb-1">
+              <span className="text-xs uppercase font-sans text-neutral-400 dark:text-neutral-500 tracking-widest block mb-1">
                 SAVED LETTER
               </span>
-              <h2 className="font-bengali text-2xl font-bold text-neutral-900">
+              <h2 className="font-bengali text-2xl font-bold text-neutral-900 dark:text-neutral-100">
                 প্রিয় {readingLetter.receiver_name}
               </h2>
               <div className="flex items-center gap-2 mt-2">
-                <span className="text-xs font-bengali text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200/50">
+                <span className="text-xs font-bengali text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-0.5 rounded-full border border-rose-200/50 dark:border-rose-900/40">
                   {readingLetter.relationship || 'চিঠি'}
                 </span>
-                <span className="text-xs text-neutral-400 font-bengali">
+                <span className="text-xs text-neutral-400 dark:text-neutral-500 font-bengali">
                   {formatDate(readingLetter.created_at)}
                 </span>
               </div>
             </div>
 
-            <div className="letter-body font-bengali text-neutral-800 text-base sm:text-lg leading-relaxed sm:leading-loose whitespace-pre-wrap p-6 rounded-2xl bg-amber-50/40 border border-amber-100/60">
+            <div className="letter-body font-bengali text-neutral-800 dark:text-neutral-200 text-base sm:text-lg leading-relaxed sm:leading-loose whitespace-pre-wrap p-6 rounded-2xl bg-amber-50/40 dark:bg-neutral-950/60 border border-amber-100/60 dark:border-neutral-800">
               {readingLetter.content}
             </div>
 
@@ -1141,25 +1183,25 @@ export default function DashboardPage() {
               <button
                 type="button"
                 onClick={() => handleToggleFavorite(readingLetter.id, readingLetter.favorite)}
-                className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bengali font-medium border transition-colors ${
+                className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bengali font-medium border transition-colors min-h-[44px] cursor-pointer ${
                   readingLetter.favorite
-                    ? 'border-rose-300 bg-rose-50 text-rose-700'
-                    : 'border-neutral-200 hover:bg-neutral-50 text-neutral-700'
+                    ? 'border-rose-300 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300'
+                    : 'border-neutral-200 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-300'
                 }`}
               >
                 <Heart className={`w-4 h-4 ${readingLetter.favorite ? 'fill-rose-500 text-rose-500' : ''}`} />
                 <span>{readingLetter.favorite ? 'প্রিয় তালিকা থেকে সরান' : 'প্রিয়তে রাখুন'}</span>
               </button>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <button
                   type="button"
                   onClick={() => handleCopy(readingLetter.id, readingLetter.content)}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bengali font-medium bg-neutral-100 hover:bg-neutral-200 text-neutral-800 transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bengali font-medium bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 transition-colors min-h-[44px] cursor-pointer"
                 >
                   {copiedId === readingLetter.id ? (
                     <>
-                      <Check className="w-4 h-4 text-emerald-600" />
+                      <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                       <span>কপি হয়েছে</span>
                     </>
                   ) : (
@@ -1177,7 +1219,7 @@ export default function DashboardPage() {
                     setReadingLetter(null)
                     setVisualStudioLetter(l)
                   }}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bengali font-semibold bg-rose-500 hover:bg-rose-600 text-white transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bengali font-semibold bg-rose-500 hover:bg-rose-600 text-white transition-colors min-h-[44px] cursor-pointer shadow-xs"
                 >
                   <ImageIcon className="w-4 h-4" />
                   <span>ইমেজ কার্ড</span>
@@ -1190,7 +1232,7 @@ export default function DashboardPage() {
                     letterText: readingLetter.content,
                     receiverName: readingLetter.receiver_name,
                   })}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bengali font-medium bg-[#25D366] hover:bg-[#20bd5a] text-white transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bengali font-medium bg-[#25D366] hover:bg-[#20bd5a] text-white transition-colors min-h-[44px] cursor-pointer shadow-xs"
                 >
                   <Share2 className="w-4 h-4" />
                   <span>হোয়াটসঅ্যাপ</span>
@@ -1229,16 +1271,16 @@ export default function DashboardPage() {
       {/* Edit Letter Modal */}
       {editingLetter && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl border border-rose-100 space-y-4">
-            <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
-              <h3 className="font-bengali font-bold text-lg text-neutral-900 flex items-center gap-2">
-                <Edit3 className="w-5 h-5 text-rose-600" />
+          <div className="bg-white dark:bg-neutral-900 rounded-3xl max-w-xl w-full p-6 sm:p-8 shadow-2xl border border-rose-100 dark:border-neutral-800 space-y-4">
+            <div className="flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800 pb-3">
+              <h3 className="font-bengali font-bold text-lg text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
+                <Edit3 className="w-5 h-5 text-rose-600 dark:text-rose-400" />
                 <span>চিঠি সম্পাদনা করুন (Edit Letter)</span>
               </h3>
               <button
                 type="button"
                 onClick={() => setEditingLetter(null)}
-                className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-colors"
+                className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer min-h-[36px] min-w-[36px] flex items-center justify-center"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1246,35 +1288,35 @@ export default function DashboardPage() {
 
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-bengali font-semibold text-neutral-700 mb-1">
+                <label className="block text-xs font-bengali font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
                   চিঠির শিরোনাম (Title):
                 </label>
                 <input
                   type="text"
                   value={editTitle}
                   onChange={(e) => setEditTitle(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl border border-neutral-200 bg-neutral-50/50 text-xs sm:text-sm font-bengali text-neutral-900 focus:border-rose-400 outline-none"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50/50 dark:bg-neutral-800 text-xs sm:text-sm font-bengali text-neutral-900 dark:text-neutral-100 focus:border-rose-400 outline-none min-h-[44px]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bengali font-semibold text-neutral-700 mb-1">
+                <label className="block text-xs font-bengali font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
                   চিঠির মূল বক্তব্য (Letter Content):
                 </label>
                 <textarea
                   rows={8}
                   value={editContent}
                   onChange={(e) => setEditContent(e.target.value)}
-                  className="w-full p-3.5 rounded-xl border border-neutral-200 bg-neutral-50/50 text-xs sm:text-sm font-bengali text-neutral-900 focus:border-rose-400 outline-none leading-relaxed resize-y"
+                  className="w-full p-3.5 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-50/50 dark:bg-neutral-800 text-xs sm:text-sm font-bengali text-neutral-900 dark:text-neutral-100 focus:border-rose-400 outline-none leading-relaxed resize-y"
                 />
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-neutral-100">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-neutral-100 dark:border-neutral-800">
               <button
                 type="button"
                 onClick={() => setEditingLetter(null)}
-                className="py-2 px-4 rounded-xl font-bengali text-xs font-semibold text-neutral-600 hover:bg-neutral-100 transition-colors"
+                className="py-2.5 px-4 rounded-xl font-bengali text-xs font-semibold text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors min-h-[44px] cursor-pointer"
               >
                 বাতিল
               </button>
@@ -1283,7 +1325,7 @@ export default function DashboardPage() {
                 type="button"
                 disabled={isSavingEdit || !editContent.trim()}
                 onClick={handleSaveEdit}
-                className="py-2 px-4 rounded-xl font-bengali text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white transition-colors shadow-xs disabled:opacity-50"
+                className="py-2.5 px-5 rounded-xl font-bengali text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white transition-colors shadow-xs disabled:opacity-50 min-h-[44px] cursor-pointer"
               >
                 {isSavingEdit ? 'সংরক্ষণ হচ্ছে...' : 'পরিবর্তন সংরক্ষণ করুন'}
               </button>

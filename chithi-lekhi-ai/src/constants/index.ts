@@ -237,37 +237,108 @@ export const LETTER_LENGTH_OPTIONS: Array<{
   },
 ] as const
 
-// ─── Storytelling Suggestions & Inspirations (Phase 03) ───────────────────────
+// ─── Storytelling Suggestions & Inspirations (Bilingual) ───────────────────────
 
-export const MEMORY_SUGGESTIONS: string[] = [
-  'একসাথে বৃষ্টিভেজা বিকেলে এক ছাতার নিচে হাঁটা',
-  'প্রথমবার যখন দুজনের চোখে চোখ পড়েছিল',
-  'শহরের পুরোনো চায়ের দোকানে ঘণ্টার পর ঘণ্টা আড্ডা',
-  'রেলস্টেশনে বিদায়বেলার শেষ মুহূর্তের নীরবতা',
-  'মধ্যরাতের মৃদু ফিসফিস করা দীর্ঘ ফোনালাপ',
-  'শীতের ভোরে কুয়াশার মাঝে হাত ধরে পথ চলা',
-  'পরীক্ষার দিনগুলোতে একে অপরকে সাহস যোগানো',
-  'সেই বিশেষ গানটি যা শুনলেই তোমার কথা মনে পড়ে',
+export interface SuggestionItem {
+  bn: string
+  en: string
+}
+
+export const MEMORY_SUGGESTIONS: SuggestionItem[] = [
+  {
+    bn: 'একসাথে বৃষ্টিভেজা বিকেলে এক ছাতার নিচে হাঁটা',
+    en: 'Walking together under a single umbrella on a rainy evening',
+  },
+  {
+    bn: 'প্রথমবার যখন দুজনের চোখে চোখ পড়েছিল',
+    en: 'The very first moment our eyes met in quiet understanding',
+  },
+  {
+    bn: 'শহরের পুরোনো চায়ের দোকানে ঘণ্টার পর ঘণ্টা আড্ডা',
+    en: 'Endless conversations over hot tea at our favorite roadside stall',
+  },
+  {
+    bn: 'রেলস্টেশনে বিদায়বেলার শেষ মুহূর্তের নীরবতা',
+    en: 'The quiet ache of saying goodbye at the railway station platform',
+  },
+  {
+    bn: 'মধ্যরাতের মৃদু ফিসফিস করা দীর্ঘ ফোনালাপ',
+    en: 'Late-night whispered phone conversations when the whole city slept',
+  },
+  {
+    bn: 'শীতের ভোরে কুয়াশার মাঝে হাত ধরে পথ চলা',
+    en: 'Walking hand in hand through quiet misty winter mornings',
+  },
+  {
+    bn: 'পরীক্ষার দিনগুলোতে একে অপরকে সাহস যোগানো',
+    en: 'Encouraging and standing by each other during our hardest days',
+  },
+  {
+    bn: 'সেই বিশেষ গানটি যা শুনলেই তোমার কথা মনে পড়ে',
+    en: 'That nostalgic song that always brings your smile to mind',
+  },
 ]
 
-export const SITUATION_SUGGESTIONS: string[] = [
-  'আমরা এখন অনেক দূরে থাকি, দূরত্ব অনেক বেড়েছে',
-  'অনেক দিন কথা হয় না, কিন্তু মনে প্রতিদিন থাকো',
-  'একটি অনাকাঙ্ক্ষিত ভুল বোঝাবুঝির পর এই চিঠি',
-  'আজ তোমার একটি বিশেষ দিন বা শুভক্ষণ',
-  'নীরব নিস্তব্ধ একাকী রাতে হঠাৎ স্মৃতির ভিড়',
-  'অনেক দিন পর আবার পুরোনো ঠিকানায় ফিরছি',
-  'কাছে থেকেও মুখে বলতে পারছি না মনের কথাগুলো',
+export const SITUATION_SUGGESTIONS: SuggestionItem[] = [
+  {
+    bn: 'আজ তোমার একটি বিশেষ দিন বা শুভক্ষণ (জন্মদিন / শুভকামনা)',
+    en: 'Today is your special day (Happy Birthday / Best Wishes)',
+  },
+  {
+    bn: 'আমাদের একসাথে পথচলার আরেকটি বিশেষ বছর (বিবাহবার্ষিকী)',
+    en: 'Celebrating another beautiful milestone together (Anniversary)',
+  },
+  {
+    bn: 'আমরা এখন অনেক দূরে থাকি, দূরত্ব অনেক বেড়েছে',
+    en: 'We live far apart now, separated by oceans and miles',
+  },
+  {
+    bn: 'অনেক দিন কথা হয় না, কিন্তু মনে প্রতিদিন থাকো',
+    en: "We haven't spoken in a long time, but you are in my daily thoughts",
+  },
+  {
+    bn: 'একটি অনাকাঙ্ক্ষিত ভুল বোঝাবুঝির পর এই চিঠি',
+    en: 'Reaching out from the heart after an unfortunate misunderstanding',
+  },
+  {
+    bn: 'নীরব নিস্তব্ধ একাকী রাতে হঠাৎ স্মৃতির ভিড়',
+    en: 'A quiet solitary night where memories come rushing back',
+  },
+  {
+    bn: 'কাছে থেকেও মুখে বলতে পারছি না মনের কথাগুলো',
+    en: 'Being near you yet unable to put these deep feelings into spoken words',
+  },
 ]
 
-export const FEELING_SUGGESTIONS: string[] = [
-  'তীব্র মিস করছি তোমাকে, প্রতিটি মুহূর্তে',
-  'হৃদয়ে গোপন ভালোবাসার স্বীকারোক্তি জানাতে চাই',
-  'হৃদয়ের গভীর থেকে ক্ষমা প্রার্থনা ও অনুশোচনা',
-  'জীবনের প্রতিটি পদক্ষেপে তোমার প্রতি কৃতজ্ঞতা',
-  'অভিমান ভেঙে ভালোবাসায় জড়িয়ে নেওয়ার ইচ্ছা',
-  'নীরব শুভকামনা ও তোমাকে ভালো রাখার প্রার্থনা',
-  'একাকিত্বে তোমার উপস্থিতি তীব্রভাবে অনুভব করা',
+export const FEELING_SUGGESTIONS: SuggestionItem[] = [
+  {
+    bn: 'তীব্র মিস করছি তোমাকে, প্রতিটি মুহূর্তে',
+    en: 'Missing you deeply and counting every quiet hour',
+  },
+  {
+    bn: 'হৃদয়ে গোপন ভালোবাসার স্বীকারোক্তি জানাতে চাই',
+    en: 'Wanting to gently confess the unspoken love in my heart',
+  },
+  {
+    bn: 'হৃদয়ের গভীর থেকে ক্ষমা প্রার্থনা ও অনুশোচনা',
+    en: 'Asking for heartfelt forgiveness with sincere regret',
+  },
+  {
+    bn: 'জীবনের প্রতিটি পদক্ষেপে তোমার প্রতি চিরন্তন কৃতজ্ঞতা',
+    en: 'Endless gratitude for your warmth and sacrifices in my life',
+  },
+  {
+    bn: 'অভিমান ভেঙে ভালোবাসায় জড়িয়ে নেওয়ার তীব্র ইচ্ছা',
+    en: 'A tender wish to melt away all pride and embrace with love',
+  },
+  {
+    bn: 'নীরব শুভকামনা ও তোমাকে ভালো রাখার প্রার্থনা',
+    en: 'Silent prayers for your happiness, health, and peace of mind',
+  },
+  {
+    bn: 'একাকিত্বে তোমার উপস্থিতি তীব্রভাবে অনুভব করা',
+    en: 'Feeling your soothing presence even in my deepest solitude',
+  },
 ]
 
 // ─── Emotion Options (Phase 02) ───────────────────────────────────────────────

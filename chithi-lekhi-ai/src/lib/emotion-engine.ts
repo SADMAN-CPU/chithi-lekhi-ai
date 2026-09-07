@@ -260,6 +260,12 @@ function extractSensoryAnchors(text: string): string[] {
   if (/রেল|স্টেশন|ট্রেন|বিদায়|যাত্রী/i.test(lower)) {
     anchors.push('রেলস্টেশনের প্ল্যাটফর্মে শেষ বিদায়ের ক্ষণ')
   }
+  if (/জন্মদিন|birthday|জনমদিন/i.test(lower)) {
+    anchors.push('জন্মদিনের মোমের আলো, নতুন বছরের শুভকামনা ও একরাশ ভালোবাসা')
+  }
+  if (/বিবাহ|বিয়ে|বার্ষিকী|anniversary|wedding/i.test(lower)) {
+    anchors.push('একসাথে পথচলার রঙিন স্মৃতি ও আজীবনের বিশ্বস্ত বন্ধন')
+  }
 
   // Default anchors if none detected
   if (anchors.length === 0) {
@@ -300,7 +306,11 @@ export function analyzeEmotionalContext(params: GenerateLetterRequest): Emotiona
   const feelingInput = `${params.feeling || ''} ${params.emotion || ''}`.toLowerCase()
   let emotionKey = 'love'
 
-  if (/মিস|বিরহ|দূর|শূন্য|একা|lonely|miss/i.test(feelingInput)) {
+  if (/জন্মদিন|birthday|জনমদিন/i.test(feelingInput)) {
+    emotionKey = 'happiness'
+  } else if (/বিবাহ|বিয়ে|বার্ষিকী|anniversary/i.test(feelingInput)) {
+    emotionKey = 'love'
+  } else if (/মিস|বিরহ|দূর|শূন্য|একা|lonely|miss/i.test(feelingInput)) {
     emotionKey = 'missing-someone'
   } else if (/ক্ষমা|অনুতাপ|দুঃখিত|ভুল|apolog/i.test(feelingInput)) {
     emotionKey = 'apology'
