@@ -7,7 +7,6 @@ import { useAuth } from '@/hooks/useAuth'
 import { useLanguage } from '@/components/providers/LanguageProvider'
 import { ThemeSwitcher } from '@/components/ui/ThemeSwitcher'
 import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher'
-import { SettingsButton } from '@/components/ui/SettingsButton'
 
 export function Navbar() {
   const { isAuthenticated } = useAuth()
@@ -38,10 +37,9 @@ export function Navbar() {
             <span>&ldquo;{t('nav.quote')}&rdquo;</span>
           </div>
 
-          {/* Theme & Language Switchers & Settings */}
+          {/* Theme & Language Switchers */}
           <LanguageSwitcher />
           <ThemeSwitcher />
-          <SettingsButton />
 
           {/* Navigation links */}
           {isAuthenticated ? (

@@ -448,7 +448,7 @@ export function ensureCompleteSignoff(letter: string, _receiverName?: string): s
  * Offline / Local Fallback Refinement Engine
  * Synthesizes a 100% complete cohesive letter — NEVER appends extra sentences to the end!
  */
-function localRefineFallback(
+export function localRefineFallback(
   letter: string,
   action: RefineAction,
   customInstruction?: string,

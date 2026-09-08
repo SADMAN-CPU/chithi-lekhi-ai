@@ -11,7 +11,6 @@ import {
   Check,
   Plus,
   LogOut,
-  User,
   Calendar,
   Sparkles,
   BookOpen,
@@ -23,12 +22,13 @@ import {
   Globe,
   ExternalLink,
   Edit3,
+  Sliders,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useLanguage } from '@/components/providers/LanguageProvider'
 import { formatDate } from '@/utils/helpers'
 import { shareLetter } from '@/lib/share-engine'
-import { SettingsButton } from '@/components/ui/SettingsButton'
+import { DashboardSettingsView } from '@/components/dashboard/DashboardSettingsView'
 import { RELATIONSHIP_OPTIONS, EMOTIONS } from '@/constants'
 import type { LetterRow, DownloadHistoryRow, PublicLetterRow } from '@/types/database'
 import dynamic from 'next/dynamic'
@@ -230,8 +230,35 @@ export default function DashboardPage() {
   const { user, loading: authLoading, signOut } = useAuth()
   const { t, locale } = useLanguage()
 
-  // Tab State
-  const [activeTab, setActiveTab] = useState<DashboardTab>('my-letters')
+  // Tab State - initialized with URL query param support
+  const [activeTab, setActiveTab] = useState<DashboardTab>(() => {
+    if (typeof window !== 'undefined') {
+      const searchParams = new URLSearchParams(window.location.search)
+      const tabParam = searchParams.get('tab')
+      if (tabParam === 'settings' || tabParam === 'profile') {
+        return 'profile'
+      }
+      if (tabParam && ['my-letters', 'favorites', 'drafts', 'downloads', 'shared'].includes(tabParam)) {
+        return tabParam as DashboardTab
+      }
+    }
+    return 'my-letters'
+  })
+
+  // Listen for browser history popstate navigation
+  useEffect(() => {
+    const handlePopState = () => {
+      const searchParams = new URLSearchParams(window.location.search)
+      const tabParam = searchParams.get('tab')
+      if (tabParam === 'settings' || tabParam === 'profile') {
+        setActiveTab('profile')
+      } else if (tabParam && ['my-letters', 'favorites', 'drafts', 'downloads', 'shared'].includes(tabParam)) {
+        setActiveTab(tabParam as DashboardTab)
+      }
+    }
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
 
   // Data States
   const [letters, setLetters] = useState<LetterRow[]>([])
@@ -581,7 +608,18 @@ export default function DashboardPage() {
           </Link>
 
           <div className="flex items-center gap-2 sm:gap-3">
-            <SettingsButton />
+            <button
+              type="button"
+              onClick={() => setActiveTab('profile')}
+              title={locale === 'en' ? 'Settings & Profile' : 'সেটিংস ও প্রোফাইল'}
+              className={`p-2 rounded-xl transition-colors border min-h-[40px] min-w-[40px] flex items-center justify-center cursor-pointer ${
+                activeTab === 'profile'
+                  ? 'border-rose-400 bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-300'
+                  : 'border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-neutral-800'
+              }`}
+            >
+              <Sliders className="w-4 h-4" />
+            </button>
             <Link
               href="/"
               className="inline-flex items-center gap-1.5 py-2 px-3.5 rounded-xl font-bengali text-xs sm:text-sm font-semibold bg-rose-500 hover:bg-rose-600 text-white shadow-xs transition-colors min-h-[40px]"
@@ -741,8 +779,8 @@ export default function DashboardPage() {
                   : 'border-transparent text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200'
               }`}
             >
-              <User className="w-4 h-4" />
-              <span>প্রোফাইল</span>
+              <Sliders className="w-4 h-4" />
+              <span>{locale === 'en' ? 'Settings & Profile' : 'সেটিংস ও প্রোফাইল'}</span>
             </button>
           )}
         </div>
@@ -1079,69 +1117,7 @@ export default function DashboardPage() {
             TAB 6: PROFILE & ACCOUNT SETTINGS
            ───────────────────────────────────────────────────────────── */}
         {activeTab === 'profile' && user && (
-          <div className="max-w-xl mx-auto bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md border border-rose-100 dark:border-neutral-800 rounded-3xl p-6 sm:p-8 shadow-xs space-y-6 animate-in fade-in duration-300">
-            <div className="flex items-center gap-4 border-b border-neutral-100 dark:border-neutral-800 pb-5">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-rose-400 to-amber-300 flex items-center justify-center text-white text-xl font-bold shadow-xs">
-                {user.name?.[0]?.toUpperCase() || 'U'}
-              </div>
-              <div>
-                <h2 className="font-bengali font-bold text-xl text-neutral-900 dark:text-neutral-100">
-                  {user.name || 'ব্যবহারকারী'}
-                </h2>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400 font-sans">{user.email}</p>
-              </div>
-            </div>
-
-            <div className="space-y-4 font-bengali text-sm">
-              <h3 className="font-semibold text-neutral-800 dark:text-neutral-200 text-base">আপনার অ্যাকাউন্টের বিবরণ</h3>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-3.5 rounded-xl bg-neutral-50 dark:bg-neutral-800 border border-neutral-200/60 dark:border-neutral-700">
-                  <span className="text-xs text-neutral-500 dark:text-neutral-400 block">মোট চিঠি</span>
-                  <span className="text-xl font-bold font-sans text-neutral-900 dark:text-neutral-100">{stats.published} টি</span>
-                </div>
-                <div className="p-3.5 rounded-xl bg-neutral-50 dark:bg-neutral-800 border border-neutral-200/60 dark:border-neutral-700">
-                  <span className="text-xs text-neutral-500 dark:text-neutral-400 block">পছন্দের চিঠি</span>
-                  <span className="text-xl font-bold font-sans text-rose-600 dark:text-rose-400">{stats.favorites} টি</span>
-                </div>
-              </div>
-            </div>
-
-            {/* App Settings Card in Profile */}
-            <div className="space-y-3 pt-2">
-              <h3 className="font-semibold text-neutral-800 dark:text-neutral-200 text-base font-bengali">
-                {t('settings.title')} (Preferences)
-              </h3>
-              <div className="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-800/60 border border-neutral-200/60 dark:border-neutral-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <h4 className="font-bengali font-bold text-sm text-neutral-900 dark:text-neutral-100">
-                    Appearance • Language • Letter Defaults
-                  </h4>
-                  <p className="text-xs text-neutral-500 dark:text-neutral-400 font-bengali mt-0.5">
-                    {t('settings.subtitle')}
-                  </p>
-                </div>
-                <SettingsButton showLabel className="shrink-0 self-start sm:self-auto" />
-              </div>
-            </div>
-
-            <div className="pt-4 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between">
-              <Link
-                href="/"
-                className="text-xs font-bengali text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 font-medium py-2 px-1 min-h-[44px] flex items-center"
-              >
-                ← চিঠি তৈরিতে ফিরে যান
-              </Link>
-
-              <button
-                type="button"
-                onClick={signOut}
-                className="inline-flex items-center gap-1.5 py-2 px-3.5 rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/50 text-red-700 dark:text-red-300 text-xs font-bengali font-medium transition-colors min-h-[44px] cursor-pointer"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                <span>লগআউট করুন</span>
-              </button>
-            </div>
-          </div>
+          <DashboardSettingsView user={user} stats={stats} onSignOut={signOut} />
         )}
       </main>
 
