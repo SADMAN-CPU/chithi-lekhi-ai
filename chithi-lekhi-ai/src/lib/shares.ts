@@ -1,5 +1,6 @@
 import { createClient as createBrowserSupabase } from './supabase/client'
 import { createClient as createServerSupabase } from './supabase/server'
+import { createAdminClient, isServiceRoleConfigured } from './supabase/admin'
 import { getLetterById, updateLetter, getLetterByShareId, incrementLetterViews } from './supabase/letters'
 import { generateSlug } from '@/utils/helpers'
 import type { ShareRow, ShareAnalyticsRow, LetterRow } from '@/types/database'
@@ -56,7 +57,15 @@ export async function createShareRecord(
   params: CreateShareParams,
   isServer = false
 ): Promise<ShareRow> {
-  const share_token = generateSlug(6)
+  // Re-use existing letter share_id or share_slug if already assigned
+  let share_token = generateSlug(6)
+  if (params.letter_id) {
+    const existing = await getLetterById(params.letter_id, isServer)
+    if (existing?.share_id || existing?.share_slug) {
+      share_token = existing.share_id || existing.share_slug
+    }
+  }
+
   const expiration = params.expiration || 'never'
   const expires_at = calculateShareExpiresAt(expiration)
   const is_public = params.is_public !== undefined ? params.is_public : true
@@ -66,7 +75,9 @@ export async function createShareRecord(
 
   if (isConfigured) {
     try {
-      const client = isServer ? await createServerSupabase() : createBrowserSupabase()
+      const client = isServer
+        ? (isServiceRoleConfigured() ? createAdminClient() : await createServerSupabase())
+        : createBrowserSupabase()
       const { data, error } = await client
         .from('shares')
         .insert({
@@ -147,7 +158,9 @@ export async function getShareByToken(
   // 1. Primary: Use secure PostgreSQL RPC function (Option B: SECURITY DEFINER)
   if (isConfigured) {
     try {
-      const client = isServer ? await createServerSupabase() : createBrowserSupabase()
+      const client = isServer
+        ? (isServiceRoleConfigured() ? createAdminClient() : await createServerSupabase())
+        : createBrowserSupabase()
       const { data: rpcData, error: rpcError } = await client.rpc('get_shared_letter_by_token', {
         token_param: tokenOrId,
       })
@@ -212,7 +225,9 @@ export async function getShareByToken(
 
   if (isConfigured) {
     try {
-      const client = isServer ? await createServerSupabase() : createBrowserSupabase()
+      const client = isServer
+        ? (isServiceRoleConfigured() ? createAdminClient() : await createServerSupabase())
+        : createBrowserSupabase()
       const { data, error } = await client
         .from('shares')
         .select('*')
@@ -349,7 +364,9 @@ export async function trackShareEvent(
 
   if (isConfigured) {
     try {
-      const client = isServer ? await createServerSupabase() : createBrowserSupabase()
+      const client = isServer
+        ? (isServiceRoleConfigured() ? createAdminClient() : await createServerSupabase())
+        : createBrowserSupabase()
       // Call atomic RPC function
       await client.rpc('increment_share_event', {
         target_token: token,

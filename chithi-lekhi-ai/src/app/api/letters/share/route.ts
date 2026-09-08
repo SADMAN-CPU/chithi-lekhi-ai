@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getLetterById, updateLetter, createLetter } from '@/lib/supabase/letters'
+import { createShareRecord } from '@/lib/shares'
 import { generateSlug } from '@/utils/helpers'
 import { checkRateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import type { ApiError } from '@/types'
@@ -76,17 +77,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const slug = letter.share_id || letter.share_slug || generateSlug(6)
-
-    const updated = await updateLetter(
-      letter.id,
+    const share = await createShareRecord(
       {
-        share_slug: slug,
-        share_id: slug,
-        is_public: isPublic,
+        letter_id: letter.id,
+        user_id: serverUser?.id || null,
+        is_public: Boolean(isPublic),
+        expiration: 'never',
       },
       true
     )
+
+    const slug = share.share_token
+    const updated = await getLetterById(letter.id, true)
 
     const origin = request.nextUrl.origin || process.env.NEXT_PUBLIC_APP_URL || 'https://chithilekhi.com'
     const sharePath = `/read/${slug}`
@@ -94,6 +96,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      share,
       share_id: slug,
       slug,
       shareToken: slug,

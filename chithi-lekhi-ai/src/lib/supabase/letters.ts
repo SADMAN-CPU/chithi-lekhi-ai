@@ -19,7 +19,7 @@ export async function createLetter(
 ): Promise<LetterRow> {
   const newId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `letter-${Date.now()}`
   const now = new Date().toISOString()
-  const slug = data.share_id || data.share_slug || generateSlug(8)
+  const slug = data.share_id || data.share_slug || generateSlug(6)
   const status = data.status || 'published'
   const letterBody = data.letter_content || data.content || ''
   const recipientName = data.recipient_name || data.receiver_name
@@ -335,7 +335,9 @@ export async function toggleLetterFavorite(
 
   if (isConfigured) {
     try {
-      const client = isServer ? await createServerSupabase() : createBrowserSupabase()
+      const client = isServer
+        ? (isServiceRoleConfigured() ? createAdminClient() : await createServerSupabase())
+        : createBrowserSupabase()
       const { error } = await client
         .from('letters')
         .update({ favorite: newFavorite, updated_at: new Date().toISOString() })
@@ -369,7 +371,9 @@ export async function updateLetter(
   const now = new Date().toISOString()
   if (isConfigured) {
     try {
-      const client = isServer ? await createServerSupabase() : createBrowserSupabase()
+      const client = isServer
+        ? (isServiceRoleConfigured() ? createAdminClient() : await createServerSupabase())
+        : createBrowserSupabase()
       const { data, error } = await client
         .from('letters')
         .update({ ...updates, updated_at: now })
@@ -406,7 +410,9 @@ export async function updateLetter(
 export async function deleteLetter(letterId: string, isServer = false): Promise<boolean> {
   if (isConfigured) {
     try {
-      const client = isServer ? await createServerSupabase() : createBrowserSupabase()
+      const client = isServer
+        ? (isServiceRoleConfigured() ? createAdminClient() : await createServerSupabase())
+        : createBrowserSupabase()
       const { error } = await client
         .from('letters')
         .delete()
@@ -434,7 +440,9 @@ export async function recordDownload(
 
   if (isConfigured) {
     try {
-      const client = isServer ? await createServerSupabase() : createBrowserSupabase()
+      const client = isServer
+        ? (isServiceRoleConfigured() ? createAdminClient() : await createServerSupabase())
+        : createBrowserSupabase()
       const { data, error } = await client
         .from('download_history')
         .insert({
@@ -476,7 +484,9 @@ export async function getUserDownloads(
 ): Promise<DownloadHistoryRow[]> {
   if (isConfigured) {
     try {
-      const client = isServer ? await createServerSupabase() : createBrowserSupabase()
+      const client = isServer
+        ? (isServiceRoleConfigured() ? createAdminClient() : await createServerSupabase())
+        : createBrowserSupabase()
       const { data, error } = await client
         .from('download_history')
         .select('*')

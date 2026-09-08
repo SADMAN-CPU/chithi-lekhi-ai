@@ -1,5 +1,6 @@
 import { createClient as createBrowserSupabase } from './client'
 import { createClient as createServerSupabase } from './server'
+import { createAdminClient, isServiceRoleConfigured } from './admin'
 import { generateSlug } from '@/utils/helpers'
 import type { PublicLetterRow } from '@/types/database'
 import { isSupabaseConfigured } from './config'
@@ -62,7 +63,9 @@ export async function createPublicLetter(
 
   if (isConfigured) {
     try {
-      const client = isServer ? await createServerSupabase() : createBrowserSupabase()
+      const client = isServer
+        ? (isServiceRoleConfigured() ? createAdminClient() : await createServerSupabase())
+        : createBrowserSupabase()
       const { data, error } = await client
         .from('public_letters')
         .insert({
@@ -126,7 +129,9 @@ export async function getPublicLetter(
 
   if (isConfigured) {
     try {
-      const client = isServer ? await createServerSupabase() : createBrowserSupabase()
+      const client = isServer
+        ? (isServiceRoleConfigured() ? createAdminClient() : await createServerSupabase())
+        : createBrowserSupabase()
       // Try by short_id first, then id
       const { data, error } = await client
         .from('public_letters')
@@ -201,7 +206,9 @@ export async function incrementPublicLetterViews(
 ): Promise<number> {
   if (isConfigured) {
     try {
-      const client = isServer ? await createServerSupabase() : createBrowserSupabase()
+      const client = isServer
+        ? (isServiceRoleConfigured() ? createAdminClient() : await createServerSupabase())
+        : createBrowserSupabase()
       await client.rpc('increment_public_letter_views', { target_short_id: shortId })
     } catch (err) {
       console.warn('[PublicLetters] incrementViews exception:', err)
@@ -225,7 +232,9 @@ export async function getUserSharedLetters(
 ): Promise<PublicLetterRow[]> {
   if (isConfigured) {
     try {
-      const client = isServer ? await createServerSupabase() : createBrowserSupabase()
+      const client = isServer
+        ? (isServiceRoleConfigured() ? createAdminClient() : await createServerSupabase())
+        : createBrowserSupabase()
       const { data, error } = await client
         .from('public_letters')
         .select('*')
