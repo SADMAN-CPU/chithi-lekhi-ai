@@ -6,6 +6,7 @@ export { isSupabaseConfigured }
 export interface ServerUser {
   id: string
   email?: string
+  role?: 'user' | 'admin'
 }
 
 /**
@@ -37,7 +38,22 @@ export async function getServerUser(): Promise<ServerUser | null> {
         error,
       } = await supabase.auth.getUser()
       if (!error && user) {
-        return { id: user.id, email: user.email }
+        let role: 'user' | 'admin' = (user.user_metadata?.role as 'user' | 'admin') || 'user'
+        if (role !== 'admin') {
+          try {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('role')
+              .eq('id', user.id)
+              .maybeSingle()
+            if (profile?.role === 'admin') {
+              role = 'admin'
+            }
+          } catch {
+            // Non-fatal if profiles table check fails
+          }
+        }
+        return { id: user.id, email: user.email, role }
       }
     } catch (err) {
       console.warn('[getServerUser] Supabase session verification error:', err)

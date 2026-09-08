@@ -71,7 +71,10 @@ export type GenerateLetterInput = z.infer<typeof generateLetterSchema>
 // ─── Phase 04: AI Letter Refinement Schema ────────────────────────────────────
 
 export const refineActionEnum = z.enum([
+  'natural',
   'emotional',
+  'elegant',
+  'poetic',
   'more-emotional',
   'make-more-emotional',
   'deep-feelings',
@@ -109,6 +112,7 @@ export const refineLetterSchema = z
   .object({
     originalLetter: z.string().max(5000, 'Letter is too long to refine').optional(),
     letter: z.string().max(5000, 'Letter is too long to refine').optional(),
+    letterId: z.string().max(100).optional(),
     action: refineActionEnum.optional(),
     refinementType: refineActionEnum.optional(),
     customInstruction: z.string().max(500, 'Custom instruction must be under 500 characters').optional(),

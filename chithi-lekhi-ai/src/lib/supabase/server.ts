@@ -1,19 +1,20 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { getSupabaseEnv } from './config'
+import { getSupabaseEnv, logSupabaseConfigDiagnostics } from './config'
 
 export async function createClient() {
   const env = getSupabaseEnv()
   if (!env.isConfigured) {
-    throw new Error(
-      `[Supabase Server Error] ${env.error || 'Supabase is not configured in environment variables.'}`
-    )
+    logSupabaseConfigDiagnostics()
   }
+
+  const url = env.isConfigured ? env.url : 'https://placeholder-auth.supabase.co'
+  const anonKey = env.isConfigured ? env.anonKey : 'placeholder-anon-key'
 
   const cookieStore = await cookies()
   return createServerClient(
-    env.url,
-    env.anonKey,
+    url,
+    anonKey,
     {
       cookies: {
         getAll() {

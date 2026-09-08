@@ -57,19 +57,23 @@ export function useAuth() {
         const supabase = createClient()
         const {
           data: { subscription },
-        } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
+        } = supabase.auth.onAuthStateChange(async (_event: AuthChangeEvent, session: Session | null) => {
           if (!isMounted) return
           if (session?.user) {
-            setUser({
-              id: session.user.id,
-              email: session.user.email || '',
-              name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'ব্যবহারকারী',
-              avatar: session.user.user_metadata?.avatar_url,
-            })
+            const currentUser = await getCurrentUser()
+            if (isMounted) {
+              setUser(currentUser || {
+                id: session.user.id,
+                email: session.user.email || '',
+                name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'ব্যবহারকারী',
+                avatar: session.user.user_metadata?.avatar_url,
+                role: (session.user.user_metadata?.role as 'user' | 'admin') || 'user',
+              })
+            }
           } else {
             setUser(null)
           }
-          setLoading(false)
+          if (isMounted) setLoading(false)
         })
 
         return () => {

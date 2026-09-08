@@ -58,7 +58,11 @@ function LoginFormContent() {
       return
     }
 
-    router.push(redirectedFrom)
+    if (user.role === 'admin') {
+      router.push('/admin')
+    } else {
+      router.push(redirectedFrom)
+    }
     router.refresh()
   }
 
@@ -85,16 +89,14 @@ function LoginFormContent() {
           {!isConfigured && (
             <div
               role="alert"
-              className="bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800/80 text-amber-900 dark:text-amber-200 text-xs font-bengali p-3.5 rounded-xl space-y-1"
+              className="bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800/80 text-amber-900 dark:text-amber-200 text-xs font-bengali p-3.5 rounded-xl flex items-center gap-2"
             >
-              <div className="font-semibold flex items-center gap-1.5">
-                <span>⚠️ Supabase অথেন্টিকেশন কনফিগার করা নেই</span>
-              </div>
-              <p className="text-[11px] leading-relaxed text-amber-800 dark:text-amber-300">
+              <span className="text-sm">⚠️</span>
+              <span>
                 {locale === 'en'
-                  ? 'Real Supabase credentials are required. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in your .env.local or Vercel environment variables.'
-                  : 'প্রোডাকশন অথেন্টিকেশনের জন্য Supabase এর আসল কি (NEXT_PUBLIC_SUPABASE_URL ও ANON_KEY) .env.local অথবা Vercel Settings এ যুক্ত করুন।'}
-              </p>
+                  ? 'System setup is not complete. Please try again shortly.'
+                  : 'সিস্টেম সেটআপ সম্পূর্ণ হয়নি। অনুগ্রহ করে কিছুক্ষণ পরে আবার চেষ্টা করুন।'}
+              </span>
             </div>
           )}
 

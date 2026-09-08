@@ -23,6 +23,9 @@ interface SaveLetterModalProps {
   eraStyle?: string
   language?: string
   letterId?: string
+  originalLetter?: string
+  enhancedLetter?: string | null
+  enhancementStyle?: string | null
   onClose: () => void
   onSaved?: (savedId: string, isPublic: boolean) => void
 }
@@ -36,6 +39,9 @@ export function SaveLetterModal({
   eraStyle,
   language,
   letterId,
+  originalLetter,
+  enhancedLetter,
+  enhancementStyle,
   onClose,
   onSaved,
 }: SaveLetterModalProps) {
@@ -82,6 +88,9 @@ export function SaveLetterModal({
           language: language || 'bengali',
           content: letter,
           letter_content: letter,
+          original_letter: originalLetter || letter,
+          enhanced_letter: enhancedLetter || null,
+          enhancement_style: enhancementStyle || null,
           theme: 'vintage',
           is_public: isPublic,
           is_favorite: false,

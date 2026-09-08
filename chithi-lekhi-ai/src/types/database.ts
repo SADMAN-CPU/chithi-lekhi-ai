@@ -36,6 +36,9 @@ export interface Database {
           share_id?: string | null
           view_count?: number
           is_public: boolean
+          original_letter?: string | null
+          enhanced_letter?: string | null
+          enhancement_style?: string | null
           created_at: string
           updated_at: string
         }
@@ -65,6 +68,9 @@ export interface Database {
           share_id?: string | null
           view_count?: number
           is_public?: boolean
+          original_letter?: string | null
+          enhanced_letter?: string | null
+          enhancement_style?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -94,6 +100,9 @@ export interface Database {
           share_id?: string | null
           view_count?: number
           is_public?: boolean
+          original_letter?: string | null
+          enhanced_letter?: string | null
+          enhancement_style?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -112,22 +121,31 @@ export interface Database {
           id: string
           email: string | null
           name: string | null
+          full_name?: string | null
+          role: 'user' | 'admin'
           avatar: string | null
           created_at: string
+          updated_at?: string
         }
         Insert: {
           id: string
           email?: string | null
           name?: string | null
+          full_name?: string | null
+          role?: 'user' | 'admin'
           avatar?: string | null
           created_at?: string
+          updated_at?: string
         }
         Update: {
           id?: string
           email?: string | null
           name?: string | null
+          full_name?: string | null
+          role?: 'user' | 'admin'
           avatar?: string | null
           created_at?: string
+          updated_at?: string
         }
         Relationships: []
       }

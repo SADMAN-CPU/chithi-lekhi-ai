@@ -24,6 +24,9 @@ export async function createLetter(
   const letterBody = data.letter_content || data.content || ''
   const recipientName = data.recipient_name || data.receiver_name
   const letterStyle = data.letter_style || data.era_style || data.style || 'vintage'
+  const originalBody = data.original_letter || letterBody
+  const enhancedBody = data.enhanced_letter || null
+  const enhancementStyle = data.enhancement_style || null
 
   if (isConfigured) {
     try {
@@ -42,6 +45,9 @@ export async function createLetter(
           letter_content: letterBody,
           era_style: letterStyle,
           letter_style: letterStyle,
+          original_letter: originalBody,
+          enhanced_letter: enhancedBody,
+          enhancement_style: enhancementStyle,
           status,
           share_slug: slug,
           share_id: slug,
@@ -85,6 +91,9 @@ export async function createLetter(
     memory_context: data.memory_context ?? null,
     content: letterBody,
     letter_content: letterBody,
+    original_letter: originalBody,
+    enhanced_letter: enhancedBody,
+    enhancement_style: enhancementStyle,
     theme: data.theme || 'vintage',
     status,
     favorite: data.favorite ?? data.is_favorite ?? false,

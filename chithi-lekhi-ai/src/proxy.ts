@@ -1,81 +1,56 @@
-import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import type { Database } from '@/types/database'
-import { verifyAdminToken, ADMIN_COOKIE_NAME } from '@/lib/admin-auth'
-import { getSupabaseEnv } from '@/lib/supabase/config'
+import { updateSession } from '@/lib/supabase/middleware'
+import { isSupabaseConfigured } from '@/lib/supabase/config'
 
 export async function proxy(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({ request })
-  let isAuthenticated = false
-  const env = getSupabaseEnv()
-
-  // 1. Supabase Session Check
-  if (env.isConfigured) {
-    try {
-      const supabase = createServerClient<Database>(
-        env.url,
-        env.anonKey,
-        {
-          cookies: {
-            getAll() {
-              return request.cookies.getAll()
-            },
-            setAll(cookiesToSet) {
-              cookiesToSet.forEach(({ name, value }) =>
-                request.cookies.set(name, value)
-              )
-              supabaseResponse = NextResponse.next({ request })
-              cookiesToSet.forEach(({ name, value, options }) =>
-                supabaseResponse.cookies.set(name, value, options)
-              )
-            },
-          },
-        }
-      )
-
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        isAuthenticated = true
-      }
-    } catch (err) {
-      console.warn('[Proxy] Session verification warning:', err)
-    }
-  }
-
   const { pathname } = request.nextUrl
 
-  // 2. Protect /admin routes
-  if (pathname.startsWith('/admin')) {
-    const adminToken = request.cookies.get(ADMIN_COOKIE_NAME)?.value
-    const isTokenValid = adminToken ? (await verifyAdminToken(adminToken)).valid : false
+  // Bypass static files, internal routes, and favicon
+  if (
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/auth') ||
+    pathname.includes('.') ||
+    pathname === '/favicon.ico' ||
+    pathname === '/robots.txt' ||
+    pathname === '/sitemap.xml'
+  ) {
+    return NextResponse.next()
+  }
 
-    if (pathname === '/admin/login') {
-      if (isTokenValid) {
-        const redirectUrl = request.nextUrl.clone()
-        redirectUrl.pathname = '/admin'
-        return NextResponse.redirect(redirectUrl)
+  // Refresh auth cookies via Supabase SSR
+  const { supabaseResponse, user, role } = await updateSession(request)
+
+  // 1. Admin route protection: /admin (except /admin/login)
+  if (pathname.startsWith('/admin') && pathname !== '/admin/login') {
+    if (!user) {
+      // If Supabase is configured and no user, check if admin cookie exists as fallback
+      const adminCookie = request.cookies.get('chithi_admin_token')
+      if (!adminCookie) {
+        const loginUrl = request.nextUrl.clone()
+        loginUrl.pathname = '/admin/login'
+        loginUrl.searchParams.set('redirectedFrom', pathname)
+        return NextResponse.redirect(loginUrl)
       }
       return supabaseResponse
     }
 
-    if (!isTokenValid) {
-      const redirectUrl = request.nextUrl.clone()
-      redirectUrl.pathname = '/admin/login'
-      return NextResponse.redirect(redirectUrl)
+    if (role !== 'admin') {
+      const dashboardUrl = request.nextUrl.clone()
+      dashboardUrl.pathname = '/dashboard'
+      return NextResponse.redirect(dashboardUrl)
     }
 
     return supabaseResponse
   }
 
-  // 3. Protect /api/admin/* routes (except /api/admin/login and /api/admin/logout)
+  // 2. Protect /api/admin/* routes (except /api/admin/login and /api/admin/logout)
   if (
     pathname.startsWith('/api/admin') &&
     pathname !== '/api/admin/login' &&
     pathname !== '/api/admin/logout'
   ) {
-    const adminToken = request.cookies.get(ADMIN_COOKIE_NAME)?.value
-    const isTokenValid = adminToken ? (await verifyAdminToken(adminToken)).valid : false
-    if (!isTokenValid) {
+    const adminCookie = request.cookies.get('chithi_admin_token')
+    if (!adminCookie && (!user || role !== 'admin')) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized: Admin privileges required' },
         { status: 401 }
@@ -84,19 +59,28 @@ export async function proxy(request: NextRequest) {
     return supabaseResponse
   }
 
-  // 4. Protect /dashboard routes — redirect unauthenticated users to /login
-  if (!isAuthenticated && pathname.startsWith('/dashboard')) {
-    const redirectUrl = request.nextUrl.clone()
-    redirectUrl.pathname = '/login'
-    redirectUrl.searchParams.set('redirectedFrom', pathname)
-    return NextResponse.redirect(redirectUrl)
+  // 3. Protected user routes: /dashboard, /account, /settings
+  const isProtectedRoute =
+    pathname.startsWith('/dashboard') ||
+    pathname.startsWith('/account') ||
+    pathname.startsWith('/settings')
+
+  if (isProtectedRoute) {
+    if (isSupabaseConfigured && !user) {
+      const loginUrl = request.nextUrl.clone()
+      loginUrl.pathname = '/login'
+      loginUrl.searchParams.set('redirectedFrom', pathname)
+      return NextResponse.redirect(loginUrl)
+    }
+
+    return supabaseResponse
   }
 
-  // 5. Redirect authenticated users away from auth pages (/login, /signup) to /dashboard
-  if (isAuthenticated && (pathname === '/login' || pathname === '/signup')) {
-    const redirectUrl = request.nextUrl.clone()
-    redirectUrl.pathname = '/dashboard'
-    return NextResponse.redirect(redirectUrl)
+  // 4. Auth pages: /login, /signup
+  if ((pathname === '/login' || pathname === '/signup') && user) {
+    const targetUrl = request.nextUrl.clone()
+    targetUrl.pathname = role === 'admin' ? '/admin' : '/dashboard'
+    return NextResponse.redirect(targetUrl)
   }
 
   return supabaseResponse
@@ -107,12 +91,8 @@ export const middleware = proxy
 export const config = {
   matcher: [
     /*
-     * Match all request paths except:
-     * - _next/static (static files)
-     * - _next/image (image optimization)
-     * - favicon.ico, sitemap.xml, robots.txt
-     * - Public assets
+     * Match all request paths except static files
      */
-    '/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

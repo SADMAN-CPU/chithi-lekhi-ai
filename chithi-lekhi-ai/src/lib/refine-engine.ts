@@ -1,6 +1,5 @@
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import type { RefineAction } from './validations'
-import { SYSTEM_PERSONA } from './prompts'
 import { openai } from './openai'
 import {
   classifyAITask,
@@ -63,241 +62,406 @@ export interface LetterQualityAudit {
 }
 
 /**
- * Action-specific refinement directives in Bengali and English
+ * Core Product Philosophy:
+ * "AI লেখক নয়, AI editor — Preserve first, improve second."
  */
+export const ENHANCEMENT_EDITOR_SYSTEM_PROMPT = `You are an expert Bengali emotional editor and letter refiner.
+Your sole purpose is to polish and enhance the letter written by the user while strictly preserving their authentic voice, stated feelings, recipient, relationship dynamics, and real memories.
+
+EDITORIAL ETHOS:
+- YOU ARE AN EDITOR, NEVER A FICTION WRITER.
+- NEVER invent fictional memories, fabricated events, or fake situations that the user never wrote.
+- NEVER inject artificial melodrama, cinematic weeping, burning memories, or exaggerated metaphors (e.g. do NOT invent rain, darkness, tear-stained pillows, or dramatic storms unless the user specifically wrote about them).
+- STRICTLY RESPECT RELATIONSHIP PERSPECTIVES:
+  * Teacher / Mentor (e.g. Setu Sir, শিক্ষাগুরু): Must strictly maintain respectful student-to-teacher tone ("আপনি"), honoring guidance, knowledge, and grateful appreciation. NEVER romanticize or melodramatize.
+  * Parents (মা / বাবা): Maintain heartfelt filial devotion, gratitude, and deep reverence.
+  * Friend (বন্ধু / দোস্ত): Maintain natural warmth, camaraderie, and authentic candid connection.
+  * Romantic Partner (জীবনসঙ্গী / ভালোবাসা): Express genuine tender affection corresponding directly to what the user expressed—no forced soap-opera hyperbole.
+- WHAT TO IMPROVE:
+  * Bengali grammar and natural syntax flow (বাক্যগঠন ও প্রবহমানতা).
+  * Refined word choice (শ্রুতিমধুর, সহজ ও সংবেদনশীল শব্দচয়ন).
+  * Heartfelt emotional coherence so the letter feels sincere, human, and touching.
+- OUTPUT FORMAT:
+  * Return ONLY the polished letter text from salutation to sign-off.
+  * NO preambles, NO introductory chatter, NO bracketed notes (e.g. [নোট], [ডাকটিকিট]), and NO explanations.`
+
 /**
- * Action-specific refinement directives in Bengali and English
+ * 4 Canonical Enhancement Modes + Legacy Aliases
  */
-const ACTION_DIRECTIVES: Record<string, { labelBn: string; promptGuide: string }> = {
-  // 1. Emotional ❤️
-  emotional: {
-    labelBn: 'আবেগঘন ও হৃদয়স্পর্শী (Emotional ❤️)',
-    promptGuide:
-      'চিঠির আবেগ ও সংবেদনশীলতা বহুগুণ বাড়িয়ে তুলুন। হৃদয়ের অব্যক্ত আকুলতা, ভালোবাসার টান এবং আত্মিক নির্ভরতা যেন প্রতিটি বাক্যে প্রতিধ্বনিত হয়। অনুভূতির গভীরতা এমন হবে যা পাঠকের মনে তীব্র দাগ কাটে।',
-  },
-  'more-emotional': {
-    labelBn: 'আবেগঘন ও হৃদয়স্পর্শী (Emotional ❤️)',
-    promptGuide:
-      'চিঠির আবেগ ও সংবেদনশীলতা বহুগুণ বাড়িয়ে তুলুন। হৃদয়ের অব্যক্ত আকুলতা, ভালোবাসার টান এবং আত্মিক নির্ভরতা যেন প্রতিটি বাক্যে প্রতিধ্বনিত হয়।',
-  },
-  'make-more-emotional': {
-    labelBn: 'আবেগঘন ও হৃদয়স্পর্শী (Emotional ❤️)',
-    promptGuide:
-      'চিঠির আবেগ ও সংবেদনশীলতা বহুগুণ বাড়িয়ে তুলুন। হৃদয়ের অব্যক্ত আকুলতা ও ভালোবাসার টান ফুটিয়ে তুলুন।',
-  },
+export interface StyleDirective {
+  labelBn: string
+  labelEn: string
+  promptGuide: string
+}
 
-  // 2. Deep Feelings
-  'deep-feelings': {
-    labelBn: 'গভীর অনুভূতি (Deep Feelings)',
+const ACTION_DIRECTIVES: Record<string, StyleDirective> = {
+  // 1. Natural 🌿 (Default)
+  natural: {
+    labelBn: 'সহজ ও স্বাভাবিক (Natural 🌿)',
+    labelEn: 'Natural & Flowing 🌿',
     promptGuide:
-      'চিঠির অন্তঃস্তলে লুকানো মানসিক গভীরতা, নীরব দীর্ঘশ্বাস ও অনুচ্চারিত সত্যকে প্রকাশ করুন। কথা কম কিন্তু অনুভূতির অভিঘাত যেন অত্যন্ত তীব্র ও মর্মস্পর্শী হয়।',
+      'চিঠির মূল বক্তব্য ও মানুষের মুখের স্বাভাবিক কথন হুবহু বজায় রেখে ব্যাকরণ ও বাক্যের প্রবহমানতা নিখুঁত করো। একদম সহজ, প্রাণবন্ত ও আন্তরিক বাংলা ভাষায় সাজাও। কোনো কৃত্রিম অলংকার বা বাড়তি আবেগ যোগ করবে না।',
   },
-  'deeper-feeling': {
-    labelBn: 'গভীর অনুভূতি (Deep Feelings)',
+  'better-writing': {
+    labelBn: 'সহজ ও স্বাভাবিক (Natural 🌿)',
+    labelEn: 'Natural & Flowing 🌿',
     promptGuide:
-      'চিঠির অন্তঃস্তলে লুকানো মানসিক গভীরতা, নীরব দীর্ঘশ্বাস ও অনুচ্চারিত সত্যকে প্রকাশ করুন। কথা কম কিন্তু অনুভূতির অভিঘাত যেন তীব্র হয়।',
+      'চিঠির ব্যাকরণ, বাক্য গঠন ও স্বাভাবিক প্রবহমানতা নিখুঁত করো। ব্যবহারকারীর নিজস্ব কণ্ঠ ও সারল্য বজায় রাখো।',
   },
-
-  // 3. Formal
-  formal: {
-    labelBn: 'আনুষ্ঠানিক ও মার্জিত (Formal)',
-    promptGuide:
-      'চিঠিটিকে একটি মার্জিত, সুসংহত ও বিনম্র আনুষ্ঠানিক রূপ দিন। যথাযথ শিষ্টাচার, শ্রদ্ধাপূর্ণ সম্বোধন (যেমন: আপনি), সুবিন্যস্ত বক্তব্য এবং শালীন সমাপনী নিশ্চিত করুন। কোনো অযথা অতিরিক্ত হালকা বা চটুল শব্দ পরিহার করুন।',
-  },
-
-  // 4. Simple
   simple: {
-    labelBn: 'সহজ ও স্বাভাবিক (Simple)',
+    labelBn: 'সহজ ও স্বাভাবিক (Natural 🌿)',
+    labelEn: 'Natural & Flowing 🌿',
     promptGuide:
-      'কঠিন বা অতিরিক্ত গুরুগম্ভীর শব্দ বাদ দিয়ে একদম সহজ, মুখের স্বাভাবিক কথ্য বাংলা বা আন্তরিক ও সরল ভাষায় রূপান্তর করুন। যেন একজন সাধারণ মানুষ তার সবচেয়ে আপনজনকে সামনে বসে মন খুলে বলছে।',
+      'কঠিন বা গুরুগম্ভীর শব্দ বাদ দিয়ে একদম সহজ, সাবলীল ও স্বাভাবিক ভাষায় রূপান্তর করো। ব্যবহারকারীর মূল বার্তা হুবহু থাকবে।',
+  },
+  simpler: {
+    labelBn: 'সহজ ও স্বাভাবিক (Natural 🌿)',
+    labelEn: 'Natural & Flowing 🌿',
+    promptGuide:
+      'কঠিন শব্দ বাদ দিয়ে একদম সহজ, সাবলীল ও স্বাভাবিক ভাষায় রূপান্তর করো। ব্যবহারকারীর মূল বার্তা হুবহু থাকবে।',
   },
   'simpler-language': {
     labelBn: 'সহজ ভাষা (Simple)',
+    labelEn: 'Simple Language',
     promptGuide:
-      'কঠিন বা অতিরিক্ত গুরুগম্ভীর শব্দ বাদ দিয়ে একদম সহজ, মুখের স্বাভাবিক কথ্য বাংলা বা আন্তরিক ও সরল ভাষায় রূপান্তর করুন।',
+      'সহজ ও স্বাভাবিক ভাষায় বাক্যগুলোকে শ্রুতিমধুর করো। মূল বক্তব্য অপরিবর্তিত রাখো।',
   },
   'make-simpler': {
     labelBn: 'সহজ ভাষা (Simple)',
+    labelEn: 'Simple Language',
     promptGuide:
-      'কঠিন শব্দ বাদ দিয়ে একদম সহজ ও স্বাভাবিক ভাষায় রূপান্তর করুন। যেন একজন সাধারণ মানুষ তার আপনজনকে মন খুলে বলছে।',
-  },
-  simpler: {
-    labelBn: 'সহজ ভাষা (Simple)',
-    promptGuide:
-      'কঠিন শব্দ বাদ দিয়ে একদম সহজ ও স্বাভাবিক ভাষায় রূপান্তর করুন।',
+      'সহজ ও স্বাভাবিক ভাষায় বাক্যগুলোকে সাজাও। মূল বক্তব্য অপরিবর্তিত রাখো।',
   },
 
-  // 5. Romantic
-  romantic: {
-    labelBn: 'রোমান্টিক ও প্রেমময় (Romantic)',
+  // 2. Emotional ❤️
+  emotional: {
+    labelBn: 'আবেগঘন (Emotional ❤️)',
+    labelEn: 'Heartfelt Emotional ❤️',
     promptGuide:
-      'চিঠিতে রোমান্টিক প্রেম, মোহময় মিষ্টি কথন ও অনুরাগের ছোঁয়া বাড়িয়ে দিন। মিষ্টি স্মৃতি, স্পর্শের আকুলতা এবং চিরন্তন ভালোবাসার মুগ্ধতা ফুটিয়ে তুলুন। কোনো কৃত্রিমতা ছাড়া খাঁটি প্রেমের অনুভূতি আনুন।',
+      'চিঠিতে ব্যবহারকারীর যে অনুভূতিটি ইতিমধ্যে ব্যক্ত হয়েছে, তার আন্তরিক উষ্ণতা ও গভীরতা আরও স্পর্শকাতর করে তোলো। কোনো কাল্পনিক ঘটনা, কাল্পনিক স্মৃতি বা অতিরিক্ত নাটকীয়তা তৈরি করবে না। কেবল মূল অনুভূতির সত্যতাকে হৃদয়স্পর্শী ভাষায় প্রকাশ করো।',
   },
-  'more-romantic': {
-    labelBn: 'রোমান্টিক ও প্রেমময় (Romantic)',
+  'more-emotional': {
+    labelBn: 'আবেগঘন (Emotional ❤️)',
+    labelEn: 'Heartfelt Emotional ❤️',
     promptGuide:
-      'চিঠিতে রোমান্টিক প্রেম, মোহময় মিষ্টি কথন ও অনুরাগের ছোঁয়া বাড়িয়ে দিন। মিষ্টি স্মৃতি, স্পর্শের আকুলতা এবং চিরন্তন ভালোবাসার মুগ্ধতা ফুটিয়ে তুলুন।',
+      'চিঠির ভেতরের অকৃত্রিম আবেগ ও আন্তরিকতাকে আরও হৃদয়গ্রাহী করো। কোনো কাল্পনিক দৃশ্য বা মিথ্যা নাটকীয়তা যোগ করবে না।',
   },
-  'make-more-romantic': {
-    labelBn: 'রোমান্টিক ও প্রেমময় (Romantic)',
+  'make-more-emotional': {
+    labelBn: 'আবেগঘন (Emotional ❤️)',
+    labelEn: 'Heartfelt Emotional ❤️',
     promptGuide:
-      'চিঠিতে রোমান্টিক প্রেম, মোহময় মিষ্টি কথন ও অনুরাগের ছোঁয়া বাড়িয়ে দিন। মিষ্টি স্মৃতি ও ভালোবাসার মুগ্ধতা ফুটিয়ে তুলুন।',
+      'চিঠির অকৃত্রিম অনুভূতিকে আরও স্পর্শকাতর ও আন্তরিক করে তোলো। তথ্য ও স্মৃতি হুবহু অক্ষুণ্ণ রাখো।',
+  },
+  'deep-feelings': {
+    labelBn: 'গভীর অনুভূতি (Deep Feelings)',
+    labelEn: 'Deep Feelings',
+    promptGuide:
+      'চিঠির নীরব অনুভূতি ও মনের আন্তরিক ভাবকে মার্জিত ও গভীর রূপ দাও। কোনো কৃত্রিম শোক বা নাটকীয়তা সৃষ্টি করবে না।',
+  },
+  'deeper-feeling': {
+    labelBn: 'গভীর অনুভূতি (Deep Feelings)',
+    labelEn: 'Deep Feelings',
+    promptGuide:
+      'চিঠির ভেতরের আন্তরিক ভাবকে মার্জিত ও গভীর রূপ দাও।',
   },
 
-  // 6. Professional
+  // 3. Elegant 🏛️
+  elegant: {
+    labelBn: 'মার্জিত ও শ্রদ্ধাপূর্ণ (Elegant 🏛️)',
+    labelEn: 'Dignified & Courteous 🏛️',
+    promptGuide:
+      'চিঠিটিকে একটি অত্যন্ত মার্জিত, সুসংহত, শিষ্টাচারপূর্ণ ও মর্যাদাবান রূপ দাও। মার্জিত বাংলা শব্দচয়ন, যথাযথ সম্ভাষণ ও শালীন সমাপনী নিশ্চিত করো। সম্পর্কের পূর্ণ মর্যাদা ও গাম্ভীর্য বজায় রাখো।',
+  },
+  formal: {
+    labelBn: 'মার্জিত ও শ্রদ্ধাপূর্ণ (Elegant 🏛️)',
+    labelEn: 'Dignified & Courteous 🏛️',
+    promptGuide:
+      'চিঠিটিকে একটি মার্জিত, শ্রদ্ধাপূর্ণ ও শিষ্টাচারী রূপ দাও। সম্পর্কের মর্যাদা অনুযায়ী বিনম্র ও সংযত শব্দচয়ন করো।',
+  },
   professional: {
-    labelBn: 'পেশাদার ও দায়িত্বশীল (Professional)',
+    labelBn: 'পেশাদার ও দায়িত্বশীল (Professional 💼)',
+    labelEn: 'Professional & Articulate 💼',
     promptGuide:
-      'পেশাদার ও দায়িত্বশীল যোগাযোগ শৈলীতে চিঠিটি পুনর্লিখন করুন। বিষয়বস্তুর স্পষ্টতা, পরিচ্ছন্ন যুক্তি, গঠনমূলক বার্তা এবং সম্মানজনক পেশাদার সমাপনী বজায় রাখুন।',
+      'চিঠিটির গঠন সুবিন্যস্ত, স্পষ্ট ও শ্রদ্ধাশীল পেশাদার ভাষায় সাজাও। অপ্রয়োজনীয় ভাবালুতা পরিহার করে গঠনমূলক ও পরিচ্ছন্ন বক্তব্য রাখো।',
   },
 
-  // 7. Short version
-  'short-version': {
-    labelBn: 'সংক্ষিপ্ত রূপ (Short Version)',
+  // 4. Poetic 📖
+  poetic: {
+    labelBn: 'কাব্যিক ও ছন্দময় (Poetic 📖)',
+    labelEn: 'Lyrical & Poetic 📖',
     promptGuide:
-      'চিঠির মূল আবেগ ও উদ্দেশ্য সম্পূর্ণ অক্ষুণ্ণ রেখে সমস্ত বাহুল্য বাক্য বর্জন করুন। অপ্রয়োজনীয় বিস্তার কমিয়ে মাত্র ২-৩টি গভীর ও নিবিড় অনুচ্ছেদে সাজান। প্রতিটি শব্দ যেন গভীর অর্থ বহন করে।',
-  },
-  'make-shorter': {
-    labelBn: 'সংক্ষিপ্ত রূপ (Make Shorter)',
-    promptGuide:
-      'চিঠির মূল আবেগ ও উদ্দেশ্য অক্ষুণ্ণ রেখে বাহুল্য বাক্য বর্জন করুন। অপ্রয়োজনীয় বাক্য কমিয়ে মাত্র ২-৩টি গভীর ও নিবিড় অনুচ্ছেদে সাজান। প্রতিটি শব্দ যেন গভীর অর্থ বহন করে।',
-  },
-  shorter: {
-    labelBn: 'সংক্ষিপ্ত রূপ (Shorter)',
-    promptGuide:
-      'চিঠির মূল আবেগ অক্ষুণ্ণ রেখে বাহুল্য বাক্য বর্জন করুন। অপ্রয়োজনীয় বাক্য কমিয়ে নিবিড় অনুচ্ছেদে সাজান।',
-  },
-
-  // 8. Storytelling
-  storytelling: {
-    labelBn: 'স্মৃতিকাতর গল্পগাথা (Storytelling)',
-    promptGuide:
-      'চিঠিটিকে একটি মনোমুগ্ধকর স্মৃতিকাতর গল্পের মতো সাজিয়ে তুলুন। দৃশ্যপট, পারিপার্শ্বিক আবহ (যেমন: বৃষ্টিভেজা বিকেল, পুরোনো চায়ের দোকান, সন্ধ্যার মায়াবী আলো) এবং অনুভূতির ধারাবাহিকতা ফুটিয়ে তুলে হৃদয়ছোঁয়া বর্ণনা রচনা করুন।',
-  },
-  'vintage-90s': {
-    labelBn: '৯০-এর ডাকচিঠি স্টাইল (90s Style)',
-    promptGuide:
-      'চিঠিটিকে নব্বই দশকের খাঁটি ডাকচিঠির রূপ দিন—নীল খামে ঝরনা কলমে লেখা চিঠির মতো সুবাস থাকবে। ল্যাম্পের আলোয় বসে লেখা, ডাকপিয়নের সাইকেলের ঘণ্টার অপেক্ষা, এবং দূরত্বের মিষ্টি আকুলতার ছোঁয়া দিন।',
-  },
-  'add-90s-vintage-feeling': {
-    labelBn: '৯০-এর ডাকচিঠি স্টাইল (Add 90s Vintage Feeling)',
-    promptGuide:
-      'চিঠিটিকে নব্বই দশকের খাঁটি ডাকচিঠির রূপ দিন—নীল খামে ঝরনা কলমে লেখা চিঠির মতো সুবাস থাকবে। ল্যাম্পের আলোয় বসে লেখা এবং দূরত্বের মিষ্টি আকুলতার ছোঁয়া দিন।',
-  },
-  '90s-vintage': {
-    labelBn: '৯০-এর ভিন্টেজ (90s Vintage)',
-    promptGuide:
-      'চিঠিটিকে নব্বই দশকের খাঁটি ডাকচিঠির রূপ দিন—নীল খামে ঝরনা কলমে লেখা চিঠির মতো অনুভূতি থাকবে।',
-  },
-  '90s-style': {
-    labelBn: '৯০-এর স্টাইল (90s Style)',
-    promptGuide:
-      'চিঠিটিকে নব্বই দশকের খাঁটি ডাকচিঠির রূপ দিন—নীল খামে ঝরনা কলমে লেখা চিঠির মতো অনুভূতি থাকবে।',
+      'চিঠির ভাষাকে সুরেলা ছন্দ ও নান্দনিক পরিচ্ছন্নতায় সাজাও। তবে সাবধান: অবাস্তব বা কাল্পনিক গল্প, বৃষ্টি বা রূপক বানাবে না—ব্যবহারকারীর মনের আসল ভাবটিকেই সুন্দর কাব্যিক ছন্দে রূপ দাও।',
   },
   'more-poetic': {
-    labelBn: 'আরও কাব্যিক (More Poetic)',
+    labelBn: 'কাব্যিক ও ছন্দময় (Poetic 📖)',
+    labelEn: 'Lyrical & Poetic 📖',
     promptGuide:
-      'চিঠির ভাষায় নান্দনিক কাব্যিক রূপক, ছন্দ ও উপমা যোগ করুন। বৃষ্টি, গোধূলি, মেঘ, জ্যোৎস্না বা ঝরা পাতার মতো নান্দনিক রূপকের মাধ্যমে অনুভূতি প্রকাশ করুন। ভাষা যেন একটি সুন্দর আধুনিক কবিতার মতো সুরেলা শোনায়।',
+      'ব্যবহারকারীর লেখা চিঠিটির ভাষাকে নান্দনিক ও সুরেলা ছন্দে সাজাও, কিন্তু কোনো কাল্পনিক গল্প বা ঘটনা আবিষ্কার করবে না।',
   },
   'make-more-poetic': {
-    labelBn: 'আরও কাব্যিক (More Poetic)',
+    labelBn: 'কাব্যিক ও ছন্দময় (Poetic 📖)',
+    labelEn: 'Lyrical & Poetic 📖',
     promptGuide:
-      'চিঠির ভাষায় নান্দনিক কাব্যিক রূপক, ছন্দ ও উপমা যোগ করুন। ভাষা যেন একটি সুন্দর আধুনিক কবিতার মতো সুরেলা শোনায়।',
+      'চিঠির ভাষাকে সুরেলা ও নান্দনিক করে তোলো। মূল বক্তব্য অপরিবর্তিত রাখো।',
   },
 
-  // Utilities
-  regenerate: {
-    labelBn: 'নতুন করে রচনা (Regenerate)',
+  // Other Utility / Legacy Modes
+  romantic: {
+    labelBn: 'অনুরাগ ও ভালোবাসা (Romantic 🌹)',
+    labelEn: 'Romantic & Tender 🌹',
     promptGuide:
-      'চিঠির মূল আবেগ ও প্রেক্ষাপট অক্ষুণ্ণ রেখে সম্পূর্ণ ভিন্ন শব্দচয়ন, নতুন অনুভূতি ও নতুন ভাবাবেগে একটি সম্পূর্ণ নতুন চিঠি রচনা করুন।',
+      'যদি চিঠিটি ভালোবাসার মানুষের জন্য হয়ে থাকে, তবে ভালোবাসার আন্তরিক মাধুর্য ও কোমলতা ফুটিয়ে তোলো। অতিরঞ্জিত নাটকীয়তা বা কৃত্রিম ডায়লগ পরিহার করো।',
+  },
+  'more-romantic': {
+    labelBn: 'অনুরাগ ও ভালোবাসা (Romantic 🌹)',
+    labelEn: 'Romantic & Tender 🌹',
+    promptGuide:
+      'ভালোবাসার আন্তরিক মাধুর্য ও কোমলতা ফুটিয়ে তোলো। অতিরঞ্জিত নাটকীয়তা পরিহার করো।',
+  },
+  'make-more-romantic': {
+    labelBn: 'অনুরাগ ও ভালোবাসা (Romantic 🌹)',
+    labelEn: 'Romantic & Tender 🌹',
+    promptGuide:
+      'ভালোবাসার আন্তরিক অনুভূতি কোমল ও মিষ্টি ভাষায় সাজাও।',
+  },
+  'short-version': {
+    labelBn: 'সংক্ষিপ্ত রূপ (Short Version ✂️)',
+    labelEn: 'Concise & Short ✂️',
+    promptGuide:
+      'চিঠির মূল আবেগ ও উদ্দেশ্য সম্পূর্ণ অক্ষুণ্ণ রেখে অপ্রয়োজনীয় বাক্য বর্জন করো। ২-৩টি নিবিড় ও শক্তিশালী অনুচ্ছেদে চিঠিটি সাজাও।',
+  },
+  'make-shorter': {
+    labelBn: 'সংক্ষিপ্ত রূপ (Short Version ✂️)',
+    labelEn: 'Concise & Short ✂️',
+    promptGuide:
+      'চিঠির মূল আবেগ ও উদ্দেশ্য অক্ষুণ্ণ রেখে অপ্রয়োজনীয় বাক্য কমিয়ে নিবিড় রূপ দাও।',
+  },
+  shorter: {
+    labelBn: 'সংক্ষিপ্ত রূপ (Short Version ✂️)',
+    labelEn: 'Concise & Short ✂️',
+    promptGuide:
+      'চিঠির মূল ভাব অক্ষুণ্ণ রেখে বাহুল্য কমিয়ে নিবিড় করো।',
+  },
+  storytelling: {
+    labelBn: 'স্মৃতিকাতর আবহ (Storytelling 📜)',
+    labelEn: 'Nostalgic Atmosphere 📜',
+    promptGuide:
+      'চিঠির ভেতর যে স্মৃতিটি উল্লেখ আছে, সেটিকে সুন্দর ও ধারাবাহিক ভাষায় তুলে ধরো। কোনো নতুন বা মিথ্যা ঘটনা বানাবে না।',
+  },
+  'vintage-90s': {
+    labelBn: 'চিঠির স্মৃতিকাতর রূপ (Vintage ✉️)',
+    labelEn: 'Vintage Letter Nostalgia ✉️',
+    promptGuide:
+      'হাতে লেখা ডাকচিঠির মতো আন্তরিকতা ও পরিমিতিবোধ বজায় রেখে চিঠিটি সাজাও।',
+  },
+  'add-90s-vintage-feeling': {
+    labelBn: 'চিঠির স্মৃতিকাতর রূপ (Vintage ✉️)',
+    labelEn: 'Vintage Letter Nostalgia ✉️',
+    promptGuide:
+      'হাতে লেখা ডাকচিঠির মতো আন্তরিকতা ও পরিমিতিবোধ বজায় রেখে চিঠিটি সাজাও।',
+  },
+  '90s-vintage': {
+    labelBn: 'চিঠির স্মৃতিকাতর রূপ (Vintage ✉️)',
+    labelEn: 'Vintage Letter Nostalgia ✉️',
+    promptGuide:
+      'হাতে লেখা ডাকচিঠির মতো আন্তরিকতা বজায় রেখে চিঠিটি সাজাও।',
+  },
+  '90s-style': {
+    labelBn: 'চিঠির স্মৃতিকাতর রূপ (Vintage ✉️)',
+    labelEn: 'Vintage Letter Nostalgia ✉️',
+    promptGuide:
+      'হাতে লেখা ডাকচিঠির মতো আন্তরিকতা বজায় রেখে চিঠিটি সাজাও।',
+  },
+  regenerate: {
+    labelBn: 'নতুন করে পরিমার্জন (Regenerate 🔄)',
+    labelEn: 'Regenerate 🔄',
+    promptGuide:
+      'চিঠির মূল বক্তব্য ও অনুভূতির সত্যতা অক্ষুণ্ণ রেখে বিকল্প শ্রুতিমধুর বাক্য ও নতুন শব্দচয়নে সুন্দরভাবে পরিমার্জন করো।',
   },
   'make-longer': {
-    labelBn: 'দীর্ঘ ও বিস্তৃত (Make Longer)',
+    labelBn: 'সুবিস্তৃত রূপ (Make Longer)',
+    labelEn: 'More Detailed',
     promptGuide:
-      'চিঠিকে আরও বিস্তৃত ও সমৃদ্ধ করুন। ফেলে আসা মুহূর্তের স্মৃতি, জমে থাকা না-বলা কথা এবং ভবিষ্যতে একান্তে কাটানোর স্বপ্নের বিস্তারিত বর্ণনা যোগ করে একটি পূর্ণাঙ্গ সাহিত্যিক চিঠিতে রূপ দিন।',
+      'চিঠির মূল ভাব ও সম্পর্কের গভীরতাকে আরও বিশদ ও নিবিড় ভাষায় ব্যাখ্যা করো। কাল্পনিক গল্প সৃষ্টি করবে না।',
   },
   longer: {
-    labelBn: 'দীর্ঘ ও বিস্তৃত (Longer)',
+    labelBn: 'সুবিস্তৃত রূপ (Longer)',
+    labelEn: 'Longer',
     promptGuide:
-      'চিঠিকে আরও বিস্তৃত ও সমৃদ্ধ করুন। ফেলে আসা মুহূর্তের স্মৃতি ও জমে থাকা না-বলা কথার বিস্তারিত বর্ণনা যোগ করুন।',
-  },
-  'better-writing': {
-    labelBn: 'উন্নত প্রকাশ (Better Writing)',
-    promptGuide:
-      'চিঠির ব্যাকরণ, বাক্য গঠন ও সাহিত্যিক সৌন্দর্য নিখুঁত করুন। শব্দচয়ন আরও শ্রুতিমধুর ও মার্জিত করুন যাতে লেখার মান এক অনন্য উচ্চতায় পৌঁছায়।',
+      'চিঠির মূল ভাব ও সম্পর্কের অনুভূতিকে আরও নিবিড় ভাষায় বিস্তৃত করো।',
   },
   custom: {
-    labelBn: 'কাস্টম নির্দেশনা (Custom Instruction)',
-    promptGuide: 'ব্যবহারকারীর সুনির্দিষ্ট নির্দেশনার আলোকে চিঠির ভাব ও ভাষা পরিমার্জন করুন।',
+    labelBn: 'ব্যবহারকারীর নির্দেশনা (Custom ✍️)',
+    labelEn: 'Custom Instruction ✍️',
+    promptGuide: 'ব্যবহারকারীর সুনির্দিষ্ট নির্দেশনার আলোকে চিঠিটি যত্ন সহকারে পরিমার্জন করো।',
   },
   'custom-instruction': {
-    labelBn: 'কাস্টম নির্দেশনা (Custom Instruction)',
-    promptGuide: 'ব্যবহারকারীর সুনির্দিষ্ট নির্দেশনার আলোকে চিঠির ভাব ও ভাষা পরিমার্জন করুন।',
+    labelBn: 'ব্যবহারকারীর নির্দেশনা (Custom ✍️)',
+    labelEn: 'Custom Instruction ✍️',
+    promptGuide: 'ব্যবহারকারীর সুনির্দিষ্ট নির্দেশনার আলোকে চিঠিটি যত্ন সহকারে পরিমার্জন করো।',
   },
+}
+
+/**
+ * Detect Relationship Intelligence Nuances
+ */
+export function getRelationshipDirectives(params: {
+  relationship?: string
+  receiverName?: string
+  letterText?: string
+}): { roleDescription: string; toneDirectives: string } {
+  const rel = (params.relationship || '').toLowerCase()
+  const name = (params.receiverName || '').toLowerCase()
+  const text = (params.letterText || '').toLowerCase()
+
+  const isTeacher =
+    rel.includes('teacher') ||
+    rel.includes('mentor') ||
+    rel.includes('শিক্ষক') ||
+    rel.includes('স্যার') ||
+    rel.includes('উস্তাদ') ||
+    name.includes('sir') ||
+    name.includes('স্যার') ||
+    text.includes('setu sir') ||
+    text.includes('সেতু স্যার') ||
+    text.includes('শিক্ষক') ||
+    (text.includes('স্যার') && !text.includes('অফিস'))
+
+  if (isTeacher) {
+    return {
+      roleDescription: 'শিক্ষক বা শিক্ষাগুরুর প্রতি একজন শ্রদ্ধাশীল ছাত্র/ছাত্রীর চিঠি (Student to Teacher/Mentor)',
+      toneDirectives:
+        '- অত্যন্ত বিনম্র, শ্রদ্ধাপূর্ণ ও কৃতজ্ঞতাপূর্ণ ছাত্রের দৃষ্টিকোণ বজায় রাখতে হবে।\n' +
+        '- সবসময় "আপনি" সম্বোধন ব্যবহার করো। তাঁর মূল্যবান উপদেশ, দিকনির্দেশনা ও সাহায্যের প্রতি কৃতজ্ঞতা প্রকাশ করো।\n' +
+        '- কড়া সতর্কতা: কোনো প্রকার রোমান্টিক ভাব, নাটকীয় কান্না বা মেলোড্রামা কঠোরভাবে নিষিদ্ধ। এটিকে বিশুদ্ধ ছাত্র-শিক্ষক শ্রদ্ধাবোধের ভেতর রাখো।',
+    }
+  }
+
+  const isMother = rel.includes('মা') || rel.includes('mother') || text.includes('আম্মু') || text.includes('মা,')
+  const isFather = rel.includes('বাবা') || rel.includes('father') || text.includes('আব্বু') || text.includes('বাবা,')
+
+  if (isMother || isFather) {
+    return {
+      roleDescription: isMother ? 'মায়ের প্রতি সন্তানের চিঠি' : 'বাবার প্রতি সন্তানের চিঠি',
+      toneDirectives:
+        '- সন্তানসুলভ অকৃত্রিম শ্রদ্ধা, ভালোবাসা, নির্ভরতা ও কৃতজ্ঞতা ফুটিয়ে তোলো।\n' +
+        '- কোনো প্রেমঘটিত বা অনুপযুক্ত শব্দচয়ন সম্পূর্ণ নিষিদ্ধ। পিতা-মাতার অপরিসীম ত্যাগের প্রতি বিনম্র শ্রদ্ধা রাখো।',
+    }
+  }
+
+  const isFriend = rel.includes('friend') || rel.includes('বন্ধু') || rel.includes('দোস্ত')
+  if (isFriend) {
+    return {
+      roleDescription: 'বন্ধুর প্রতি বন্ধুর চিঠি (Friend to Friend)',
+      toneDirectives:
+        '- সহজ, অকৃত্রিম সৌহার্দ্য, আন্তরিক উষ্ণতা ও আপন অনুভূতি বজায় রাখো।\n' +
+        '- অতিরিক্ত আনুষ্ঠানিকতা বা কৃত্রিম ভারী শব্দ পরিহার করে প্রাণবন্ত রাখো।',
+    }
+  }
+
+  const isPartner =
+    rel.includes('love') ||
+    rel.includes('প্রেম') ||
+    rel.includes('wife') ||
+    rel.includes('husband') ||
+    rel.includes('স্ত্রী') ||
+    rel.includes('স্বামী') ||
+    rel.includes('partner')
+  if (isPartner) {
+    return {
+      roleDescription: 'ভালোবাসার মানুষের প্রতি চিঠি (Partner/Love)',
+      toneDirectives:
+        '- খাঁটি ভালোবাসা, পারস্পরিক টান ও আন্তরিক মায়া প্রকাশ করো।\n' +
+        '- তবে অবাস্তব কাল্পনিক নাটকীয়তা বা সিনেমার মতো কৃত্রিম দীর্ঘশ্বাস যোগ করবে না।',
+    }
+  }
+
+  return {
+    roleDescription: 'ব্যক্তিগত আন্তরিক চিঠি (Personal Letter)',
+    toneDirectives:
+      '- প্রাপক ও প্রেরকের মধ্যকার সম্পর্কের ভারসাম্য ও স্বাভাবিক মানবিক অনুভূতি বজায় রাখো।',
+  }
 }
 
 /**
  * Build a structured refinement prompt for the LLM
  */
 export function buildRefinementPrompt(params: RefineLetterParams): string {
-  const directive = ACTION_DIRECTIVES[params.action] || ACTION_DIRECTIVES['more-emotional']
+  const directive = ACTION_DIRECTIVES[params.action] || ACTION_DIRECTIVES['natural']
+  const relationshipIntel = getRelationshipDirectives({
+    relationship: params.relationship,
+    receiverName: params.receiverName,
+    letterText: params.letter,
+  })
 
   const customInstructionBlock = params.customInstruction
-    ? `\nবিশেষ ইউজার নির্দেশনা (USER CUSTOM INSTRUCTION):\n"${params.customInstruction}"\nএই নির্দেশকে সর্বোচ্চ অগ্রাধিকার দিয়ে সম্পূর্ণ চিঠিটি সমন্বিতভাবে পুনর্লিখন ও পরিমার্জন করো।`
+    ? `\nবিশেষ ইউজার নির্দেশনা (USER CUSTOM INSTRUCTION):\n"${params.customInstruction}"\nএই নির্দেশকে অগ্রাধিকার দিয়ে চিঠিটি পরিমার্জন করো।`
     : ''
 
   const contextInfo = [
     params.receiverName ? `প্রাপকের নাম: ${params.receiverName}` : '',
     params.relationship ? `প্রাপকের সাথে সম্পর্ক: ${params.relationship}` : '',
-    params.personality ? `পছন্দের লেখার ধরন: ${params.personality}` : '',
+    `সম্পর্কের ধরন ও বিশেষ বিধান: ${relationshipIntel.roleDescription}`,
+    relationshipIntel.toneDirectives,
+    params.personality ? `পছন্দের সুর: ${params.personality}` : '',
   ]
     .filter(Boolean)
     .join('\n')
 
-  return `তুমি একজন সংবেদনশীল সাহিত্যিক এবং চিঠির অভিজ্ঞ সম্পাদক। নিচে দেওয়া চিঠিটি অত্যন্ত মানবিক, সুসংহত ও মননশীলভাবে পুনর্লিখন ও পরিমার্জন করো।
+  return `তুমি একজন প্রাজ্ঞ বাংলা এডিটর ও চিঠির অভিজ্ঞ সম্পাদক। নিচে ব্যবহারকারীর লেখা একটি মূল চিঠি দেওয়া হলো। তোমার কাজ হলো চিঠিটি নিখুঁতভাবে পরিমার্জন করা।
 
-${contextInfo ? `══════ প্রাসঙ্গিক প্রেক্ষাপট ══════\n${contextInfo}\n` : ''}
-══════ বর্তমান মূল চিঠি (EXISTING LETTER) ══════
+══════ প্রেক্ষাপট ও সম্পর্কের নির্দেশনা ══════
+${contextInfo}
+
+══════ বর্তমান মূল চিঠি (USER ORIGINAL LETTER) ══════
 ${params.letter}
-══════════════════════════════════════════════
+══════════════════════════════════════════════════════
 
-══════ পরিমার্জনের লক্ষ্য ও নির্দেশনা ══════
-লক্ষ্য: ${directive.labelBn}
+══════ পরিমার্জন শৈলী ══════
+শৈলী: ${directive.labelBn}
 নির্দেশনা: ${directive.promptGuide}
 ${customInstructionBlock}
 
-══════ মূলনীতি ও কঠোর নিয়মাবলী (CRITICAL REQUIREMENTS) ══════
-১. সমগ্র চিঠিটি প্রথম থেকে শেষ পর্যন্ত একটি পূর্ণাঙ্গ, সমন্বিত ও অবিচ্ছেদ্য চিঠি হিসেবে পুনর্লিখন করো (Rewrite the ENTIRE letter from salutation to signature as a cohesive whole).
-২. কখনোই পুরানো চিঠির শেষে অতিরিক্ত কোনো প্যারাগ্রাফ, পরিশিষ্ট বা অংশ জুড়ে (append) দেবে না। কোনো বাড়তি টুকরো যোগ নয়—চিঠির প্রতিটি বাক্যের ভেতর নির্দেশিত ভাবটি মিশিয়ে দাও।
-৩. কোনো বন্ধনীযুক্ত নোট [bracketed note], ডাকটিকিট ট্যাগ, বিশেষ ভাবনা, পি.এস. নোট বা মেটা-কমেন্টারি লিখবে না।
-৪. চিঠির শেষে দ্বৈত বা পুনরাবৃত্তিমূলক স্বাক্ষর বা বিদায় সম্ভাষণ দেবে না। একটিমাত্র স্বাভাবিক সমাপনী স্বাক্ষর থাকবে।
-৫. ভাষা হতে হবে ১০০% খাঁটি, স্বাভাবিক ও সংবেদনশীল বাংলা। কোনো কৃত্রিম অনুবাদ, রোবোটিক ভাব বা এআই-ক্লিশে থাকবে না।
-৬. চিঠির শুরুতে যথাযথ সম্বোধন এবং শেষে প্রাপক ও সম্পর্কের সাথে সামঞ্জস্যপূর্ণ বিদায় সম্ভাষণ ও স্বাক্ষর নিশ্চিত করো।
-৭. শুধুমাত্র সংশোধিত চিঠিটির টেক্সট আউটপুট হিসেবে দেবে।
+══════ কঠোর সম্পাদকীয় মূলনীতি (STRICT EDITORIAL RULES) ══════
+১. মূল কথা ও সত্যতা সংরক্ষণ করো (PRESERVE FIRST): ব্যবহারকারী যা লিখেছেন—তার মূল অনুভূতি, ঘটনা, স্মৃতি ও বক্তব্য পুরোপুরি অক্ষুণ্ণ রাখতে হবে।
+২. কোনো মিথ্যা বা কাল্পনিক গল্প বানাবে না: ব্যবহারকারী যে কথা লেখেননি, তা নিজে বানিয়ে চিঠিতে যোগ করবে না (যেমন: কাল্পনিক বৃষ্টি, স্মৃতির আগুন, গভীর রাতের অশ্রু ইত্যাদি সস্তা নাটকীয়তা কঠোরভাবে নিষিদ্ধ)।
+৩. সম্পর্কের মর্যাদা অক্ষুণ্ণ রাখো: যদি শিক্ষক হন, তবে ছাত্রের শ্রদ্ধা ও দিকনির্দেশনার কৃতজ্ঞতা ("আপনি" সম্বোধন) থাকবে—কোনো রোমান্টিক মেলোড্রামা নয়।
+৪. ভাষা ও বাক্যগঠন নিখুঁত করো: ব্যাকরণ ঠিক করো, বাক্যগুলো সাবলীল ও সংলগ্ন করো, এবং পড়ার সময় যেন মন ছুঁয়ে যায় তেমন আন্তরিক বাংলা শব্দ ব্যবহার করো।
+৫. পূর্ণাঙ্গ চিঠি আউটপুট দাও: সমগ্র চিঠিটি প্রথম থেকে শেষ পর্যন্ত একটি পূর্ণাঙ্গ, সমন্বিত ও অবিচ্ছেদ্য চিঠি হিসেবে পুনর্লিখন করো। চিঠির শুরু থেকে (সম্বোধন) শেষ পর্যন্ত (স্বাক্ষর) একটিমাত্র সংলগ্ন ও সম্পূর্ণ চিঠি লেখো। কখনোই পুরানো চিঠির শেষে অতিরিক্ত কোনো প্যারাগ্রাফ, পরিশিষ্ট বা অংশ জুড়ে (append) দেবে না।
+৬. কোনো নোট বা এআই মেসেজ নয়: শুধুমাত্র পরিমার্জিত চিঠিটির টেক্সট আউটপুট হিসেবে দাও। কোনো বন্ধনীযুক্ত নোট [bracketed note], ডাকটিকিট ট্যাগ বা ভূমিকা লিখবে না।
 
-এখন সংশোধিত পূর্ণাঙ্গ চিঠিটি লেখো:`
+এখন পরিমার্জিত সুন্দর চিঠিটি লেখো:`
 }
 
 /**
- * Strips robotic AI phrases, preambles, bracketed notes, and meta comments from generated text
+ * Strips robotic AI phrases, preambles, bracketed notes, and meta comments
  */
 export function cleanAiArtifacts(text: string): string {
   if (typeof text !== 'string') return ''
   let cleaned = text.trim()
 
   // Remove common AI preambles
-  cleaned = cleaned.replace(/^(নিচে\s+.*চিঠি.*দেওয়া\s+হলো|এখানে\s+.*চিঠি.*হলো|Here\s+is\s+.*letter|Dear\s+User:?|Sure!?:?|Certainly!?:?)[^\n]*\n+/gi, '')
+  cleaned = cleaned.replace(
+    /^(নিচে\s+.*চিঠি.*দেওয়া\s+হলো|এখানে\s+.*চিঠি.*হলো|Here\s+is\s+.*letter|Dear\s+User:?|Sure!?:?|Certainly!?:?)[^\n]*\n+/gi,
+    ''
+  )
 
   // Remove markdown headers or bold markers around subject/title
   cleaned = cleaned.replace(/^#+\s*.*(\n|$)/m, '')
   cleaned = cleaned.replace(/^(বিষয়|Subject|Title):\s*[^\n]*\n+/gi, '')
 
-  // Remove bracketed notes, stamps, thoughts (e.g. [নোট:...], [বিশেষ ভাবার্থ:...], [ডাকটিকিট:...], [Special Note:...])
-  cleaned = cleaned.replace(/\[(?:ডাকটিকিট|বিশেষ ভাবার্থ|বিশেষ ভাবনা|নোট|বি\.দ্র\.|Note|P\.S\.|Special Thought|উপসংহার)[^\]]*\]/gi, '')
+  // Remove bracketed notes, stamps, thoughts (e.g. [নোট:...], [বিশেষ ভাবার্থ:...], [ডাকটিকিট:...])
+  cleaned = cleaned.replace(
+    /\[(?:ডাকটিকিট|বিশেষ ভাবার্থ|বিশেষ ভাবনা|নোট|বি\.দ্র\.|Note|P\.S\.|Special Thought|উপসংহার)[^\]]*\]/gi,
+    ''
+  )
   cleaned = cleaned.replace(/^\s*\[[^\]]{2,100}\]\s*$/gm, '')
 
   // Remove trailing meta sections
-  cleaned = cleaned.replace(/\n+\s*(?:বিশেষ দ্রষ্টব্য|বি\.দ্র\.|বিশেষ ভাবনা|পরিমার্জিত অংশ|সংশোধিত চিঠি|Note|P\.S\.):[\s\S]*$/gi, '')
+  cleaned = cleaned.replace(
+    /\n+\s*(?:বিশেষ দ্রষ্টব্য|বি\.দ্র\.|বিশেষ ভাবনা|পরিমার্জিত অংশ|সংশোধিত চিঠি|Note|P\.S\.):[\s\S]*$/gi,
+    ''
+  )
 
   // Filter out any lines containing robotic AI meta chatter
   const aiLinePatterns = [
@@ -318,22 +482,6 @@ export function cleanAiArtifacts(text: string): string {
 
   cleaned = filteredLines.join('\n')
 
-  // Deduplicate accidental double/repetitive signatures at the end
-  const paragraphs = cleaned.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean)
-  if (paragraphs.length >= 3) {
-    const isClosingParagraph = (p: string) => {
-      const lines = p.split('\n').map((l) => l.trim()).filter(Boolean)
-      const markerRegex = /^(ইতি|তোমারই|তোমার বন্ধু|তোমার অনুগত|আপনার সন্তান|আপনার স্নেহধন্য|আপনার আদরের|আপনার ছেলে|আপনার মেয়ে|আপনার স্নেহের সন্তান|আপনার একান্ত|আপন কেউ|ভালোবাসায়|ভালোবাসা রইল|ভালো থেকো|সবসময় ভালো থেকো|শুভাকাঙ্ক্ষী|শুভকামনায়|স্নেহাশীষ)/i
-      return lines.length <= 4 && lines.some((l) => markerRegex.test(l))
-    }
-    const lastP = paragraphs[paragraphs.length - 1]
-    const secondLastP = paragraphs[paragraphs.length - 2]
-    if (isClosingParagraph(lastP) && isClosingParagraph(secondLastP)) {
-      paragraphs.pop()
-      cleaned = paragraphs.join('\n\n')
-    }
-  }
-
   // Strip wrapping quotes
   if (cleaned.startsWith('"') && cleaned.endsWith('"')) {
     cleaned = cleaned.slice(1, -1).trim()
@@ -344,7 +492,6 @@ export function cleanAiArtifacts(text: string): string {
 
 /**
  * Epistolary Quality Assurance Evaluator
- * Audits human feeling, relationship matching, natural Bengali, and complete ending
  */
 export function evaluateLetterQuality(
   letter: string,
@@ -359,8 +506,6 @@ export function evaluateLetterQuality(
     'AI হিসেবে',
     'চিঠিটি কেমন লাগল',
     'নিচে দেওয়া হলো',
-    'আশা করি ভালো আছো এবং সুস্থ আছো',
-    'I hope this letter finds you well',
     'As an AI language model',
   ]
   const hasAiPhrases = aiPhrases.some((phrase) => cleaned.toLowerCase().includes(phrase.toLowerCase()))
@@ -377,49 +522,81 @@ export function evaluateLetterQuality(
     'শুভাকাঙ্ক্ষী',
     'শ্রদ্ধা ও ভালোবাসাসহ',
     'আপনার সন্তান',
-    'আপনার স্নেহধন্য সন্তান',
+    'আপনার স্নেহধন্য',
     'অনেক ভালোবাসা রইল',
     'স্নেহের',
-    'বিদায়',
     'ভালো থেকো',
     'শুভকামনায়',
     'আশীর্বাদসহ',
+    'ছাত্র',
+    'ছাত্রী',
+    'বিনীত',
+    'শ্রদ্ধাবনত',
   ]
   const last200Chars = cleaned.slice(-200)
   const completeEnding = endingKeywords.some((kw) => last200Chars.includes(kw))
   if (!completeEnding) feedback.push('চিঠির সমাপ্তি বা বিদায় সম্ভাষণ আরও স্পষ্ট হওয়া প্রয়োজন।')
 
   // Metric 3: Salutation / Beginning
-  const salutationKeywords = ['প্রিয়', 'প্রিয়', 'স্নেহের', 'শ্রদ্ধেয়', 'শ্রদ্ধেয়', 'কল্যাণীয়া', 'কল্যাণীয়া', 'দোস্ত', 'বন্ধু', 'আম্মু', 'আব্বু', 'মা', 'বাবা']
+  const salutationKeywords = [
+    'প্রিয়',
+    'প্রিয়',
+    'স্নেহের',
+    'শ্রদ্ধেয়',
+    'শ্রদ্ধেয়',
+    'কল্যাণীয়া',
+    'কল্যাণীয়া',
+    'দোস্ত',
+    'বন্ধু',
+    'আম্মু',
+    'আব্বু',
+    'মা',
+    'বাবা',
+    'স্যার',
+  ]
   const first150Chars = cleaned.slice(0, 150)
   const hasSalutation = salutationKeywords.some((kw) => first150Chars.includes(kw))
 
   // Metric 4: Human Feeling & Bengali Flow
   const wordCount = cleaned.split(/\s+/).filter(Boolean).length
-  const humanFeeling = wordCount >= 35 && !hasAiPhrases
-  if (!humanFeeling) feedback.push('চিঠির অনুভূতির গভীরতা ও শব্দের বিস্তার বাড়ানো আবশ্যক।')
+  const humanFeeling = wordCount >= 15 && !hasAiPhrases
+  if (!humanFeeling) feedback.push('চিঠির অনুভূতির প্রকাশ আরও নিবিড় হওয়া প্রয়োজন।')
 
   // Metric 5: Relationship Match
   let relationshipMatch = true
-  if (params?.relationship) {
-    const rel = params.relationship.toLowerCase()
-    if ((rel.includes('মা') || rel.includes('mother')) && cleaned.includes('প্রিয়তমা')) {
+  const rel = (params?.relationship || '').toLowerCase()
+  const name = (params?.receiverName || '').toLowerCase()
+
+  const isTeacher =
+    rel.includes('teacher') ||
+    rel.includes('mentor') ||
+    rel.includes('শিক্ষক') ||
+    name.includes('sir') ||
+    name.includes('স্যার')
+
+  if (isTeacher) {
+    if (cleaned.includes('প্রিয়তমা') || cleaned.includes('ভালোবাসি তোমায়') || cleaned.includes('আমার প্রেম')) {
       relationshipMatch = false
-      feedback.push('মায়ের প্রতি চিঠিতে ভুল রোমান্টিক সম্বোধন বর্জনীয়।')
+      feedback.push('শিক্ষকের প্রতি চিঠিতে রোমান্টিক শব্দ সম্পূর্ণ অনুপযুক্ত।')
+    }
+  } else if (rel.includes('মা') || rel.includes('mother')) {
+    if (cleaned.includes('প্রিয়তমা')) {
+      relationshipMatch = false
+      feedback.push('মায়ের প্রতি চিঠিতে ভুল সম্বোধন বর্জনীয়।')
     }
   }
 
   // Calculate score
-  let score = 70
+  let score = 75
   if (noAiPhrases) score += 10
-  if (completeEnding) score += 10
+  if (completeEnding) score += 5
   if (hasSalutation) score += 5
-  if (humanFeeling) score += 5
-  if (relationshipMatch) score += 5
+  if (humanFeeling) score += 2
+  if (relationshipMatch) score += 3
   if (score > 100) score = 100
 
   return {
-    passed: score >= 75 && noAiPhrases,
+    passed: score >= 75 && noAiPhrases && relationshipMatch,
     score,
     metrics: {
       humanFeeling,
@@ -433,21 +610,39 @@ export function evaluateLetterQuality(
 }
 
 /**
- * Enforce signature completion if cut off
+ * Enforce signature completion if cut off, respecting relationship dynamics
  */
-export function ensureCompleteSignoff(letter: string, _receiverName?: string): string {
-  const audit = evaluateLetterQuality(letter)
+export function ensureCompleteSignoff(
+  letter: string,
+  params?: { receiverName?: string; relationship?: string }
+): string {
+  const audit = evaluateLetterQuality(letter, params)
   if (audit.metrics.completeEnding) {
     return letter
   }
 
-  // Append natural ending
-  return `${letter.trim()}\n\nভালো থেকো সবসময়,\nতোমারই আপন কেউ`
+  const intel = getRelationshipDirectives({
+    relationship: params?.relationship,
+    receiverName: params?.receiverName,
+    letterText: letter,
+  })
+
+  let signoff = 'শুভকামনায়,\nতোমারই আপনজন'
+  if (intel.roleDescription.includes('Student to Teacher')) {
+    signoff = 'শ্রদ্ধাবনত,\nআপনার এক কৃতজ্ঞ ছাত্র'
+  } else if (intel.roleDescription.includes('মায়ের') || intel.roleDescription.includes('বাবার')) {
+    signoff = 'বিনম্র শ্রদ্ধা ও ভালোবাসায়,\nআপনার সন্তান'
+  } else if (intel.roleDescription.includes('Friend')) {
+    signoff = 'ইতি,\nতোমার বন্ধু'
+  }
+
+  return `${letter.trim()}\n\n${signoff}`
 }
 
 /**
- * Offline / Local Fallback Refinement Engine
- * Synthesizes a 100% complete cohesive letter — NEVER appends extra sentences to the end!
+ * Intelligent Local Refinement Fallback
+ * Strictly preserves user's exact words, facts, and perspective while polishing flow.
+ * NEVER replaces user's content with fake romantic or melodramatic stories!
  */
 export function localRefineFallback(
   letterOrParams: string | RefineLetterParams,
@@ -470,158 +665,105 @@ export function localRefineFallback(
     }
   } else {
     letter = typeof letterOrParams === 'string' ? letterOrParams : ''
-    action = actionParam || 'more-emotional'
+    action = actionParam || 'natural'
     _customInstruction = customInstructionParam
     context = contextParam
   }
 
   const cleaned = cleanAiArtifacts(letter)
+  const relIntel = getRelationshipDirectives({
+    relationship: context?.relationship,
+    receiverName: context?.receiverName,
+    letterText: cleaned,
+  })
+
+  // Determine appropriate salutation
+  let defaultSalutation = 'প্রিয়জন,'
+  if (context?.receiverName) {
+    if (relIntel.roleDescription.includes('Student to Teacher')) {
+      defaultSalutation = `শ্রদ্ধেয় ${context.receiverName},`
+    } else {
+      defaultSalutation = `প্রিয় ${context.receiverName},`
+    }
+  } else if (relIntel.roleDescription.includes('Student to Teacher')) {
+    defaultSalutation = 'শ্রদ্ধেয় শিক্ষক মহাশয়,'
+  } else if (relIntel.roleDescription.includes('মায়ের')) {
+    defaultSalutation = 'শ্রদ্ধেয়া আম্মু,'
+  } else if (relIntel.roleDescription.includes('বাবার')) {
+    defaultSalutation = 'শ্রদ্ধেয় বাবা,'
+  }
+
+  // Determine appropriate signoff
+  let defaultSignoff = 'ইতি,\nতোমারই আপনজন'
+  if (relIntel.roleDescription.includes('Student to Teacher')) {
+    defaultSignoff = 'শ্রদ্ধাবনত,\nআপনার এক কৃতজ্ঞ ছাত্র'
+  } else if (relIntel.roleDescription.includes('মায়ের') || relIntel.roleDescription.includes('বাবার')) {
+    defaultSignoff = 'বিনম্র শ্রদ্ধা ও ভালোবাসায়,\nআপনার সন্তান'
+  } else if (relIntel.roleDescription.includes('Friend')) {
+    defaultSignoff = 'ইতি,\nতোমার বন্ধু'
+  }
+
+  // If input is extremely brief (e.g. 1-2 sentences like "আমি আমার Setu sir কে miss করি।")
+  // We expand ONLY what is stated, honoring the relationship without hallucinating fiction.
   const isShortInput = cleaned.length < 80 || !cleaned.includes('\n')
 
-  // Context inference
-  const textLower = cleaned.toLowerCase()
-  const rel = (context?.relationship || '').toLowerCase()
-  const isDeceased = textLower.includes('প্রয়াত') || textLower.includes('মরহুম') || textLower.includes('পরপারে') || textLower.includes('আর নেই') || textLower.includes('বেঁচে নেই') || rel === 'lost-person'
-  const isLostConnection = rel === 'lost-connection' || textLower.includes('যোগাযোগ নেই') || textLower.includes('যোগাযোগ বন্ধ') || textLower.includes('অনেক বছর')
-  const isMother = (rel.includes('মা') || rel.includes('mother') || textLower.includes('আম্মু') || textLower.includes('মা')) && !isDeceased
-  const isFather = (rel.includes('বাবা') || rel.includes('father') || textLower.includes('আব্বু') || textLower.includes('বাবা')) && !isDeceased
-  const isLover = rel.includes('love') || rel.includes('প্রেম') || textLower.includes('ভালোবাসি') || textLower.includes('প্রিয়তমা')
-  const isMentor = rel.includes('mentor') || rel.includes('শিক্ষক') || textLower.includes('শিক্ষক') || textLower.includes('স্যার')
-  const isFormal = action === 'formal' || action === 'professional'
-
-  let salutation = context?.receiverName ? `প্রিয় ${context.receiverName},` : 'প্রিয়জন,'
-  let signoff = 'ইতি,\nতোমারই ভালোবাসার মানুষ'
-
-  if (isDeceased) {
-    if (rel.includes('বাবা') || textLower.includes('বাবা') || textLower.includes('আব্বু')) {
-      salutation = 'শ্রদ্ধেয় বাবা,'
-      signoff = 'চিরকাল আপনার আদর্শের পথেই,\nআপনার সন্তান'
-    } else if (rel.includes('মা') || textLower.includes('মা') || textLower.includes('আম্মু')) {
-      salutation = 'শ্রদ্ধেয়া মা,'
-      signoff = 'আপনার আঁচলের স্মৃতি বুকে নিয়ে,\nআপনার সন্তান'
-    } else {
-      salutation = context?.receiverName ? `প্রিয় ${context.receiverName},` : 'স্মৃতির ওপারে থাকা মানুষটিকে,'
-      signoff = 'স্মৃতির ওপারে শান্তিতে থেকো,\nচিরকালের নীরব ভালোবাসায়'
-    }
-  } else if (isLostConnection) {
-    salutation = context?.receiverName ? `প্রিয় ${context.receiverName},` : 'হারিয়ে যাওয়া ঠিকানার মানুষটিকে,'
-    signoff = 'যেখানেই থাকো ভালো থেকো,\nতোমার পুরোনো বন্ধু'
-  } else if (isMother) {
-    salutation = 'শ্রদ্ধেয়া আম্মু,'
-    signoff = 'অফুরন্ত শ্রদ্ধা ও ভালোবাসাসহ,\nতোমার সন্তান'
-  } else if (isFather) {
-    salutation = 'শ্রদ্ধেয় বাবা,'
-    signoff = 'বিনম্র শ্রদ্ধা ও ভালোবাসায়,\nআপনার সন্তান'
-  } else if (isMentor) {
-    salutation = context?.receiverName ? `শ্রদ্ধেয় ${context.receiverName},` : 'শ্রদ্ধেয় শিক্ষক,'
-    signoff = 'বিনম্র শ্রদ্ধা ও কৃতজ্ঞতাসহ,\nআপনার ছাত্র/ছাত্রী'
-  } else if (isFormal) {
-    salutation = context?.receiverName ? `শ্রদ্ধেয় ${context.receiverName},` : 'শ্রদ্ধেয় মহাশয়,'
-    signoff = 'বিনীত ও শুভাকাঙ্ক্ষী,\nএক শুভানুধ্যায়ী'
-  }
-
-  // If the user provided a short seed thought like "আম্মুকে অনেক ভালোবাসি"
   if (isShortInput) {
-    if (isDeceased) {
-      if (rel.includes('বাবা') || textLower.includes('বাবা') || textLower.includes('আব্বু')) {
-        return `${salutation}\n\nআজ হঠাৎ করেই আপনার কথা খুব বেশি মনে পড়ছে। আপনার সেই নিঃশব্দ ত্যাগ, মাথার ঘাম পায়ে ফেলে আমাদের আগলে রাখার স্মৃতিগুলো আজও বুকের গভীরে জ্বলজ্বল করছে। আজ হয়তো আপনি পাশে নেই, কিন্তু জীবনের প্রতিটি পদক্ষেপে আপনার শেখানো আদর্শই আমার সবচেয়ে বড় শক্তি হয়ে রয়েছে।\n\nস্মৃতির ওপারে শান্তিতে থাকুন বাবা।\n\n${signoff}`
-      }
-      return `${salutation}\n\nসময়ের স্রোত সবকিছু ভাসিয়ে নিয়ে গেলেও স্মৃতির পাতায় তোমার মুখটি আজও চিরসবুজ হয়ে আছে। আজ হয়তো কথা বলার কোনো উপায় নেই, কিন্তু মনের নিভৃত কোণে তোমার স্মৃতি চিরকাল বেঁচে থাকবে। স্মৃতির ওপারে ভালো থেকো।\n\n${signoff}`
-    }
-
-    if (isLostConnection) {
-      return `${salutation}\n\nসময়ের ব্যবধানে হয়তো আমাদের মাঝে অনেক দূরত্ব তৈরি হয়েছে, যোগাযোগও বন্ধ হয়ে গেছে বহু বছর। তবুও স্মৃতির ধুলো ঝেড়ে আজও তোমার কথা মনে পড়ে। কোনো অভিযোগ নেই, কেবল দূর থেকে একরাশ আন্তরিক শুভকামনা—যেখানেই থাকো, খুব ভালো থেকো।\n\n${signoff}`
-    }
-    if (isMother) {
+    if (relIntel.roleDescription.includes('Student to Teacher')) {
+      const recipient = context?.receiverName || 'স্যার'
       switch (action) {
-        case 'short-version':
-        case 'make-shorter':
-        case 'shorter':
-          return `${salutation}\n\nমুখ ফুটে হয়তো প্রতিদিন বলা হয়ে ওঠে না, কিন্তু জীবনের প্রতিটি নিঃশ্বাসে তোমার স্নেহ আর ভালোবাসাকে পরম মমতায় অনুভব করি। তুমি আমার জীবনের সবচেয়ে নিরাপদ ও স্নিগ্ধ আশ্রয়।\n\n${signoff}`
+        case 'elegant':
         case 'formal':
         case 'professional':
-          return `${salutation}\n\nআপনার অপরিসীম স্নেহ, আত্মত্যাগ এবং ভালোবাসার প্রতি আমার অন্তরের গভীরতম শ্রদ্ধা নিবেদন করছি। আপনার দোয়া ও ভালোবাসাই আমার জীবনের পথচলার একমাত্র নির্ভরতা।\n\n${signoff}`
-        case 'storytelling':
-          return `${salutation}\n\nশৈশবের সেই দিনগুলোর কথা খুব মনে পড়ে, যখন সামান্য জ্বর হলেই তুমি সারা রাত জেগে মাথায় হাত বুলিয়ে দিতে। আজ এই ব্যস্ত শহরে একলা বসে খুব বলতে ইচ্ছে করছে—তোমাকে যে কতটা ভালোবাসি, তা কোনো শব্দের ভাষায় প্রকাশ করার মতো নয়।\n\n${signoff}`
-        case 'deep-feelings':
-        case 'deeper-feeling':
-          return `${salutation}\n\nঅনেক কথা বুকে জমে থাকে, যার সবটা বলা হয় না। শুধু এটুকু জানি, এই পৃথিবীর সমস্ত কোলাহল পেরিয়ে যখন ক্লান্ত হয়ে পড়ি, তখন কেবল তোমার আঁচলের স্নিগ্ধ ছায়াটুকুই শান্তির আশ্রয় হয়ে দাঁড়ায়। তোমাকে খুব বেশি ভালোবাসি আম্মু।\n\n${signoff}`
+          return `শ্রদ্ধেয় ${recipient},\n\nআশা করি আপনি সুস্থ ও ভালো আছেন। আজ আপনার কথা খুব মনে পড়ছে। অতীতে আপনি যেভাবে আমাকে নিঃস্বার্থভাবে পথ দেখিয়েছেন ও সাহায্য করেছেন, তার জন্য আমি চিরকাল আপনার প্রতি আন্তরিকভাবে কৃতজ্ঞ। আপনার মূল্যবান দিকনির্দেশনা আজও আমার জীবনের চলার পথে সবচেয়ে বড় অনুপ্রেরণা হয়ে রয়েছে।\n\nআপনার সুস্বাস্থ্য ও দীর্ঘায়ু কামনা করি।\n\n${defaultSignoff}`
         case 'emotional':
-        case 'more-emotional':
+          return `শ্রদ্ধেয় ${recipient},\n\nহৃদয়ের গভীর থেকে আজ আপনার কথা খুব মনে পড়ছে। আপনি আমার শিক্ষক হিসেবে যে স্নেহ, ধৈর্য ও সহায়তা দিয়ে আমাকে পথ দেখিয়েছেন, তা কখনোই ভোলার নয়। আপনার প্রতি আমার অন্তরের গভীরতম শ্রদ্ধা ও আজীবন কৃতজ্ঞতা রইল।\n\nসবসময় ভালো থাকবেন স্যার।\n\n${defaultSignoff}`
+        case 'poetic':
+          return `শ্রদ্ধেয় ${recipient},\n\nজীবনের ব্যস্ত বাঁকে আজও আপনার স্নেহের স্মৃতি অমলিন হয়ে ভাসে। আপনার দেওয়া জ্ঞান ও পথপ্রদর্শন আমার জীবনের আলো হয়ে আছে। আপনি আমাকে যে ভালোবাসা ও সহযোগিতা দিয়েছেন, তার প্রতি বিনীত কৃতজ্ঞতা রইল।\n\nবিনীত শ্রদ্ধা ও শুভকামনাসহ,\nআপনার ছাত্র`
+        case 'natural':
         default:
-          return `${salutation}\n\nজীবনের এই দীর্ঘ পথচলায় হাজারো ব্যস্ততার মাঝে হয়তো প্রতিদিন বলা হয় না, কিন্তু মনের গভীরতম অনুভবে তুমি ছাড়া আমার আর কোনো শ্রেষ্ঠ অবলম্বন নেই। তোমার নিঃস্বার্থ ভালোবাসা আর নীরব ত্যাগই আমাকে মানুষ করেছে।\n\nপৃথিবীর যে প্রান্তেই থাকি না কেন, আমার সমস্ত শুভকামনা আর অন্তরের ভালোবাসা সবসময় তোমার জন্য। ভালো থেকো আম্মু।\n\n${signoff}`
+          return `শ্রদ্ধেয় ${recipient},\n\nকেমন আছেন স্যার? আজ আপনার কথা খুব মনে পড়ছে। আপনি আমাকে যেভাবে নানা বিষয়ে সাহায্য করেছেন এবং পথ দেখিয়েছেন, তা আমি সবসময় পরম শ্রদ্ধার সাথে মনে রাখি। আপনার এই অবদান ও দিকনির্দেশনার জন্য আপনার প্রতি আমি সবসময় কৃতজ্ঞ।\n\nভালো থাকবেন স্যার।\n\n${defaultSignoff}`
       }
     }
 
-    if (isLover) {
-      switch (action) {
-        case 'short-version':
-        case 'make-shorter':
-        case 'shorter':
-          return `${salutation}\n\nসময়ের দূরত্ব যতই বাড়ুক, মনের আকাশে তোমার উপস্থিতি সবসময় ধ্রুবতারার মতো স্পষ্ট। খুব বেশি ভালোবাসি তোমাকে।\n\n${signoff}`
-        case 'romantic':
-        case 'more-romantic':
-          return `${salutation}\n\nপ্রতিটি মেঘলা বিকেলে, বৃষ্টিভেজা বাতাসে আমি কেবল তোমার মিষ্টি হাসির ছোঁয়া খুঁজে পাই। যেখানেই থাকি না কেন, আমার সমস্ত ভালোবাসা নিঃশব্দে তোমার দিকেই ধাবিত হয়।\n\n${signoff}`
-        case 'storytelling':
-          return `${salutation}\n\nসেই বৃষ্টিভেজা বিকেলের কথা আজও মনের আয়নায় জীবন্ত হয়ে আছে। তোমার চোখে চোখ রেখে নীরব থাকার সেই মুহূর্তটি আমার জীবনের শ্রেষ্ঠ স্মৃতি। তোমাকে নিয়ে দেখা স্বপ্নগুলো আজ চিঠির ভাষায় সাজিয়ে দিলাম।\n\n${signoff}`
-        case 'formal':
-          return `${salutation}\n\nআপনার প্রতি আমার অন্তরের গভীর অনুরাগ ও শ্রদ্ধা চিরন্তন। জীবনের এই পথচলায় আপনার উপস্থিতি আমার জন্য এক পরম আশীর্বাদ।\n\n${signoff}`
-        case 'emotional':
-        default:
-          return `${salutation}\n\nদিনের ব্যস্ততা শেষে যখন একলা আকাশটার দিকে তাকাই, বুকের ভেতর শুধু তোমার কথাই আলোড়ন তোলে। যে অনুভূতি মুখে বলা যায় না, আজ তা এই চিঠির অক্ষরে রেখে গেলাম—তোমাকে খুব ভালোবাসি।\n\n${signoff}`
-      }
-    }
-
-    // Default short thought synthesis
-    return `${salutation}\n\nহৃদয়ের যে অনুভূতিগুলো প্রতিদিনের ব্যস্ততায় অনুচ্চারিত থেকে যায়, আজ তা নিবিড় আন্তরিকতায় ব্যক্ত করলাম। দূরে কিংবা কাছে—যেখানেই থাকি না কেন, আমার সমস্ত ভালোবাসা ও আন্তরিক শুভকামনা সবসময় তোমার সাথেই থাকবে।\n\n${signoff}`
+    // Default polite expansion preserving original text
+    return `${defaultSalutation}\n\n${cleaned}\n\nমনের অনুভূতিগুলো হয়তো সবসময় সামনাসামনি বলা হয়ে ওঠে না, কিন্তু অন্তরের আন্তরিক টান সবসময় একই রকম অটুট থাকে। ভালো থেকো সবসময়।\n\n${defaultSignoff}`
   }
 
-  // If input is an existing letter, rewrite according to action directive without appending
+  // If input is an existing full letter, polish paragraphs faithfully without inventing drama
   const paragraphs = cleaned.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean)
-  const intro = paragraphs[0].includes('প্রিয়') || paragraphs[0].includes('শ্রদ্ধেয়') ? paragraphs[0] : salutation
-  const closingCandidate = paragraphs[paragraphs.length - 1]
-  const hasClosing = /^(ইতি|তোমার|আপনার|শুভকামনায়|ভালোবাসায়)/.test(closingCandidate)
-  const bodyText = hasClosing ? paragraphs.slice(1, -1).join('\n\n') : paragraphs.slice(1).join('\n\n') || paragraphs[0]
+  const firstP = paragraphs[0]
+  const hasSalutation =
+    firstP.startsWith('প্রিয়') ||
+    firstP.startsWith('শ্রদ্ধেয়') ||
+    firstP.startsWith('স্নেহের') ||
+    firstP.startsWith('বিনীত')
 
-  switch (action) {
-    case 'short-version':
-    case 'make-shorter':
-    case 'shorter': {
-      const firstSentence = bodyText.split(/(?<=[।!?])\s+/)[0] || bodyText
-      return `${intro}\n\n${firstSentence}\n\nসময়ের স্রোতে অনেক কিছু বদলে গেলেও হৃদয়ের গভীরতম টান সবসময় একই রকম অটুট থাকবে।\n\n${signoff}`
-    }
-    case 'formal':
-    case 'professional': {
-      return `${intro}\n\nএই পত্রের মাধ্যমে আপনাকে আমার আন্তরিক শ্রদ্ধা ও শুভকামনা জ্ঞাপন করছি। জীবনের নানা প্রেক্ষাপটে আপনার সদয় উপস্থিতি ও সহযোগিতা অত্যন্ত অর্থবহ ও অনুপ্রেরণাদায়ক।\n\nআশা করি আগামী দিনগুলোতেও এই সুন্দর ও মার্জিত সম্পর্ক বজায় থাকবে। আপনার সুস্বাস্থ্য ও সর্বাঙ্গীন মঙ্গল কামনা করি।\n\n${signoff}`
-    }
-    case 'deep-feelings':
-    case 'deeper-feeling': {
-      return `${intro}\n\nকিছু অনুভূতি থাকে যা প্রতিদিনের কোলাহলে নিঃশব্দেই হারিয়ে যায়। অথচ একলা নিস্তব্ধ রাতে বুকের ভেতর সেই না-বলা কথাগুলোই সবচেয়ে বেশি সত্য হয়ে ওঠে। তোমার প্রতি আমার এই আন্তরিক অনুভব কোনো আনুষ্ঠানিকতার নয়—বরং আত্মার গভীরতম সত্য।\n\n${signoff}`
-    }
-    case 'storytelling': {
-      return `${intro}\n\nপুরোনো দিনগুলোর স্মৃতি যখন স্মৃতিকাতর মেঘ হয়ে নেমে আসে, তখন এক অদ্ভুত মায়ায় মন ভরে ওঠে। সেই বিকেলের আলো, মিষ্টি কথা আর পথচলার প্রতিটি দৃশ্য আজও আমার মনে অমলিন হয়ে আছে। এই চিঠির প্রতিটি বাক্যে সেই ফেলে আসা স্মৃতির সুর বুনে দিলাম।\n\n${signoff}`
-    }
-    case 'simple':
-    case 'simpler':
-    case 'make-simpler':
-    case 'simpler-language': {
-      return `${intro}\n\nকোনো জটিল কথা নয়, একদম সহজ করে তোমাকে জানাতে চাই—তুমি আমার জীবনের অনেক বড় একটা ভালো লাগার জায়গা। সবসময় ভালো থেকো আর নিজের যত্ন নিও।\n\n${signoff}`
-    }
-    case 'romantic':
-    case 'more-romantic': {
-      return `${intro}\n\nতোমার মিষ্টি হাসির এক চিলতে আলোয় আমার পুরো দিন সুন্দর হয়ে যায়। দূরত্ব যতই থাকুক না কেন, প্রতিটি নিঃশ্বাসে আমি তোমার অনুভূতির পরশ অনুভব করি।\n\n${signoff}`
-    }
-    case 'emotional':
-    case 'more-emotional':
-    default: {
-      return `${intro}\n\nমুখের কথা হয়তো বাতাসে মিলিয়ে যায়, কিন্তু হৃদয়ের গভীর থেকে লেখা এই চিঠির প্রতিটি শব্দ চিরকাল জীবন্ত থাকবে। তোমার উপস্থিতি আমার জীবনের শ্রেষ্ঠ পাওয়া। কখনো নিজেকে একা ভেবো না, আমার অন্তরের শুভকামনা সবসময় তোমার সাথে আছে।\n\n${signoff}`
-    }
-  }
+  const salutationLine = hasSalutation ? firstP : defaultSalutation
+  const remainingParagraphs = hasSalutation ? paragraphs.slice(1) : paragraphs
+
+  const lastCandidate = remainingParagraphs[remainingParagraphs.length - 1] || ''
+  const hasSignoff =
+    /^(ইতি|তোমার|আপনার|শুভকামনায়|ভালোবাসায়|বিনীত|শ্রদ্ধাবনত)/.test(lastCandidate)
+  const signoffBlock = hasSignoff ? lastCandidate : defaultSignoff
+  const bodyParagraphs = hasSignoff ? remainingParagraphs.slice(0, -1) : remainingParagraphs
+
+  // Polish body paragraphs: preserve exact content and sentences while cleaning flow
+  const polishedBody = bodyParagraphs
+    .map((para) => {
+      let p = para.trim()
+      // Fix common typos or punctuation spacing
+      p = p.replace(/\s+([।,!?])/g, '$1')
+      p = p.replace(/([।,!?])([^\s।,!?])/g, '$1 $2')
+      return p
+    })
+    .join('\n\n')
+
+  return `${salutationLine}\n\n${polishedBody || cleaned}\n\n${signoffBlock}`
 }
 
 /**
  * Main Refine Letter Pipeline
- * Executes via Gemini Flash -> OpenAI -> Local Engine with automated Quality Audit
+ * Executes via Gemini Flash -> OpenAI -> Local Fallback with calibrated low temperatures
  */
 export async function refineLetterContent(
   params: RefineLetterParams
@@ -631,23 +773,23 @@ export async function refineLetterContent(
   const prompt = compressPrompt(rawPrompt)
   const optimalTokens = calculateOptimalTokens({
     language: params.language || 'bengali',
-    targetWordCount: params.action.includes('short') ? 140 : params.action.includes('story') ? 320 : 220,
+    targetWordCount: params.action.includes('short') ? 140 : 250,
     taskType: route.taskType,
   })
 
-  // Helper function to call Gemini with exponential backoff
+  // 1. Try Gemini with low temperature (0.30 - 0.45) and strict editor persona
   const tryGemini = async (): Promise<string | null> => {
     if (!genAI) return null
     for (let attempt = 0; attempt <= 2; attempt++) {
       try {
         const model = genAI.getGenerativeModel({
           model: geminiModelName,
-          systemInstruction: SYSTEM_PERSONA,
+          systemInstruction: ENHANCEMENT_EDITOR_SYSTEM_PROMPT,
           safetySettings,
           generationConfig: {
-            temperature: route.temperature,
-            topP: 0.95,
-            topK: 40,
+            temperature: route.temperature, // 0.30 - 0.45
+            topP: 0.85,
+            topK: 20,
             maxOutputTokens: optimalTokens,
           },
         })
@@ -661,21 +803,21 @@ export async function refineLetterContent(
       } catch (err) {
         console.warn(`[Refine Engine] Gemini attempt ${attempt + 1} error:`, err)
         if (attempt < 2) {
-          await new Promise((resolve) => setTimeout(resolve, 600 * (attempt + 1)))
+          await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)))
         }
       }
     }
     return null
   }
 
-  // Helper function to call OpenAI
+  // 2. Try OpenAI fallback with the same editor persona
   const tryOpenAI = async (): Promise<string | null> => {
     if (!openai || !process.env.OPENAI_API_KEY || !process.env.OPENAI_API_KEY.startsWith('sk-')) return null
     try {
       const completion = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
         messages: [
-          { role: 'system', content: SYSTEM_PERSONA },
+          { role: 'system', content: ENHANCEMENT_EDITOR_SYSTEM_PROMPT },
           { role: 'user', content: prompt },
         ],
         temperature: route.temperature,
@@ -692,7 +834,7 @@ export async function refineLetterContent(
     return null
   }
 
-  // Always prioritize Gemini Flash family as the cost-efficient production engine
+  // Sequence providers
   const providers = [
     { name: 'gemini' as const, fn: tryGemini },
     { name: 'openai' as const, fn: tryOpenAI },
@@ -701,7 +843,10 @@ export async function refineLetterContent(
   for (const { name, fn } of providers) {
     const output = await fn()
     if (output) {
-      const finalized = ensureCompleteSignoff(output, params.receiverName)
+      const finalized = ensureCompleteSignoff(output, {
+        receiverName: params.receiverName,
+        relationship: params.relationship,
+      })
       const audit = evaluateLetterQuality(finalized, {
         relationship: params.relationship,
         receiverName: params.receiverName,
@@ -710,12 +855,15 @@ export async function refineLetterContent(
     }
   }
 
-  // Tertiary: High-Fidelity Local Storyteller Refiner (Contextual Full Synthesis)
+  // 3. Local Editor Fallback (Strictly preserves facts & tone)
   let fallbackText = localRefineFallback(params.letter, params.action, params.customInstruction, {
     relationship: params.relationship,
     receiverName: params.receiverName,
   })
-  fallbackText = ensureCompleteSignoff(fallbackText, params.receiverName)
+  fallbackText = ensureCompleteSignoff(fallbackText, {
+    receiverName: params.receiverName,
+    relationship: params.relationship,
+  })
   const audit = evaluateLetterQuality(fallbackText, {
     relationship: params.relationship,
     receiverName: params.receiverName,

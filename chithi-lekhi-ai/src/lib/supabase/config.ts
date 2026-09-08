@@ -71,3 +71,22 @@ export function getSupabaseEnv(): SupabaseEnvConfig {
 }
 
 export const isSupabaseConfigured = getSupabaseEnv().isConfigured
+
+let hasLoggedDiagnostic = false
+
+export function logSupabaseConfigDiagnostics(): void {
+  if (hasLoggedDiagnostic) return
+  hasLoggedDiagnostic = true
+
+  const env = getSupabaseEnv()
+  if (!env.isConfigured) {
+    console.error(
+      `[Supabase Configuration Notice]\n` +
+      `Supabase authentication and database connection is currently NOT configured.\n` +
+      `Details: ${env.error}\n` +
+      `To resolve:\n` +
+      `1. For Local Development: Add valid NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY to your .env.local file.\n` +
+      `2. For Vercel Production: Add NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, and SUPABASE_SERVICE_ROLE_KEY to your Vercel Project Settings > Environment Variables, then Redeploy with cache cleared.`
+    )
+  }
+}

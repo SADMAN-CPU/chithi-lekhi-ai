@@ -8,17 +8,30 @@ import { createAdminClient, isServiceRoleConfigured } from '@/lib/supabase/admin
 import { createServerClient } from '@supabase/ssr'
 import { getProductAnalytics } from '@/lib/analytics'
 
+import { getServerUser } from '@/lib/auth-server'
+
 export async function GET(_request: NextRequest) {
   try {
     // 1. Verify Admin Session
     const cookieStore = await cookies()
     const adminToken = cookieStore.get(ADMIN_COOKIE_NAME)?.value
-    if (!adminToken) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
+    let isAdmin = false
+
+    if (adminToken) {
+      const { valid } = await verifyAdminToken(adminToken)
+      if (valid) {
+        isAdmin = true
+      }
     }
 
-    const { valid } = await verifyAdminToken(adminToken)
-    if (!valid) {
+    if (!isAdmin) {
+      const serverUser = await getServerUser()
+      if (serverUser?.role === 'admin') {
+        isAdmin = true
+      }
+    }
+
+    if (!isAdmin) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
     }
 

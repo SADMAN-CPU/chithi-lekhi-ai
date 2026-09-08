@@ -8,6 +8,7 @@ export interface AuthUser {
   email: string
   name: string
   avatar?: string
+  role?: 'user' | 'admin'
 }
 
 /**
@@ -66,11 +67,26 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     const supabase = createClient()
     const { data: { user }, error } = await supabase.auth.getUser()
     if (!error && user) {
+      let role: 'user' | 'admin' = (user.user_metadata?.role as 'user' | 'admin') || 'user'
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .maybeSingle()
+        if (profile?.role === 'admin') {
+          role = 'admin'
+        }
+      } catch {
+        // Non-blocking if table query fails
+      }
+
       return {
         id: user.id,
         email: user.email || '',
         name: user.user_metadata?.name || user.email?.split('@')[0] || 'ব্যবহারকারী',
         avatar: user.user_metadata?.avatar_url,
+        role,
       }
     }
   } catch (err) {
@@ -88,23 +104,27 @@ export async function ensureUserProfile(user: {
   email?: string | null
   name?: string | null
   avatar?: string | null
+  role?: 'user' | 'admin'
 }): Promise<void> {
   if (!isSupabaseConfigured) return
   try {
     const supabase = createClient()
     const { data: existing } = await supabase
       .from('profiles')
-      .select('id, name, email, avatar')
+      .select('id, name, email, avatar, role')
       .eq('id', user.id)
       .maybeSingle()
 
     const userName = user.name || user.email?.split('@')[0] || 'ব্যবহারকারী'
+    const userRole = user.role || 'user'
 
     if (!existing) {
       await supabase.from('profiles').insert({
         id: user.id,
         email: user.email || null,
         name: userName,
+        full_name: userName,
+        role: userRole,
         avatar: user.avatar || null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -151,11 +171,26 @@ export async function signInWithEmail(
     }
 
     if (data.user) {
+      let role: 'user' | 'admin' = (data.user.user_metadata?.role as 'user' | 'admin') || 'user'
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', data.user.id)
+          .maybeSingle()
+        if (profile?.role === 'admin') {
+          role = 'admin'
+        }
+      } catch {
+        // Non-blocking
+      }
+
       const authUser: AuthUser = {
         id: data.user.id,
         email: data.user.email || '',
         name: data.user.user_metadata?.name || data.user.email?.split('@')[0] || 'ব্যবহারকারী',
         avatar: data.user.user_metadata?.avatar_url,
+        role,
       }
       await ensureUserProfile(authUser)
       return { user: authUser, error: null }
@@ -192,6 +227,7 @@ export async function signUpWithEmail(
       options: {
         data: {
           name: trimmedName,
+          role: 'user',
         },
       },
     })
@@ -206,6 +242,7 @@ export async function signUpWithEmail(
         id: data.user.id,
         email: data.user.email || trimmedEmail,
         name: trimmedName,
+        role: 'user',
       }
       if (data.session) {
         await ensureUserProfile(authUser)
@@ -276,11 +313,26 @@ export async function verifyOtp(
     }
 
     if (data.user) {
+      let role: 'user' | 'admin' = (data.user.user_metadata?.role as 'user' | 'admin') || 'user'
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', data.user.id)
+          .maybeSingle()
+        if (profile?.role === 'admin') {
+          role = 'admin'
+        }
+      } catch {
+        // Non-blocking
+      }
+
       const authUser: AuthUser = {
         id: data.user.id,
         email: data.user.email || '',
         name: data.user.user_metadata?.name || data.user.email?.split('@')[0] || 'ব্যবহারকারী',
         avatar: data.user.user_metadata?.avatar_url,
+        role,
       }
       await ensureUserProfile(authUser)
       return {

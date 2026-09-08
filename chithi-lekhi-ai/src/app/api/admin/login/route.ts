@@ -4,6 +4,8 @@ import {
   createAdminToken,
   ADMIN_COOKIE_NAME,
 } from '@/lib/admin-auth'
+import { isSupabaseConfigured } from '@/lib/supabase/config'
+import { createClient } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,27 +19,88 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const isValid = await validateAdminCredentials(email, password)
-    if (!isValid) {
-      return NextResponse.json(
-        { success: false, error: 'Invalid admin email or password' },
-        { status: 401 }
-      )
+    const trimmedEmail = email.trim().toLowerCase()
+
+    // 1. If Supabase Auth is configured, attempt primary Supabase authentication
+    if (isSupabaseConfigured) {
+      try {
+        const supabase = await createClient()
+        const { data, error: sbError } = await supabase.auth.signInWithPassword({
+          email: trimmedEmail,
+          password,
+        })
+
+        if (!sbError && data.user) {
+          // Check role in user_metadata or profiles table
+          let role: string = (data.user.user_metadata?.role as string) || 'user'
+          if (role !== 'admin') {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('role')
+              .eq('id', data.user.id)
+              .maybeSingle()
+            if (profile?.role === 'admin') {
+              role = 'admin'
+            }
+          }
+
+          if (role === 'admin') {
+            const token = await createAdminToken(trimmedEmail)
+            const response = NextResponse.json({
+              success: true,
+              message: 'Admin authenticated via Supabase Auth',
+            })
+
+            response.cookies.set(ADMIN_COOKIE_NAME, token, {
+              httpOnly: true,
+              secure: process.env.NODE_ENV === 'production',
+              sameSite: 'lax',
+              path: '/',
+              maxAge: 24 * 60 * 60,
+            })
+
+            return response
+          } else {
+            // User exists but does not have admin permissions
+            await supabase.auth.signOut()
+            return NextResponse.json(
+              {
+                success: false,
+                error: 'অ্যাক্সেস প্রত্যাখ্যান করা হয়েছে। আপনার অ্যাকাউন্টে অ্যাডমিন অনুমতি নেই। (Access denied: Not an administrator)',
+              },
+              { status: 403 }
+            )
+          }
+        }
+      } catch (sbErr) {
+        console.warn('[Admin Login] Supabase Auth check note:', sbErr)
+      }
     }
 
-    const token = await createAdminToken(email)
-    const response = NextResponse.json({ success: true, message: 'Admin authenticated' })
+    // 2. Fallback: Check environment-based admin credentials
+    const isValidEnvAdmin = await validateAdminCredentials(trimmedEmail, password)
+    if (isValidEnvAdmin) {
+      const token = await createAdminToken(trimmedEmail)
+      const response = NextResponse.json({
+        success: true,
+        message: 'Admin authenticated via environment credentials',
+      })
 
-    // Set secure HttpOnly session cookie
-    response.cookies.set(ADMIN_COOKIE_NAME, token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 24 * 60 * 60, // 24 hours
-    })
+      response.cookies.set(ADMIN_COOKIE_NAME, token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 24 * 60 * 60,
+      })
 
-    return response
+      return response
+    }
+
+    return NextResponse.json(
+      { success: false, error: 'ভুল ইমেইল বা পাসওয়ার্ড প্রদান করা হয়েছে। (Invalid credentials)' },
+      { status: 401 }
+    )
   } catch (err) {
     console.error('[Admin Login Error]:', err)
     return NextResponse.json(

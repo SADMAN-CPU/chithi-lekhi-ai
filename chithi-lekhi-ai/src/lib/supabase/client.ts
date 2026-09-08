@@ -1,21 +1,22 @@
 import { createBrowserClient } from '@supabase/ssr'
-import { getSupabaseEnv } from './config'
+import { getSupabaseEnv, logSupabaseConfigDiagnostics } from './config'
 
 let cachedClient: ReturnType<typeof createBrowserClient> | null = null
 
 export function createClient() {
   const env = getSupabaseEnv()
   if (!env.isConfigured) {
-    throw new Error(
-      `[Supabase Client Error] ${env.error || 'Supabase is not configured in environment variables.'}`
-    )
+    logSupabaseConfigDiagnostics()
   }
 
   if (typeof window !== 'undefined' && cachedClient) {
     return cachedClient
   }
 
-  const client = createBrowserClient(env.url, env.anonKey)
+  const url = env.isConfigured ? env.url : 'https://placeholder-auth.supabase.co'
+  const anonKey = env.isConfigured ? env.anonKey : 'placeholder-anon-key'
+
+  const client = createBrowserClient(url, anonKey)
 
   if (typeof window !== 'undefined') {
     cachedClient = client

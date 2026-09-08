@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { refineLetterSchema } from '@/lib/validations'
 import { refineLetterContent } from '@/lib/refine-engine'
 import { sanitizeInput } from '@/utils/helpers'
+import { updateLetter } from '@/lib/supabase/letters'
 import { checkRateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import {
   verifyUserQuota,
@@ -134,10 +135,31 @@ export async function POST(request: NextRequest) {
       success: true,
     })
 
+    // 6. Dual-version persistence if letterId is provided
+    if (data.letterId) {
+      try {
+        await updateLetter(
+          data.letterId,
+          {
+            original_letter: sanitizedLetter,
+            enhanced_letter: refinedLetter,
+            enhancement_style: action,
+            letter_content: refinedLetter,
+            content: refinedLetter,
+          },
+          true
+        )
+      } catch (dbErr) {
+        console.warn('[POST /api/refine-letter] Could not sync letter version to database:', dbErr)
+      }
+    }
+
     const jsonResponse = NextResponse.json(
       {
         success: true,
         letter: refinedLetter,
+        originalLetter: sanitizedLetter,
+        enhancementStyle: action,
         provider,
         audit,
       },
