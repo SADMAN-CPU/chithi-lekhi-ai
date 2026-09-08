@@ -2,13 +2,9 @@ import { createClient as createBrowserSupabase } from './client'
 import { createClient as createServerSupabase } from './server'
 import { generateSlug } from '@/utils/helpers'
 import type { PublicLetterRow } from '@/types/database'
+import { isSupabaseConfigured } from './config'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const isConfigured = Boolean(
-  supabaseUrl &&
-  supabaseUrl !== 'your_supabase_url_here' &&
-  supabaseUrl.startsWith('https://')
-)
+const isConfigured = isSupabaseConfigured
 
 export type LetterExpiration = '24h' | '7d' | 'permanent'
 

@@ -18,12 +18,19 @@ import {
   Clock,
   Sparkles,
   Server,
+  BarChart3,
+  Share2,
+  Headphones,
+  Download,
+  Eye,
 } from 'lucide-react'
+import type { ProductAnalyticsSummary } from '@/lib/analytics'
 
-type TabId = 'overview' | 'ai' | 'security' | 'system'
+type TabId = 'overview' | 'analytics' | 'ai' | 'security' | 'system'
 
 const TABS: Array<{ id: TabId; label: string; icon: React.ComponentType<{ className?: string }> }> = [
   { id: 'overview', label: 'Executive Overview', icon: Activity },
+  { id: 'analytics', label: 'Product Analytics', icon: BarChart3 },
   { id: 'ai', label: 'AI Monitoring & Costs', icon: Brain },
   { id: 'security', label: 'Security & Abuse', icon: Shield },
   { id: 'system', label: 'System Health', icon: Server },
@@ -35,6 +42,7 @@ interface AdminStats {
     activeUsers24h: number
     registrationHistory: Array<{ period: string; count: number }>
   }
+  analytics?: ProductAnalyticsSummary
   ai: {
     totalLetters: number
     totalTokens: number
@@ -369,7 +377,270 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
-        {/* Tab 2: AI Monitoring */}
+        {/* Tab 2: Product Analytics (Privacy-Friendly Production Metrics) */}
+        {activeTab === 'analytics' && (
+          <div className="space-y-6">
+            {/* Privacy Guarantee Header Banner */}
+            <div className="bg-neutral-900/90 border border-neutral-800 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-emerald-950/80 border border-emerald-800/80 flex items-center justify-center text-emerald-400 shrink-0">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-white">Privacy-Friendly First-Party Telemetry</h3>
+                  <p className="text-xs font-mono text-neutral-400">
+                    Zero PII collected • No third-party tracking cookies • Zero IP logging • GDPR &amp; ePrivacy compliant
+                  </p>
+                </div>
+              </div>
+              <span className="text-[11px] font-mono px-3 py-1 rounded-full bg-emerald-950 text-emerald-400 border border-emerald-800 w-fit">
+                Live &amp; Aggregated
+              </span>
+            </div>
+
+            {/* The 6 Core Product Metrics Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+              {/* 1. Users */}
+              <div className="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-4 space-y-1.5">
+                <div className="flex items-center justify-between text-neutral-400">
+                  <span className="text-[11px] font-mono uppercase">Users</span>
+                  <Users className="w-3.5 h-3.5 text-sky-400" />
+                </div>
+                <div className="text-xl sm:text-2xl font-bold font-mono text-white">
+                  {stats?.analytics?.totals.totalUsers || stats?.users.totalUsers || 0}
+                </div>
+                <p className="text-[10px] font-mono text-neutral-500">Registered</p>
+              </div>
+
+              {/* 2. Letters Created */}
+              <div className="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-4 space-y-1.5">
+                <div className="flex items-center justify-between text-neutral-400">
+                  <span className="text-[11px] font-mono uppercase">Created</span>
+                  <FileText className="w-3.5 h-3.5 text-rose-400" />
+                </div>
+                <div className="text-xl sm:text-2xl font-bold font-mono text-rose-400">
+                  {stats?.analytics?.totals.totalLettersCreated || stats?.ai.totalLetters || 0}
+                </div>
+                <p className="text-[10px] font-mono text-neutral-500">Total Letters</p>
+              </div>
+
+              {/* 3. Shares */}
+              <div className="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-4 space-y-1.5">
+                <div className="flex items-center justify-between text-neutral-400">
+                  <span className="text-[11px] font-mono uppercase">Shares</span>
+                  <Share2 className="w-3.5 h-3.5 text-indigo-400" />
+                </div>
+                <div className="text-xl sm:text-2xl font-bold font-mono text-indigo-400">
+                  {stats?.analytics?.totals.totalShares || 0}
+                </div>
+                <p className="text-[10px] font-mono text-neutral-500">Links Created</p>
+              </div>
+
+              {/* 4. Public Views */}
+              <div className="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-4 space-y-1.5">
+                <div className="flex items-center justify-between text-neutral-400">
+                  <span className="text-[11px] font-mono uppercase">Views</span>
+                  <Eye className="w-3.5 h-3.5 text-emerald-400" />
+                </div>
+                <div className="text-xl sm:text-2xl font-bold font-mono text-emerald-400">
+                  {stats?.analytics?.totals.totalPublicViews || 0}
+                </div>
+                <p className="text-[10px] font-mono text-neutral-500">Letters Opened</p>
+              </div>
+
+              {/* 5. Voice Plays */}
+              <div className="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-4 space-y-1.5">
+                <div className="flex items-center justify-between text-neutral-400">
+                  <span className="text-[11px] font-mono uppercase">Voice Plays</span>
+                  <Headphones className="w-3.5 h-3.5 text-amber-400" />
+                </div>
+                <div className="text-xl sm:text-2xl font-bold font-mono text-amber-400">
+                  {stats?.analytics?.totals.totalVoicePlays || 0}
+                </div>
+                <p className="text-[10px] font-mono text-neutral-500">Audio Listened</p>
+              </div>
+
+              {/* 6. Downloads */}
+              <div className="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-4 space-y-1.5">
+                <div className="flex items-center justify-between text-neutral-400">
+                  <span className="text-[11px] font-mono uppercase">Downloads</span>
+                  <Download className="w-3.5 h-3.5 text-pink-400" />
+                </div>
+                <div className="text-xl sm:text-2xl font-bold font-mono text-pink-400">
+                  {stats?.analytics?.totals.totalDownloads || 0}
+                </div>
+                <p className="text-[10px] font-mono text-neutral-500">PDF / Image</p>
+              </div>
+            </div>
+
+            {/* Conversion Funnel & Channel Breakdown */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Product Conversion Funnel */}
+              <div className="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="font-bold text-sm text-white flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4 text-emerald-400" />
+                    <span>Viral Letter Conversion Funnel</span>
+                  </h2>
+                  <span className="text-[11px] font-mono text-neutral-500">Flow</span>
+                </div>
+
+                <div className="space-y-3 font-mono text-xs">
+                  {/* Step 1: Letters Created */}
+                  <div>
+                    <div className="flex justify-between mb-1">
+                      <span className="text-neutral-300">1. Letters Created</span>
+                      <span className="text-white font-bold">{stats?.analytics?.funnel.lettersCreated || 0} (100%)</span>
+                    </div>
+                    <div className="w-full h-2 bg-neutral-800 rounded-full overflow-hidden">
+                      <div className="h-full bg-rose-500 rounded-full w-full" />
+                    </div>
+                  </div>
+
+                  {/* Step 2: Shared */}
+                  <div>
+                    <div className="flex justify-between mb-1">
+                      <span className="text-neutral-300">2. Shared Externally</span>
+                      <span className="text-indigo-400 font-bold">
+                        {stats?.analytics?.funnel.shares || 0} (
+                        {Math.round(((stats?.analytics?.funnel.shares || 0) / Math.max(1, stats?.analytics?.funnel.lettersCreated || 1)) * 100)}%)
+                      </span>
+                    </div>
+                    <div className="w-full h-2 bg-neutral-800 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-indigo-500 rounded-full"
+                        style={{
+                          width: `${Math.min(100, Math.round(((stats?.analytics?.funnel.shares || 0) / Math.max(1, stats?.analytics?.funnel.lettersCreated || 1)) * 100))}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Step 3: Public Views */}
+                  <div>
+                    <div className="flex justify-between mb-1">
+                      <span className="text-neutral-300">3. Recipient Public Views</span>
+                      <span className="text-emerald-400 font-bold">
+                        {stats?.analytics?.funnel.publicViews || 0}
+                      </span>
+                    </div>
+                    <div className="w-full h-2 bg-neutral-800 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-emerald-500 rounded-full"
+                        style={{
+                          width: `${Math.min(100, Math.round(((stats?.analytics?.funnel.publicViews || 0) / Math.max(1, (stats?.analytics?.funnel.lettersCreated || 1) * 2)) * 100))}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Step 4: Voice Plays */}
+                  <div>
+                    <div className="flex justify-between mb-1">
+                      <span className="text-neutral-300">4. Voice Player Engaged</span>
+                      <span className="text-amber-400 font-bold">
+                        {stats?.analytics?.funnel.voicePlays || 0}
+                      </span>
+                    </div>
+                    <div className="w-full h-2 bg-neutral-800 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-amber-500 rounded-full"
+                        style={{
+                          width: `${Math.min(100, Math.round(((stats?.analytics?.funnel.voicePlays || 0) / Math.max(1, stats?.analytics?.funnel.publicViews || 1)) * 100))}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Step 5: Downloads */}
+                  <div>
+                    <div className="flex justify-between mb-1">
+                      <span className="text-neutral-300">5. PDF/Image Saved</span>
+                      <span className="text-pink-400 font-bold">
+                        {stats?.analytics?.funnel.downloads || 0}
+                      </span>
+                    </div>
+                    <div className="w-full h-2 bg-neutral-800 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-pink-500 rounded-full"
+                        style={{
+                          width: `${Math.min(100, Math.round(((stats?.analytics?.funnel.downloads || 0) / Math.max(1, stats?.analytics?.funnel.lettersCreated || 1)) * 100))}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Channel Breakdown & Style Distribution */}
+              <div className="space-y-6">
+                {/* Social Share Channels */}
+                <div className="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-5 space-y-3">
+                  <h3 className="font-bold text-sm text-white flex items-center gap-2">
+                    <Share2 className="w-4 h-4 text-indigo-400" />
+                    <span>Sharing Channels</span>
+                  </h3>
+                  <div className="grid grid-cols-2 gap-2 font-mono text-xs">
+                    {stats?.analytics?.channels &&
+                      Object.entries(stats.analytics.channels).map(([name, count]) => (
+                        <div key={name} className="flex items-center justify-between p-2.5 rounded-xl bg-neutral-950/60 border border-neutral-800">
+                          <span className="text-neutral-400">{name}</span>
+                          <span className="text-white font-bold">{count}</span>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+
+                {/* 5 Writing Styles Breakdown */}
+                <div className="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-5 space-y-3">
+                  <h3 className="font-bold text-sm text-white flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-rose-400" />
+                    <span>Writing Style Selection</span>
+                  </h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 font-mono text-xs">
+                    {stats?.analytics?.styles &&
+                      Object.entries(stats.analytics.styles).map(([styleName, count]) => (
+                        <div key={styleName} className="flex items-center justify-between p-2.5 rounded-xl bg-neutral-950/60 border border-neutral-800">
+                          <span className="text-neutral-400">{styleName}</span>
+                          <span className="text-rose-400 font-bold">{count}</span>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Recent Privacy-Scrubbed Telemetry Events */}
+            <div className="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-sm text-white flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-sky-400" />
+                  <span>Real-time Event Stream (Zero PII)</span>
+                </h3>
+                <span className="text-[11px] font-mono text-neutral-500">First-party</span>
+              </div>
+              <div className="divide-y divide-neutral-800/60 font-mono text-xs">
+                {stats?.analytics?.recentActivity && stats.analytics.recentActivity.length > 0 ? (
+                  stats.analytics.recentActivity.map((evt) => (
+                    <div key={evt.id} className="py-2.5 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                        <span className="text-white font-medium">{evt.label}</span>
+                      </div>
+                      <span className="text-neutral-500 text-[11px]">
+                        {new Date(evt.timestamp).toLocaleTimeString()}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-neutral-500 text-xs py-2">No recent events recorded</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab 3: AI Monitoring */}
         {activeTab === 'ai' && (
           <div className="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-5 space-y-4">
             <h2 className="font-bold text-sm text-white flex items-center gap-2">

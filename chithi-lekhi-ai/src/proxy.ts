@@ -2,24 +2,19 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import type { Database } from '@/types/database'
 import { verifyAdminToken, ADMIN_COOKIE_NAME } from '@/lib/admin-auth'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const isConfigured = Boolean(
-  supabaseUrl &&
-  supabaseUrl !== 'your_supabase_url_here' &&
-  supabaseUrl.startsWith('https://')
-)
+import { getSupabaseEnv } from '@/lib/supabase/config'
 
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
   let isAuthenticated = false
+  const env = getSupabaseEnv()
 
   // 1. Supabase Session Check
-  if (isConfigured) {
+  if (env.isConfigured) {
     try {
       const supabase = createServerClient<Database>(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        env.url,
+        env.anonKey,
         {
           cookies: {
             getAll() {

@@ -35,8 +35,8 @@ export function Navbar() {
   }
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-rose-100/70 dark:border-neutral-800 bg-white/85 dark:bg-neutral-900/85 backdrop-blur-md transition-colors duration-200">
-      <div className="max-w-6xl mx-auto px-2.5 xs:px-3 sm:px-6 h-16 flex items-center justify-between gap-1.5 xs:gap-2 sm:gap-4">
+    <header className="sticky top-0 z-40 w-full border-b border-rose-100/70 dark:border-neutral-800 bg-white/85 dark:bg-neutral-900/85 backdrop-blur-md pt-[env(safe-area-inset-top,0px)] transition-colors duration-200">
+      <div className="max-w-6xl mx-auto px-2.5 xs:px-3 sm:px-6 h-16 flex items-center justify-between gap-1 xs:gap-1.5 sm:gap-4">
         {/* 1. BRAND NAVIGATION: Full logo + brand area clickable with Next.js Link */}
         <Link
           href="/"
@@ -60,7 +60,7 @@ export function Navbar() {
 
         {/* 2. HEADER CONTROLS (Right side):
             Order: Language Selector → Dark/Light Mode Toggle → Write/Send Letter CTA → Login (always last) */}
-        <div className="flex items-center gap-1.5 xs:gap-2 sm:gap-2.5">
+        <div className="flex items-center gap-1 xs:gap-1.5 sm:gap-2.5">
           {/* Desktop Tagline Pill (visible on large desktop >= xl) */}
           <div className="hidden xl:flex items-center gap-1.5 text-xs font-bengali text-rose-700/80 dark:text-rose-300 bg-rose-50/80 dark:bg-rose-950/40 border border-rose-200/60 dark:border-rose-900/40 px-3 py-1.5 rounded-full mr-1">
             <Feather className="w-3.5 h-3.5 text-rose-500 shrink-0" />
@@ -79,7 +79,7 @@ export function Navbar() {
             onClick={handleWriteLetterClick}
             title={locale === 'en' ? 'Write Letter' : 'চিঠি লিখুন'}
             aria-label={locale === 'en' ? 'Write Letter' : 'চিঠি লিখুন'}
-            className="group relative inline-flex items-center justify-center gap-1.5 w-9 xs:w-auto h-9 sm:h-10 px-0 xs:px-2.5 sm:px-3.5 rounded-xl font-bengali text-xs sm:text-sm font-semibold text-white bg-gradient-to-r from-rose-500 via-pink-500 to-rose-600 hover:from-rose-600 hover:via-pink-600 hover:to-rose-700 shadow-xs hover:shadow-[0_0_18px_rgba(244,63,94,0.38)] dark:hover:shadow-[0_0_22px_rgba(244,63,94,0.48)] hover:scale-[1.02] active:scale-95 transition-all duration-200 shrink-0 cursor-pointer min-h-[36px] sm:min-h-[40px] focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:outline-none"
+            className="group relative inline-flex items-center justify-center gap-1.5 w-10 xs:w-auto h-10 px-0 xs:px-2.5 sm:px-3.5 rounded-xl font-bengali text-xs sm:text-sm font-semibold text-white bg-gradient-to-r from-rose-500 via-pink-500 to-rose-600 hover:from-rose-600 hover:via-pink-600 hover:to-rose-700 shadow-xs hover:shadow-[0_0_18px_rgba(244,63,94,0.38)] dark:hover:shadow-[0_0_22px_rgba(244,63,94,0.48)] hover:scale-[1.02] active:scale-95 transition-all duration-200 shrink-0 cursor-pointer min-h-[44px] min-w-[40px] focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:outline-none"
           >
             <PenSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4 group-hover:-rotate-6 transition-transform duration-200 shrink-0" />
             <span className="hidden xs:inline">
@@ -93,7 +93,7 @@ export function Navbar() {
               href="/dashboard"
               title={locale === 'en' ? 'My Account' : 'আমার অ্যাকাউন্ট'}
               aria-label={locale === 'en' ? 'My Account' : 'আমার অ্যাকাউন্ট'}
-              className="group inline-flex items-center justify-center gap-1.5 w-9 sm:w-auto h-9 sm:h-10 px-0 sm:px-3.5 rounded-xl font-bengali text-xs sm:text-sm font-semibold text-rose-700 dark:text-rose-300 bg-rose-50/80 dark:bg-rose-950/40 hover:bg-rose-100/90 dark:hover:bg-rose-900/60 border border-rose-200/80 dark:border-rose-800/80 hover:border-rose-300 dark:hover:border-rose-700 shadow-2xs hover:shadow-[0_0_14px_rgba(244,63,94,0.2)] hover:scale-[1.02] active:scale-95 transition-all duration-200 shrink-0 min-h-[36px] sm:min-h-[40px] focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:outline-none cursor-pointer"
+              className="group inline-flex items-center justify-center gap-1.5 w-10 sm:w-auto h-10 px-0 sm:px-3.5 rounded-xl font-bengali text-xs sm:text-sm font-semibold text-rose-700 dark:text-rose-300 bg-rose-50/80 dark:bg-rose-950/40 hover:bg-rose-100/90 dark:hover:bg-rose-900/60 border border-rose-200/80 dark:border-rose-800/80 hover:border-rose-300 dark:hover:border-rose-700 shadow-2xs hover:shadow-[0_0_14px_rgba(244,63,94,0.2)] hover:scale-[1.02] active:scale-95 transition-all duration-200 shrink-0 min-h-[44px] min-w-[40px] focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:outline-none cursor-pointer"
             >
               <CircleUser className="w-4 h-4 text-rose-500 dark:text-rose-400 group-hover:scale-110 transition-transform duration-200 shrink-0" />
               <span className="hidden sm:inline">
@@ -106,7 +106,7 @@ export function Navbar() {
               href="/login"
               title={locale === 'en' ? 'Log in to your account' : 'লগইন করুন'}
               aria-label={locale === 'en' ? 'Log in to your account' : 'লগইন করুন'}
-              className="group inline-flex items-center justify-center gap-1.5 w-9 sm:w-auto h-9 sm:h-10 px-0 sm:px-3.5 rounded-xl font-bengali text-xs sm:text-sm font-semibold text-neutral-700 dark:text-neutral-200 bg-neutral-100/90 hover:bg-neutral-200/90 dark:bg-neutral-800/90 dark:hover:bg-neutral-700/90 border border-neutral-200/80 dark:border-neutral-700/80 hover:border-rose-300 dark:hover:border-rose-700 shadow-2xs hover:text-rose-600 dark:hover:text-rose-300 hover:shadow-[0_0_14px_rgba(244,63,94,0.15)] hover:scale-[1.02] active:scale-95 transition-all duration-200 shrink-0 min-h-[36px] sm:min-h-[40px] focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:outline-none cursor-pointer"
+              className="group inline-flex items-center justify-center gap-1.5 w-10 sm:w-auto h-10 px-0 sm:px-3.5 rounded-xl font-bengali text-xs sm:text-sm font-semibold text-neutral-700 dark:text-neutral-200 bg-neutral-100/90 hover:bg-neutral-200/90 dark:bg-neutral-800/90 dark:hover:bg-neutral-700/90 border border-neutral-200/80 dark:border-neutral-700/80 hover:border-rose-300 dark:hover:border-rose-700 shadow-2xs hover:text-rose-600 dark:hover:text-rose-300 hover:shadow-[0_0_14px_rgba(244,63,94,0.15)] hover:scale-[1.02] active:scale-95 transition-all duration-200 shrink-0 min-h-[44px] min-w-[40px] focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:outline-none cursor-pointer"
             >
               <CircleUser className="w-4 h-4 text-neutral-600 dark:text-neutral-300 group-hover:text-rose-500 dark:group-hover:text-rose-400 group-hover:scale-110 transition-all duration-200 shrink-0" />
               <span className="hidden sm:inline">

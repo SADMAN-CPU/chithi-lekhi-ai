@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getLetterById, updateLetter } from '@/lib/supabase/letters'
+import { getLetterById, updateLetter, createLetter } from '@/lib/supabase/letters'
 import { generateSlug } from '@/utils/helpers'
 import { checkRateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import type { ApiError } from '@/types'
@@ -20,58 +20,86 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { letterId, isPublic = true } = body
-
-    if (!letterId) {
-      const error: ApiError = {
-        message: 'letterId is required',
-        code: 'VALIDATION_ERROR',
-        status: 400,
-      }
-      return NextResponse.json({ success: false, error }, { status: 400 })
-    }
-
-    const letter = await getLetterById(letterId, true)
-    if (!letter) {
-      const error: ApiError = {
-        message: 'Letter not found',
-        code: 'NOT_FOUND',
-        status: 404,
-      }
-      return NextResponse.json({ success: false, error }, { status: 404 })
-    }
-
-    // SECURITY: Validate ownership before updating letter sharing status
+    const targetLetterId = body.letterId || body.letter_id
+    const isPublic = body.isPublic !== undefined ? body.isPublic : (body.is_public !== undefined ? body.is_public : true)
+    const letterBody = body.letter_content || body.content
+    const recipientName = body.recipient_name || body.receiver_name
     const serverUser = await getServerUser()
     const isProduction = process.env.NODE_ENV === 'production'
-    if (letter.user_id && (isProduction || isSupabaseConfigured) && (!serverUser || serverUser.id !== letter.user_id)) {
+
+    let letter = targetLetterId && !targetLetterId.startsWith('local-')
+      ? await getLetterById(targetLetterId, true)
+      : null
+
+    if (!letter) {
+      if (letterBody && recipientName) {
+        const saved = await createLetter(
+          {
+            receiver_name: recipientName,
+            recipient_name: recipientName,
+            content: letterBody,
+            letter_content: letterBody,
+            relationship: body.relationship || null,
+            era_style: body.era_style || body.letter_style || 'vintage',
+            letter_style: body.letter_style || body.era_style || 'vintage',
+            language: body.language || 'bengali',
+            user_id: serverUser?.id || null,
+            is_public: Boolean(isPublic),
+            status: 'published',
+            favorite: false,
+          },
+          true
+        )
+        letter = saved
+      } else {
+        const error: ApiError = {
+          message: 'Letter not found and insufficient letter content provided',
+          code: 'NOT_FOUND',
+          status: 404,
+        }
+        return NextResponse.json({ success: false, error }, { status: 404 })
+      }
+    } else {
+      // SECURITY: Validate ownership before updating letter sharing status
+      if (letter.user_id && (isProduction || isSupabaseConfigured) && (!serverUser || serverUser.id !== letter.user_id)) {
+        return NextResponse.json(
+          { success: false, error: { message: 'Unauthorized to share this letter', status: 403 } },
+          { status: 403 }
+        )
+      }
+    }
+
+    if (!letter) {
       return NextResponse.json(
-        { success: false, error: { message: 'Unauthorized to share this letter', status: 403 } },
-        { status: 403 }
+        { success: false, error: { message: 'Failed to create or find letter record', status: 500 } },
+        { status: 500 }
       )
     }
 
-    const slug = letter.share_slug || generateSlug(10)
+    const slug = letter.share_id || letter.share_slug || generateSlug(6)
 
     const updated = await updateLetter(
-      letterId,
+      letter.id,
       {
         share_slug: slug,
+        share_id: slug,
         is_public: isPublic,
       },
       true
     )
 
-    const origin = request.nextUrl.origin || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    const origin = request.nextUrl.origin || process.env.NEXT_PUBLIC_APP_URL || 'https://chithilekhi.com'
     const sharePath = `/read/${slug}`
     const fullUrl = `${origin}${sharePath}`
 
     return NextResponse.json({
       success: true,
+      share_id: slug,
       slug,
+      shareToken: slug,
       sharePath,
       shareUrl: fullUrl,
-      letter: updated,
+      letter: updated || letter,
     })
   } catch (err) {
     console.error('[POST /api/letters/share] Error:', err)

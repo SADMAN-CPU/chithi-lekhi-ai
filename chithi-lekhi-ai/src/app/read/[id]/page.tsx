@@ -104,7 +104,7 @@ export default async function ReadLetterPage({ params }: Props) {
     <div className="min-h-screen flex flex-col bg-chithi-gradient selection:bg-rose-100 selection:text-rose-800">
       <Navbar />
 
-      <main className="flex-1 max-w-4xl w-full mx-auto px-4 sm:px-6 py-8 sm:py-12 flex flex-col items-center justify-center">
+      <main className="flex-1 max-w-4xl w-full mx-auto px-3 sm:px-6 py-6 sm:py-12 flex flex-col items-center justify-center">
         {status === 'expired' ? (
           /* Expired State */
           <div className="bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md border border-amber-200 dark:border-amber-900/50 rounded-3xl p-8 sm:p-12 text-center max-w-md w-full space-y-4 shadow-sm animate-in fade-in duration-300">
@@ -173,10 +173,10 @@ export default async function ReadLetterPage({ params }: Props) {
         ) : (
           /* OK — Render Vintage Letter Experience */
           <AnonymousLetterReader
-            receiverName={letter.receiver_name}
+            receiverName={letter.recipient_name || letter.receiver_name || 'প্রিয়জন'}
             content={letter.letter_content || letter.content}
             relationship={letter.relationship}
-            eraStyle={letter.era_style}
+            eraStyle={letter.era_style || letter.letter_style}
             createdAt={letter.created_at}
             slug={shareToken}
             views={views}

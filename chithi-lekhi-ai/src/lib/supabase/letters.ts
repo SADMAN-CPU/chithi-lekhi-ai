@@ -1,14 +1,11 @@
 import { createClient as createBrowserSupabase } from './client'
 import { createClient as createServerSupabase } from './server'
+import { createAdminClient, isServiceRoleConfigured } from './admin'
 import type { LetterRow, LetterInsert, LetterUpdate, DownloadHistoryRow } from '@/types/database'
 import { generateSlug } from '@/utils/helpers'
+import { isSupabaseConfigured } from './config'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const isConfigured = Boolean(
-  supabaseUrl &&
-  supabaseUrl !== 'your_supabase_url_here' &&
-  supabaseUrl.startsWith('https://')
-)
+const isConfigured = isSupabaseConfigured
 
 // ── In-Memory Development Store ──────────────────────────────────────────────
 // Ensures local tests and development without a live Supabase project work seamlessly.
@@ -22,20 +19,37 @@ export async function createLetter(
 ): Promise<LetterRow> {
   const newId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `letter-${Date.now()}`
   const now = new Date().toISOString()
-  const slug = data.share_slug || generateSlug(8)
+  const slug = data.share_id || data.share_slug || generateSlug(8)
   const status = data.status || 'published'
+  const letterBody = data.letter_content || data.content || ''
+  const recipientName = data.recipient_name || data.receiver_name
+  const letterStyle = data.letter_style || data.era_style || data.style || 'vintage'
 
   if (isConfigured) {
     try {
-      const client = isServer ? await createServerSupabase() : createBrowserSupabase()
+      // Use service role admin client on server if available to guarantee persistence
+      const client = isServer
+        ? (isServiceRoleConfigured() ? createAdminClient() : await createServerSupabase())
+        : createBrowserSupabase()
+
       const { data: inserted, error } = await client
         .from('letters')
         .insert({
           ...data,
+          receiver_name: recipientName,
+          recipient_name: recipientName,
+          content: letterBody,
+          letter_content: letterBody,
+          era_style: letterStyle,
+          letter_style: letterStyle,
           status,
           share_slug: slug,
+          share_id: slug,
+          view_count: data.view_count ?? 0,
           favorite: data.favorite ?? false,
           is_public: data.is_public ?? false,
+          created_at: now,
+          updated_at: now,
         })
         .select()
         .single()
@@ -43,7 +57,11 @@ export async function createLetter(
       if (error) {
         console.warn('[Supabase letters] Insert error, falling back to local store:', error.message)
       } else if (inserted) {
-        return inserted as LetterRow
+        const record = inserted as LetterRow
+        inMemoryStore.set(record.id, record)
+        if (record.share_id) inMemoryStore.set(record.share_id, record)
+        if (record.share_slug) inMemoryStore.set(record.share_slug, record)
+        return record
       }
     } catch (err) {
       console.warn('[Supabase letters] Insert exception, falling back to local store:', err)
@@ -51,17 +69,18 @@ export async function createLetter(
   }
 
   // Fallback / Development mode
-  const letterBody = data.content || (data.letter_content ?? '')
   const record: LetterRow = {
     id: newId,
     user_id: data.user_id ?? null,
-    receiver_name: data.receiver_name,
+    receiver_name: recipientName,
+    recipient_name: recipientName,
     title: data.title ?? null,
     relationship: data.relationship ?? null,
     emotion: data.emotion ?? null,
-    style: data.style ?? null,
+    style: letterStyle,
+    letter_style: letterStyle,
     personality: data.personality ?? null,
-    era_style: data.era_style ?? null,
+    era_style: letterStyle,
     language: data.language || 'bengali',
     memory_context: data.memory_context ?? null,
     content: letterBody,
@@ -71,6 +90,8 @@ export async function createLetter(
     favorite: data.favorite ?? data.is_favorite ?? false,
     is_favorite: data.is_favorite ?? data.favorite ?? false,
     share_slug: slug,
+    share_id: slug,
+    view_count: data.view_count ?? 0,
     is_public: data.is_public ?? false,
     image_url: data.image_url ?? null,
     pdf_url: data.pdf_url ?? null,
@@ -79,6 +100,7 @@ export async function createLetter(
   }
 
   inMemoryStore.set(record.id, record)
+  inMemoryStore.set(slug, record)
   return record
 }
 
@@ -90,7 +112,10 @@ export const toggleFavorite = toggleLetterFavorite
 export async function getLetterById(id: string, isServer = false): Promise<LetterRow | null> {
   if (isConfigured) {
     try {
-      const client = isServer ? await createServerSupabase() : createBrowserSupabase()
+      const client = isServer
+        ? (isServiceRoleConfigured() ? createAdminClient() : await createServerSupabase())
+        : createBrowserSupabase()
+
       const { data, error } = await client
         .from('letters')
         .select('*')
@@ -110,30 +135,82 @@ export async function getLetterById(id: string, isServer = false): Promise<Lette
 
 // ── 3. Get Letter by Share Slug ──────────────────────────────────────────────
 export async function getLetterBySlug(slug: string, isServer = false): Promise<LetterRow | null> {
+  return getLetterByShareId(slug, isServer)
+}
+
+// ── 3b. Unified Get Letter by Share ID or Slug ──────────────────────────────
+export async function getLetterByShareId(shareId: string, isServer = false): Promise<LetterRow | null> {
   if (isConfigured) {
     try {
-      const client = isServer ? await createServerSupabase() : createBrowserSupabase()
+      const client = isServer
+        ? (isServiceRoleConfigured() ? createAdminClient() : await createServerSupabase())
+        : createBrowserSupabase()
+
       const { data, error } = await client
         .from('letters')
         .select('*')
-        .eq('share_slug', slug)
+        .or(`share_id.eq.${shareId},share_slug.eq.${shareId},id.eq.${shareId}`)
         .maybeSingle()
 
       if (!error && data) {
         return data as LetterRow
       }
     } catch (err) {
-      console.warn('[Supabase letters] getLetterBySlug error:', err)
+      console.warn('[Supabase letters] getLetterByShareId error:', err)
     }
   }
 
+  const direct = inMemoryStore.get(shareId)
+  if (direct) return direct
+
   for (const letter of inMemoryStore.values()) {
-    if (letter.share_slug === slug) {
+    if (letter.share_id === shareId || letter.share_slug === shareId || letter.id === shareId) {
       return letter
     }
   }
 
   return null
+}
+
+// ── 3c. Safely Increment View Count ─────────────────────────────────────────
+export async function incrementLetterViews(shareIdOrId: string, isServer = false): Promise<number> {
+  if (isConfigured) {
+    try {
+      const client = isServer
+        ? (isServiceRoleConfigured() ? createAdminClient() : await createServerSupabase())
+        : createBrowserSupabase()
+
+      // Try atomic RPC procedure first
+      const { data: rpcViews, error: rpcErr } = await client.rpc('increment_letter_view_count', {
+        target_share_id: shareIdOrId,
+      })
+
+      if (!rpcErr && typeof rpcViews === 'number') {
+        return rpcViews
+      }
+
+      // Fallback: direct update
+      const existing = await getLetterByShareId(shareIdOrId, isServer)
+      if (existing) {
+        const nextViews = (existing.view_count || 0) + 1
+        await client
+          .from('letters')
+          .update({ view_count: nextViews })
+          .eq('id', existing.id)
+        return nextViews
+      }
+    } catch (err) {
+      console.warn('[Supabase letters] incrementLetterViews error:', err)
+    }
+  }
+
+  const inMem = inMemoryStore.get(shareIdOrId)
+  if (inMem) {
+    inMem.view_count = (inMem.view_count || 0) + 1
+    return inMem.view_count
+  }
+
+  return 1
 }
 
 export interface GetUserLettersOptions {

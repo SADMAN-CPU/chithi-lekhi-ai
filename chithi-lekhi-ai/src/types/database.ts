@@ -14,9 +14,11 @@ export interface Database {
           id: string
           user_id: string | null
           receiver_name: string
+          recipient_name?: string | null
           relationship: string | null
           emotion: string | null
           style: string | null
+          letter_style?: string | null
           era_style: string | null
           language: string
           memory_context: string | null
@@ -31,6 +33,8 @@ export interface Database {
           status: 'published' | 'draft'
           favorite: boolean
           share_slug: string | null
+          share_id?: string | null
+          view_count?: number
           is_public: boolean
           created_at: string
           updated_at: string
@@ -40,10 +44,12 @@ export interface Database {
           user_id?: string | null
           title?: string | null
           receiver_name: string
+          recipient_name?: string | null
           relationship?: string | null
           emotion?: string | null
           personality?: string | null
           style?: string | null
+          letter_style?: string | null
           era_style?: string | null
           language?: string
           memory_context?: string | null
@@ -56,6 +62,8 @@ export interface Database {
           is_favorite?: boolean
           favorite?: boolean
           share_slug?: string | null
+          share_id?: string | null
+          view_count?: number
           is_public?: boolean
           created_at?: string
           updated_at?: string
@@ -65,10 +73,12 @@ export interface Database {
           user_id?: string | null
           title?: string | null
           receiver_name?: string
+          recipient_name?: string | null
           relationship?: string | null
           emotion?: string | null
           personality?: string | null
           style?: string | null
+          letter_style?: string | null
           era_style?: string | null
           language?: string
           memory_context?: string | null
@@ -81,6 +91,8 @@ export interface Database {
           is_favorite?: boolean
           favorite?: boolean
           share_slug?: string | null
+          share_id?: string | null
+          view_count?: number
           is_public?: boolean
           created_at?: string
           updated_at?: string

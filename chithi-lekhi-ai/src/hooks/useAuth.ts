@@ -8,14 +8,9 @@ import {
   signOutUser,
   type AuthUser,
 } from '@/lib/auth'
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/client'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const isConfigured = Boolean(
-  supabaseUrl &&
-  supabaseUrl !== 'your_supabase_url_here' &&
-  supabaseUrl.startsWith('https://')
-)
+import { isSupabaseConfigured } from '@/lib/supabase/config'
 
 export function useAuth() {
   const [user, setUser] = useState<AuthUser | null>(null)
@@ -35,16 +30,21 @@ export function useAuth() {
   useEffect(() => {
     let isMounted = true
 
-    const initialize = async () => {
+    async function initialize() {
       try {
+        if (!isSupabaseConfigured) {
+          if (isMounted) setLoading(false)
+          return
+        }
+
         const currentUser = await getCurrentUser()
         if (isMounted) {
           setUser(currentUser)
-          setLoading(false)
         }
-      } catch {
+      } catch (err) {
+        console.error('[useAuth] initialization error:', err)
+      } finally {
         if (isMounted) {
-          setUser(null)
           setLoading(false)
         }
       }
@@ -52,12 +52,12 @@ export function useAuth() {
 
     initialize()
 
-    if (isConfigured) {
+    if (isSupabaseConfigured) {
       try {
         const supabase = createClient()
         const {
           data: { subscription },
-        } = supabase.auth.onAuthStateChange((_event, session) => {
+        } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
           if (!isMounted) return
           if (session?.user) {
             setUser({
@@ -127,6 +127,7 @@ export function useAuth() {
     user,
     loading,
     isAuthenticated: Boolean(user),
+    isConfigured: isSupabaseConfigured,
     signIn,
     signUp,
     signOut,

@@ -9,7 +9,7 @@ import { useLanguage } from '@/components/providers/LanguageProvider'
 
 export default function SignupPage() {
   const router = useRouter()
-  const { signUp } = useAuth()
+  const { signUp, isConfigured } = useAuth()
   const { t, locale } = useLanguage()
 
   const [name, setName] = useState('')
@@ -145,6 +145,22 @@ export default function SignupPage() {
 
         {/* Signup / OTP Card */}
         <div className="bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md border border-rose-100/90 dark:border-neutral-800 rounded-3xl p-6 sm:p-8 shadow-sm space-y-5">
+          {!isConfigured && (
+            <div
+              role="alert"
+              className="bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800/80 text-amber-900 dark:text-amber-200 text-xs font-bengali p-3.5 rounded-xl space-y-1"
+            >
+              <div className="font-semibold flex items-center gap-1.5">
+                <span>⚠️ Supabase অথেন্টিকেশন কনফিগার করা নেই</span>
+              </div>
+              <p className="text-[11px] leading-relaxed text-amber-800 dark:text-amber-300">
+                {locale === 'en'
+                  ? 'Real Supabase credentials are required. Please set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in your .env.local or Vercel environment variables.'
+                  : 'প্রোডাকশন অথেন্টিকেশনের জন্য Supabase এর আসল কি (NEXT_PUBLIC_SUPABASE_URL ও ANON_KEY) .env.local অথবা Vercel Settings এ যুক্ত করুন।'}
+              </p>
+            </div>
+          )}
+
           {error && (
             <div
               role="alert"

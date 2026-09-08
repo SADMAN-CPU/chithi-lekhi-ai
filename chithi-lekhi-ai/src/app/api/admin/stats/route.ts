@@ -3,8 +3,10 @@ import { cookies } from 'next/headers'
 import { ADMIN_COOKIE_NAME, verifyAdminToken } from '@/lib/admin-auth'
 import { getAIUsageLogs } from '@/lib/quota-service'
 import { getSecurityEvents } from '@/lib/rate-limit'
+import { getSupabaseEnv } from '@/lib/supabase/config'
+import { createAdminClient, isServiceRoleConfigured } from '@/lib/supabase/admin'
 import { createServerClient } from '@supabase/ssr'
-import type { Database } from '@/types/database'
+import { getProductAnalytics } from '@/lib/analytics'
 
 export async function GET(_request: NextRequest) {
   try {
@@ -25,12 +27,8 @@ export async function GET(_request: NextRequest) {
     const securityLogs = getSecurityEvents()
 
     // 3. Database Aggregation (if configured)
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const isConfigured = Boolean(
-      supabaseUrl &&
-      supabaseUrl !== 'your_supabase_url_here' &&
-      supabaseUrl.startsWith('https://')
-    )
+    const env = getSupabaseEnv()
+    const isConfigured = env.isConfigured
 
     const distinctUsersInLogs = new Set(aiLogs.map((l) => l.user_id || l.identifier).filter(Boolean)).size
     let totalLettersCount = aiLogs.filter((l) => l.action_type === 'generation' || l.action_type === 'generate').length
@@ -38,18 +36,20 @@ export async function GET(_request: NextRequest) {
 
     if (isConfigured) {
       try {
-        const supabase = createServerClient<Database>(
-          process.env.NEXT_PUBLIC_SUPABASE_URL!,
-          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-          {
-            cookies: {
-              getAll: () => cookieStore.getAll(),
-              setAll: () => {},
-            },
-          }
-        )
+        const supabaseClient = isServiceRoleConfigured()
+          ? createAdminClient()
+          : createServerClient(
+              env.url,
+              env.anonKey,
+              {
+                cookies: {
+                  getAll: () => cookieStore.getAll(),
+                  setAll: () => {},
+                },
+              }
+            )
 
-        const { count: lettersCount } = await supabase
+        const { count: lettersCount } = await supabaseClient
           .from('letters')
           .select('*', { count: 'exact', head: true })
 
@@ -57,7 +57,7 @@ export async function GET(_request: NextRequest) {
           totalLettersCount = Math.max(totalLettersCount, lettersCount)
         }
 
-        const { count: usersCount } = await supabase
+        const { count: usersCount } = await supabaseClient
           .from('profiles')
           .select('*', { count: 'exact', head: true })
 
@@ -96,11 +96,14 @@ export async function GET(_request: NextRequest) {
       timestamp: new Date().toISOString(),
     }
 
+    // 6. Fetch Privacy-Friendly Product Analytics (Users, Letters, Shares, Views, Voice Plays, Downloads)
+    const productAnalytics = await getProductAnalytics()
+
     return NextResponse.json({
       success: true,
       data: {
         users: {
-          totalUsers: Math.max(totalUsersCount, 1),
+          totalUsers: Math.max(totalUsersCount, productAnalytics.totals.totalUsers, 1),
           activeUsers24h: Math.max(Math.min(totalUsersCount, 3), 1),
           registrationHistory: [
             { period: 'Last 30 Days', count: totalUsersCount },
@@ -108,8 +111,9 @@ export async function GET(_request: NextRequest) {
             { period: 'Today', count: 1 },
           ],
         },
+        analytics: productAnalytics,
         ai: {
-          totalLetters: totalLettersCount,
+          totalLetters: Math.max(totalLettersCount, productAnalytics.totals.totalLettersCreated),
           totalTokens: totalAITokens,
           estimatedCostUsd,
           modelUsage: {

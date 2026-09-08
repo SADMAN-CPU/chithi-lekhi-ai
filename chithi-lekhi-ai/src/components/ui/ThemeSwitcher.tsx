@@ -46,7 +46,7 @@ export function ThemeSwitcher() {
           : 'সিস্টেম মোড সক্রিয় (লাইটে পরিবর্তন করুন)'
       }
       aria-label="Toggle Theme"
-      className="h-9 w-9 sm:h-10 sm:w-10 p-2 rounded-xl text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white bg-neutral-100/90 hover:bg-neutral-200/90 dark:bg-neutral-800/90 dark:hover:bg-neutral-700/90 border border-neutral-200/80 dark:border-neutral-700/80 hover:border-rose-300 dark:hover:border-rose-700 transition-all active:scale-95 flex items-center justify-center min-w-[36px] min-h-[36px] sm:min-w-[40px] sm:min-h-[40px] cursor-pointer shrink-0 focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:outline-none"
+      className="h-10 w-10 p-2 rounded-xl text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white bg-neutral-100/90 hover:bg-neutral-200/90 dark:bg-neutral-800/90 dark:hover:bg-neutral-700/90 border border-neutral-200/80 dark:border-neutral-700/80 hover:border-rose-300 dark:hover:border-rose-700 transition-all active:scale-95 flex items-center justify-center min-w-[44px] min-h-[44px] cursor-pointer shrink-0 focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:outline-none"
     >
       {theme === 'dark' ? (
         <Moon className="w-4 h-4 text-amber-300 transition-transform rotate-0 scale-100" />

@@ -2,6 +2,7 @@ import type {
   LetterCategory,
   WritingStyle,
   WritingPersonality,
+  CoreWritingStyle,
   Language,
   LetterEmoji,
   Relationship,
@@ -678,6 +679,58 @@ export const EMOTION_OPTIONS: Array<{
     labelEn: 'Nostalgia',
     emoji: '📻',
     description: 'ফেলে আসা সোনালী দিন ও শৈশবের অমলিন স্মৃতি',
+  },
+] as const
+
+// ─── The 5 Core Writing Styles ───────────────────────────────────────────────
+
+export const CORE_WRITING_STYLES: Array<{
+  value: CoreWritingStyle
+  label: string
+  labelEn: string
+  emoji: string
+  tagline: string
+  description: string
+}> = [
+  {
+    value: 'emotional',
+    label: 'আবেগঘন',
+    labelEn: 'Emotional',
+    emoji: '💖',
+    tagline: 'হৃদয়ের অন্তঃস্থল ছোঁয়া তীব্র অনুভূতি',
+    description: 'মনের গভীরতম টান, চোখের কোণে জল এনে দেওয়ার মতো খাঁটি ব্যাকুলতা ও আন্তরিক প্রকাশ।',
+  },
+  {
+    value: 'simple',
+    label: 'সহজ ও সাবলীল',
+    labelEn: 'Simple',
+    emoji: '🌿',
+    tagline: 'কৃত্রিমতাহীন সহজ আন্তরিক কথন',
+    description: 'কোনো নাটকীয়তা ছাড়া অত্যন্ত সৎ, দৈনন্দিন ও মনের গভীর থেকে বলা সহজ মানবিক কথা।',
+  },
+  {
+    value: 'mature',
+    label: 'পরিপক্ব ও শান্ত',
+    labelEn: 'Mature',
+    emoji: '☕',
+    tagline: 'মর্যাদাশীল, শান্ত ও পরিণত দৃষ্টিভঙ্গি',
+    description: 'জীবনের গভীর উপলব্ধি, সংযত প্রকাশ এবং শ্রদ্ধা ও ভালোবাসার এক শান্ত সুদৃঢ় আবহ।',
+  },
+  {
+    value: 'poetic',
+    label: 'কাব্যিক ও ছন্দময়',
+    labelEn: 'Poetic',
+    emoji: '🌙',
+    tagline: 'ছন্দময় রূপক ও নান্দনিক সাহিত্য',
+    description: 'বৃষ্টি, মেঘ, নীরব সন্ধ্যা আর অনুভূতির মায়াবী রূপক দিয়ে সাজানো সাহিত্যিক চিঠি।',
+  },
+  {
+    value: 'formal',
+    label: 'মার্জিত ও শ্রদ্ধাশীল',
+    labelEn: 'Formal',
+    emoji: '📜',
+    tagline: 'সম্মানজনক, ব্যাকরণগতভাবে নিখুঁত ও মার্জিত',
+    description: 'গুরুজন, শিক্ষক বা আনুষ্ঠানিক প্রয়োজনে যথাযোগ্য সম্মান ও শুদ্ধ ব্যাকরণে সাজানো চিঠি।',
   },
 ] as const
 

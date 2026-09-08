@@ -51,9 +51,13 @@ export type WritingPersonality =
   | 'funny-friend'
   | 'mature-apology'
 
-/** Writing style union combining advanced personalities with legacy aliases for 100% backward compatibility */
+/** The 5 Core Writing Styles requested by user */
+export type CoreWritingStyle = 'emotional' | 'simple' | 'mature' | 'poetic' | 'formal'
+
+/** Writing style union combining advanced personalities and core styles with legacy aliases */
 export type WritingStyle =
   | WritingPersonality
+  | CoreWritingStyle
   | 'vintage'
   | 'romantic'
   | 'emotional'
@@ -61,6 +65,7 @@ export type WritingStyle =
   | 'simple'
   | 'mature'
   | 'poetic'
+  | 'formal'
   | 'funny'
 
 export type Language = 'bengali' | 'english' | 'banglish'
@@ -146,6 +151,7 @@ export interface GenerateLetterRequest {
   language: Language
   category?: LetterCategory
   style?: WritingStyle
+  writingStyle?: CoreWritingStyle | WritingStyle
   personality?: WritingPersonality | WritingStyle
   emotion?: string
 }

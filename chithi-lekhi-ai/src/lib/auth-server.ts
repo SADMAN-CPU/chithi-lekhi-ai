@@ -1,18 +1,12 @@
 import { createClient } from './supabase/server'
+import { isSupabaseConfigured } from './supabase/config'
+
+export { isSupabaseConfigured }
 
 export interface ServerUser {
   id: string
   email?: string
 }
-
-/**
- * Check if live Supabase service is configured with valid credentials.
- */
-export const isSupabaseConfigured = Boolean(
-  process.env.NEXT_PUBLIC_SUPABASE_URL &&
-  process.env.NEXT_PUBLIC_SUPABASE_URL !== 'your_supabase_url_here' &&
-  process.env.NEXT_PUBLIC_SUPABASE_URL.startsWith('https://')
-)
 
 /**
  * Server-side authentication session verifier.

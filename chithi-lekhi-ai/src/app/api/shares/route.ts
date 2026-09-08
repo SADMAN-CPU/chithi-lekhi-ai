@@ -18,19 +18,29 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { letter_id, is_public = true, expiration = 'never', audio_url } = body
 
-    let targetLetterId = letter_id
+    let targetLetterId = letter_id || body.letterId
     const serverUser = await getServerUser()
     const isProduction = process.env.NODE_ENV === 'production'
 
-    // If letter_id is missing, ephemeral, or local, persist letter first so sharing is permanent and FK-valid
-    if (!targetLetterId || typeof targetLetterId !== 'string' || targetLetterId.startsWith('local-')) {
-      if (body.letter_content && body.receiver_name) {
+    const letterBody = body.letter_content || body.content
+    const recipientName = body.recipient_name || body.receiver_name
+
+    let existingLetter = targetLetterId && typeof targetLetterId === 'string' && !targetLetterId.startsWith('local-')
+      ? await getLetterById(targetLetterId, true)
+      : null
+
+    // If letter not found in database or local ephemeral, persist permanently
+    if (!existingLetter) {
+      if (letterBody && recipientName) {
         const saved = await createLetter(
           {
-            receiver_name: body.receiver_name,
-            content: body.letter_content,
+            receiver_name: recipientName,
+            recipient_name: recipientName,
+            content: letterBody,
+            letter_content: letterBody,
             relationship: body.relationship || null,
-            era_style: body.era_style || 'vintage',
+            era_style: body.era_style || body.letter_style || 'vintage',
+            letter_style: body.letter_style || body.era_style || 'vintage',
             language: body.language || 'bengali',
             user_id: serverUser?.id || null,
             is_public: Boolean(is_public),
@@ -40,6 +50,7 @@ export async function POST(request: NextRequest) {
           true
         )
         targetLetterId = saved.id
+        existingLetter = saved
       } else {
         return NextResponse.json(
           { success: false, error: { message: 'Valid letter_id or letter content is required', status: 400 } },
@@ -48,8 +59,7 @@ export async function POST(request: NextRequest) {
       }
     } else {
       // SECURITY: Validate letter ownership before exposing private letters to public share tokens
-      const existingLetter = await getLetterById(targetLetterId, true)
-      if (existingLetter && (isProduction || isSupabaseConfigured) && existingLetter.user_id) {
+      if (existingLetter.user_id && (isProduction || isSupabaseConfigured)) {
         if (!serverUser || serverUser.id !== existingLetter.user_id) {
           return NextResponse.json(
             { success: false, error: { message: 'Unauthorized to share this letter', status: 403 } },
@@ -76,15 +86,18 @@ export async function POST(request: NextRequest) {
     )
 
     // Build public share link
-    const origin = request.nextUrl.origin
+    const origin = request.nextUrl.origin || process.env.NEXT_PUBLIC_APP_URL || 'https://chithilekhi.com'
     const shareUrl = `${origin}/read/${share.share_token}`
 
     return NextResponse.json(
       {
         success: true,
         share,
+        share_id: share.share_token,
         shareToken: share.share_token,
+        slug: share.share_token,
         shareUrl,
+        letter: existingLetter,
       },
       {
         status: 201,

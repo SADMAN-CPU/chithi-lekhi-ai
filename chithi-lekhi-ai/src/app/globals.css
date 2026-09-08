@@ -299,12 +299,38 @@
   background: oklch(0.55 0.10 350);
 }
 
+/* Mobile Touch & Safe Area Ergonomics */
+html {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* Prevent auto-zoom on iOS Safari on input focus by guaranteeing at least 16px font size */
+@media (max-width: 640px) {
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="search"],
+  input[type="tel"],
+  input[type="url"],
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
 /* iOS Notch & Home Bar Safe Area Insets */
 .pb-safe {
   padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
 }
 .pt-safe {
   padding-top: max(1rem, env(safe-area-inset-top, 0px));
+}
+.bottom-safe {
+  bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+}
+.scroll-touch {
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Accessibility: Reduced Motion Support */

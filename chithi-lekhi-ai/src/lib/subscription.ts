@@ -1,13 +1,9 @@
 import { createClient as createBrowserSupabase } from './supabase/client'
 import { createClient as createServerSupabase } from './supabase/server'
 import type { UserSubscriptionRow } from '@/types/database'
+import { isSupabaseConfigured } from './supabase/config'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const isConfigured = Boolean(
-  supabaseUrl &&
-  supabaseUrl !== 'your_supabase_url_here' &&
-  supabaseUrl.startsWith('https://')
-)
+const isConfigured = isSupabaseConfigured
 
 export type PlanId = 'free' | 'premium'
 

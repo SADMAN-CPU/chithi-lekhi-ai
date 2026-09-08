@@ -13,6 +13,7 @@ import {
   ERA_STYLE_OPTIONS,
   LETTER_LENGTH_OPTIONS,
   WRITING_PERSONALITIES,
+  CORE_WRITING_STYLES,
   LANGUAGES,
   getRelationshipPromptConfig,
   detectRelationshipIntent,
@@ -28,6 +29,7 @@ import type {
   LetterLength,
   Language,
   WritingPersonality,
+  CoreWritingStyle,
 } from '@/types'
 
 interface EmotionalStorytellerFormProps {
@@ -47,9 +49,13 @@ export function EmotionalStorytellerForm({
   const [relationship, setRelationship] = useState<Relationship>(
     (initialValues?.relationship as Relationship) || 'first-love'
   )
+  const [writingStyle, setWritingStyle] = useState<CoreWritingStyle>(
+    (initialValues?.writingStyle as CoreWritingStyle) || 'emotional'
+  )
   const [personality, setPersonality] = useState<WritingPersonality>(
     (initialValues?.personality as WritingPersonality) || 'deep-emotional'
   )
+  const [showAdvancedPersonalities, setShowAdvancedPersonalities] = useState(false)
   const [memory, setMemory] = useState(initialValues?.memory || '')
   const [situation, setSituation] = useState(initialValues?.situation || '')
   const [feeling, setFeeling] = useState(initialValues?.feeling || '')
@@ -140,6 +146,7 @@ export function EmotionalStorytellerForm({
     setRelationship('first-love')
     setUserManuallySelectedRel(true)
     setSuggestedIntent(null)
+    setWritingStyle('emotional')
     setPersonality('90s-handwritten')
     setMemory('টিএসসির চায়ের দোকানে সেই বৃষ্টিভেজা বিকেলে তোমার ভেজা কাজল আর একটুকরো মিষ্টি হাসি')
     setSituation('অনেক দিন হলো আমাদের কথা হয় না, সময়ের স্রোতে দুজন দুদিকে ব্যস্ত')
@@ -184,7 +191,8 @@ export function EmotionalStorytellerForm({
       eraStyle,
       language,
       personality,
-      style: personality,
+      style: writingStyle,
+      writingStyle,
     }
 
     try {
@@ -308,7 +316,7 @@ export function EmotionalStorytellerForm({
               handleTextIntentCheck(val, memory)
             }}
             placeholder={t('form.receiverPlaceholder')}
-            className="w-full font-bengali px-3.5 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-700 focus:border-rose-400 focus:ring-2 focus:ring-rose-100 dark:focus:ring-rose-950/60 outline-none text-neutral-800 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 text-sm sm:text-base transition-all bg-neutral-50/40 dark:bg-neutral-800/40 focus:bg-white dark:focus:bg-neutral-800"
+            className="w-full font-bengali px-3.5 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-700 focus:border-rose-400 focus:ring-2 focus:ring-rose-100 dark:focus:ring-rose-950/60 outline-none text-neutral-800 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 text-base sm:text-sm transition-all bg-neutral-50/40 dark:bg-neutral-800/40 focus:bg-white dark:focus:bg-neutral-800"
           />
         </div>
 
@@ -408,7 +416,7 @@ export function EmotionalStorytellerForm({
               handleTextIntentCheck(receiverName, val)
             }}
             placeholder={locale === 'en' ? relConfig.memoryPlaceholderEn : relConfig.memoryPlaceholder}
-            className="w-full font-bengali px-3.5 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-700 focus:border-rose-400 focus:ring-2 focus:ring-rose-100 dark:focus:ring-rose-950/60 outline-none text-neutral-800 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 text-sm transition-all bg-neutral-50/40 dark:bg-neutral-800/40 focus:bg-white dark:focus:bg-neutral-800 resize-none"
+            className="w-full font-bengali px-3.5 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-700 focus:border-rose-400 focus:ring-2 focus:ring-rose-100 dark:focus:ring-rose-950/60 outline-none text-neutral-800 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 text-base sm:text-sm transition-all bg-neutral-50/40 dark:bg-neutral-800/40 focus:bg-white dark:focus:bg-neutral-800 resize-none"
           />
           {/* Inspiration chips */}
           <div className="space-y-1">
@@ -427,7 +435,7 @@ export function EmotionalStorytellerForm({
                       setMemory(text)
                       handleTextIntentCheck(receiverName, text)
                     }}
-                    className="text-xs font-bengali bg-neutral-100 dark:bg-neutral-800 hover:bg-rose-50 dark:hover:bg-rose-950/60 hover:text-rose-700 dark:hover:text-rose-300 text-neutral-600 dark:text-neutral-300 px-3 py-1.5 min-h-[38px] sm:min-h-0 inline-flex items-center rounded-lg transition-all active:scale-95 border border-neutral-200/60 dark:border-neutral-700 cursor-pointer"
+                    className="text-xs font-bengali bg-neutral-100 dark:bg-neutral-800 hover:bg-rose-50 dark:hover:bg-rose-950/60 hover:text-rose-700 dark:hover:text-rose-300 text-neutral-600 dark:text-neutral-300 px-3 py-1.5 min-h-[40px] sm:min-h-[34px] inline-flex items-center rounded-lg transition-all active:scale-95 border border-neutral-200/60 dark:border-neutral-700 cursor-pointer"
                   >
                     {text}
                   </button>
@@ -451,7 +459,7 @@ export function EmotionalStorytellerForm({
             value={situation}
             onChange={(e) => setSituation(e.target.value)}
             placeholder={locale === 'en' ? relConfig.situationPlaceholderEn : relConfig.situationPlaceholder}
-            className="w-full font-bengali px-3.5 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-700 focus:border-rose-400 focus:ring-2 focus:ring-rose-100 dark:focus:ring-rose-950/60 outline-none text-neutral-800 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 text-sm transition-all bg-neutral-50/40 dark:bg-neutral-800/40 focus:bg-white dark:focus:bg-neutral-800"
+            className="w-full font-bengali px-3.5 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-700 focus:border-rose-400 focus:ring-2 focus:ring-rose-100 dark:focus:ring-rose-950/60 outline-none text-neutral-800 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 text-base sm:text-sm transition-all bg-neutral-50/40 dark:bg-neutral-800/40 focus:bg-white dark:focus:bg-neutral-800"
           />
           {/* Situation suggestions */}
           <div className="flex flex-wrap gap-1.5 pt-0.5">
@@ -462,7 +470,7 @@ export function EmotionalStorytellerForm({
                   key={i}
                   type="button"
                   onClick={() => setSituation(text)}
-                  className="text-xs font-bengali bg-neutral-100 dark:bg-neutral-800 hover:bg-rose-50 dark:hover:bg-rose-950/60 hover:text-rose-700 dark:hover:text-rose-300 text-neutral-600 dark:text-neutral-300 px-3 py-1.5 min-h-[38px] sm:min-h-0 inline-flex items-center rounded-lg transition-all active:scale-95 border border-neutral-200/60 dark:border-neutral-700 cursor-pointer"
+                  className="text-xs font-bengali bg-neutral-100 dark:bg-neutral-800 hover:bg-rose-50 dark:hover:bg-rose-950/60 hover:text-rose-700 dark:hover:text-rose-300 text-neutral-600 dark:text-neutral-300 px-3 py-1.5 min-h-[40px] sm:min-h-[34px] inline-flex items-center rounded-lg transition-all active:scale-95 border border-neutral-200/60 dark:border-neutral-700 cursor-pointer"
                 >
                   {text}
                 </button>
@@ -483,7 +491,7 @@ export function EmotionalStorytellerForm({
             value={feeling}
             onChange={(e) => setFeeling(e.target.value)}
             placeholder={locale === 'en' ? relConfig.feelingPlaceholderEn : relConfig.feelingPlaceholder}
-            className="w-full font-bengali px-3.5 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-700 focus:border-rose-400 focus:ring-2 focus:ring-rose-100 dark:focus:ring-rose-950/60 outline-none text-neutral-800 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 text-sm sm:text-base transition-all bg-neutral-50/40 dark:bg-neutral-800/40 focus:bg-white dark:focus:bg-neutral-800"
+            className="w-full font-bengali px-3.5 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-700 focus:border-rose-400 focus:ring-2 focus:ring-rose-100 dark:focus:ring-rose-950/60 outline-none text-neutral-800 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 text-base sm:text-sm transition-all bg-neutral-50/40 dark:bg-neutral-800/40 focus:bg-white dark:focus:bg-neutral-800"
           />
           {/* Feeling suggestions */}
           <div className="space-y-1">
@@ -496,7 +504,7 @@ export function EmotionalStorytellerForm({
                     key={i}
                     type="button"
                     onClick={() => setFeeling(text)}
-                    className={`text-xs font-bengali px-3 py-1.5 min-h-[38px] sm:min-h-0 inline-flex items-center rounded-full border transition-all active:scale-95 cursor-pointer ${
+                    className={`text-xs font-bengali px-3 py-1.5 min-h-[40px] sm:min-h-[34px] inline-flex items-center rounded-full border transition-all active:scale-95 cursor-pointer ${
                       feeling === text
                         ? 'bg-rose-500 text-white border-rose-600 shadow-xs'
                         : 'bg-neutral-100 dark:bg-neutral-800 hover:bg-rose-50 dark:hover:bg-rose-950/60 text-neutral-700 dark:text-neutral-300 hover:text-rose-700 dark:hover:text-rose-300 border-neutral-200/80 dark:border-neutral-700'
@@ -512,10 +520,7 @@ export function EmotionalStorytellerForm({
       </div>
 
       {/* ─────────────────────────────────────────────────────────────
-          SECTION 3: ERA STYLE, LENGTH & LANGUAGE
-         ───────────────────────────────────────────────────────────── */}
-      {/* ─────────────────────────────────────────────────────────────
-          SECTION 3: ERA STYLE, LENGTH & LANGUAGE
+          SECTION 3: WRITING STYLE, ERA & FORMAT
          ───────────────────────────────────────────────────────────── */}
       <div className="bg-white/90 dark:bg-neutral-900/90 backdrop-blur-xs border border-rose-100/80 dark:border-neutral-800 rounded-2xl p-4 xs:p-5 sm:p-7 shadow-xs space-y-5 transition-colors">
         <div className="flex items-center gap-2 border-b border-neutral-100 dark:border-neutral-800 pb-3">
@@ -524,56 +529,69 @@ export function EmotionalStorytellerForm({
           </div>
           <div>
             <h3 className="font-bengali font-semibold text-neutral-900 dark:text-white text-base">
-              {t('form.section3Title')}
+              {locale === 'en' ? 'Letter Style & Tone' : 'চিঠির লেখার ধারা ও শৈলী'}
             </h3>
             <p className="text-xs font-bengali text-neutral-500 dark:text-neutral-400">
-              {t('form.section3Subtitle')}
+              {locale === 'en' ? 'Choose from 5 emotional writing styles' : 'আপনার মনের ভাব প্রকাশের উপযোগী ৫টি স্বতন্ত্র লেখার ধরন'}
             </p>
           </div>
         </div>
 
-        {/* The 8 Writing Personalities (Phase 03) */}
+        {/* 1. The 5 Core Writing Styles */}
         <div className="space-y-2.5">
           <div className="flex items-center justify-between">
             <label className="block text-sm font-bengali font-medium text-neutral-800 dark:text-neutral-200">
-              {t('form.personalityLabel')} <span className="text-rose-500">*</span>
+              {locale === 'en' ? 'Writing Style' : 'লেখার ধরন'} <span className="text-rose-500">*</span>
             </label>
             <span className="text-[11px] font-bengali text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/50 px-2 py-0.5 rounded-full border border-rose-200/60 dark:border-rose-900/40 font-medium">
-              {t('form.personalityCount')}
+              {locale === 'en' ? '5 Core Styles' : '৫টি স্বতন্ত্র ধারা'}
             </span>
           </div>
-          <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-4 gap-2">
-            {WRITING_PERSONALITIES.map((p) => {
-              const selected = personality === p.value
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+            {CORE_WRITING_STYLES.map((st) => {
+              const selected = writingStyle === st.value
               return (
                 <button
-                  key={p.value}
+                  key={st.value}
                   type="button"
                   onClick={() => {
-                    setPersonality(p.value)
-                    if (p.value === '90s-handwritten') setEraStyle('90s-handwritten')
-                    else if (p.value === 'rabindranath-classical') setEraStyle('vintage')
-                    else if (p.value === 'simple-human') setEraStyle('modern')
+                    setWritingStyle(st.value)
+                    if (st.value === 'emotional') {
+                      setPersonality('deep-emotional')
+                      setEraStyle('90s-handwritten')
+                    } else if (st.value === 'simple') {
+                      setPersonality('simple-human')
+                      setEraStyle('modern')
+                    } else if (st.value === 'mature') {
+                      setPersonality('mature-apology')
+                      setEraStyle('modern')
+                    } else if (st.value === 'poetic') {
+                      setPersonality('poetic')
+                      setEraStyle('vintage')
+                    } else if (st.value === 'formal') {
+                      setPersonality('rabindranath-classical')
+                      setEraStyle('vintage')
+                    }
                   }}
-                  className={`p-2.5 rounded-xl border text-left transition-all flex flex-col justify-between min-h-[50px] cursor-pointer ${
+                  className={`p-2.5 rounded-xl border text-left transition-all flex flex-col justify-between min-h-[70px] cursor-pointer ${
                     selected
-                      ? 'border-rose-400 dark:border-rose-500 bg-rose-50/90 dark:bg-rose-950/70 ring-1 ring-rose-300 dark:ring-rose-800 shadow-xs'
+                      ? 'border-rose-400 dark:border-rose-500 bg-rose-50/90 dark:bg-rose-950/70 ring-2 ring-rose-300 dark:ring-rose-800 shadow-xs'
                       : 'border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 bg-white dark:bg-neutral-800/80 hover:bg-neutral-50 dark:hover:bg-neutral-700/80'
                   }`}
                 >
                   <div>
                     <div className="flex items-center gap-1.5 mb-1">
-                      <span className="text-base">{p.emoji}</span>
+                      <span className="text-base sm:text-lg">{st.emoji}</span>
                       <span className="font-bengali font-bold text-xs sm:text-sm text-neutral-900 dark:text-neutral-100 leading-tight">
-                        {p.label}
+                        {locale === 'en' ? st.labelEn : st.label}
                       </span>
                     </div>
                     <p className="text-[10px] font-bengali text-neutral-500 dark:text-neutral-400 line-clamp-2 leading-tight">
-                      {p.tagline}
+                      {st.tagline}
                     </p>
                   </div>
-                  <span className="text-[9px] text-neutral-400 dark:text-neutral-500 font-sans mt-2 block">
-                    {p.labelEn}
+                  <span className="text-[9px] text-neutral-400 dark:text-neutral-500 font-sans mt-1.5 block">
+                    {st.labelEn}
                   </span>
                 </button>
               )
@@ -581,43 +599,92 @@ export function EmotionalStorytellerForm({
           </div>
         </div>
 
-        {/* 7. Era Style */}
-        <div className="space-y-2 pt-1">
-          <label className="block text-sm font-bengali font-medium text-neutral-800 dark:text-neutral-200">
-            {t('form.eraLabel')}
-          </label>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-            {ERA_STYLE_OPTIONS.map((era) => {
-              const selected = eraStyle === era.value
-              return (
-                <button
-                  key={era.value}
-                  type="button"
-                  onClick={() => setEraStyle(era.value)}
-                  className={`p-3 rounded-xl border text-left transition-all flex flex-col justify-between min-h-[48px] cursor-pointer ${
-                    selected
-                      ? 'border-rose-400 dark:border-rose-500 bg-rose-50/70 dark:bg-rose-950/60 ring-1 ring-rose-300 dark:ring-rose-800 shadow-xs'
-                      : 'border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 bg-white dark:bg-neutral-800/80 hover:bg-neutral-50 dark:hover:bg-neutral-700/60'
-                  }`}
-                >
-                  <div>
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <span className="text-base">{era.emoji}</span>
-                      <span className="font-bengali font-bold text-xs sm:text-sm text-neutral-900 dark:text-neutral-100">
-                        {era.label}
-                      </span>
-                    </div>
-                    <p className="text-[11px] font-bengali text-neutral-600 dark:text-neutral-300 leading-tight">
-                      {era.tagline}
-                    </p>
-                  </div>
-                  <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-sans mt-2 block">
-                    {era.labelEn}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
+        {/* Advanced Personalities Accordion Toggle */}
+        <div className="pt-1">
+          <button
+            type="button"
+            onClick={() => setShowAdvancedPersonalities(!showAdvancedPersonalities)}
+            className="text-xs font-bengali text-neutral-500 dark:text-neutral-400 hover:text-rose-600 dark:hover:text-rose-300 inline-flex items-center gap-1 py-1 transition-colors cursor-pointer"
+          >
+            <span>{showAdvancedPersonalities ? '▾ উন্নত ব্যক্তিত্ব ও আমেজ সংক্ষেপ করুন' : '▸ অন্যান্য ব্যক্তিত্ব ও আমেজ কাস্টমাইজ করুন'}</span>
+          </button>
+
+          {showAdvancedPersonalities && (
+            <div className="space-y-4 pt-3 border-t border-neutral-100 dark:border-neutral-800 mt-2 animate-in fade-in duration-200">
+              {/* The 8 Writing Personalities */}
+              <div className="space-y-2">
+                <label className="block text-xs font-bengali font-medium text-neutral-700 dark:text-neutral-300">
+                  {t('form.personalityLabel')}
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {WRITING_PERSONALITIES.map((p) => {
+                    const selected = personality === p.value
+                    return (
+                      <button
+                        key={p.value}
+                        type="button"
+                        onClick={() => {
+                          setPersonality(p.value)
+                          if (p.value === '90s-handwritten') setEraStyle('90s-handwritten')
+                          else if (p.value === 'rabindranath-classical') setEraStyle('vintage')
+                          else if (p.value === 'simple-human') setEraStyle('modern')
+                        }}
+                        className={`p-2 rounded-xl border text-left transition-all flex flex-col justify-between min-h-[48px] cursor-pointer ${
+                          selected
+                            ? 'border-rose-400 dark:border-rose-500 bg-rose-50/80 dark:bg-rose-950/60 ring-1 ring-rose-300 dark:ring-rose-800 shadow-xs'
+                            : 'border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 bg-white dark:bg-neutral-800/80 hover:bg-neutral-50 dark:hover:bg-neutral-700/80'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1 mb-0.5">
+                          <span className="text-sm">{p.emoji}</span>
+                          <span className="font-bengali font-bold text-xs text-neutral-900 dark:text-neutral-100 leading-tight">
+                            {p.label}
+                          </span>
+                        </div>
+                        <span className="text-[9px] text-neutral-400 dark:text-neutral-500 font-sans block">
+                          {p.labelEn}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Era Style */}
+              <div className="space-y-2">
+                <label className="block text-xs font-bengali font-medium text-neutral-700 dark:text-neutral-300">
+                  {t('form.eraLabel')}
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {ERA_STYLE_OPTIONS.map((era) => {
+                    const selected = eraStyle === era.value
+                    return (
+                      <button
+                        key={era.value}
+                        type="button"
+                        onClick={() => setEraStyle(era.value)}
+                        className={`p-2.5 rounded-xl border text-left transition-all flex flex-col justify-between min-h-[44px] cursor-pointer ${
+                          selected
+                            ? 'border-rose-400 dark:border-rose-500 bg-rose-50/70 dark:bg-rose-950/60 ring-1 ring-rose-300 dark:ring-rose-800 shadow-xs'
+                            : 'border-neutral-200 dark:border-neutral-700 hover:border-neutral-300 dark:hover:border-neutral-600 bg-white dark:bg-neutral-800/80 hover:bg-neutral-50 dark:hover:bg-neutral-700/60'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-base">{era.emoji}</span>
+                          <span className="font-bengali font-bold text-xs text-neutral-900 dark:text-neutral-100">
+                            {era.label}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-neutral-400 dark:text-neutral-500 font-sans mt-1 block">
+                          {era.labelEn}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* 6. Letter Length & 8. Language in grid */}

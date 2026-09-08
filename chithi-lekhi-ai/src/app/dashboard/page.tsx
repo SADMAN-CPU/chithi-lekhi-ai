@@ -153,23 +153,23 @@ const DashboardLetterCard = React.memo(function DashboardLetterCard({
       </p>
 
       {/* Footer Actions */}
-      <div className="pt-3 border-t border-rose-100/60 dark:border-neutral-800 flex items-center justify-between text-xs text-neutral-400 dark:text-neutral-500 font-bengali">
-        <div className="flex items-center gap-1">
+      <div className="pt-3 border-t border-rose-100/60 dark:border-neutral-800 flex flex-col xs:flex-row xs:items-center justify-between gap-2.5 text-xs text-neutral-400 dark:text-neutral-500 font-bengali">
+        <div className="flex items-center gap-1 shrink-0">
           <Calendar className="w-3 h-3" />
           <span>{formatDate(letter.created_at, locale)}</span>
         </div>
 
-        <div className="flex items-center gap-1.5 flex-wrap">
+        <div className="flex items-center gap-1.5 flex-wrap justify-end">
           <button
             type="button"
             onClick={() => onCopy(letter.id, letter.content)}
             title={locale === 'en' ? 'Copy letter' : 'কপি করুন'}
-            className="text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 p-1.5 rounded-lg transition-colors cursor-pointer"
+            className="text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200 p-2 min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg transition-colors cursor-pointer"
           >
             {isCopied ? (
-              <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             ) : (
-              <Copy className="w-3.5 h-3.5" />
+              <Copy className="w-4 h-4" />
             )}
           </button>
 
@@ -177,18 +177,18 @@ const DashboardLetterCard = React.memo(function DashboardLetterCard({
             type="button"
             onClick={handleWhatsAppShare}
             title={locale === 'en' ? 'Share on WhatsApp' : 'হোয়াটসঅ্যাপে শেয়ার'}
-            className="text-neutral-500 dark:text-neutral-400 hover:text-[#25D366] p-1.5 rounded-lg transition-colors cursor-pointer"
+            className="text-neutral-500 dark:text-neutral-400 hover:text-[#25D366] p-2 min-h-[36px] min-w-[36px] flex items-center justify-center rounded-lg transition-colors cursor-pointer"
           >
-            <Share2 className="w-3.5 h-3.5" />
+            <Share2 className="w-4 h-4" />
           </button>
 
           <button
             type="button"
             onClick={() => onEdit(letter)}
             title={locale === 'en' ? 'Edit letter' : 'চিঠি সম্পাদনা করুন'}
-            className="inline-flex items-center gap-1 font-semibold text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 px-2 py-1 rounded-md text-[11px] transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1 font-semibold text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 px-2.5 py-1.5 rounded-lg text-xs min-h-[36px] transition-colors cursor-pointer"
           >
-            <Edit3 className="w-3 h-3" />
+            <Edit3 className="w-3.5 h-3.5" />
             <span>{locale === 'en' ? 'Edit' : 'সম্পাদনা'}</span>
           </button>
 
@@ -196,9 +196,9 @@ const DashboardLetterCard = React.memo(function DashboardLetterCard({
             type="button"
             onClick={() => onPdf(letter)}
             title={locale === 'en' ? 'Download A4 PDF' : 'এ৪ পিডিএফ তৈরি করুন'}
-            className="inline-flex items-center gap-1 font-semibold text-rose-700 dark:text-rose-300 hover:text-rose-800 dark:hover:text-rose-200 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 px-2 py-1 rounded-md text-[11px] transition-colors border border-rose-200/50 dark:border-rose-900/40 cursor-pointer"
+            className="inline-flex items-center gap-1 font-semibold text-rose-700 dark:text-rose-300 hover:text-rose-800 dark:hover:text-rose-200 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 px-2.5 py-1.5 rounded-lg text-xs min-h-[36px] transition-colors border border-rose-200/50 dark:border-rose-900/40 cursor-pointer"
           >
-            <FileText className="w-3 h-3 text-rose-600 dark:text-rose-400" />
+            <FileText className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
             <span>{locale === 'en' ? 'PDF' : 'পিডিএফ'}</span>
           </button>
 
@@ -206,18 +206,18 @@ const DashboardLetterCard = React.memo(function DashboardLetterCard({
             type="button"
             onClick={() => onVisual(letter)}
             title={locale === 'en' ? 'Generate Image Card' : 'ইমেজ কার্ড তৈরি করুন'}
-            className="inline-flex items-center gap-1 font-semibold text-amber-800 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-200 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100/80 dark:hover:bg-amber-900/50 px-2 py-1 rounded-md text-[11px] transition-colors border border-amber-200/50 dark:border-amber-900/40 cursor-pointer"
+            className="inline-flex items-center gap-1 font-semibold text-amber-800 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-200 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100/80 dark:hover:bg-amber-900/50 px-2.5 py-1.5 rounded-lg text-xs min-h-[36px] transition-colors border border-amber-200/50 dark:border-amber-900/40 cursor-pointer"
           >
-            <ImageIcon className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+            <ImageIcon className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
             <span>{locale === 'en' ? 'Card' : 'ইমেজ'}</span>
           </button>
 
           <button
             type="button"
             onClick={() => onRead(letter)}
-            className="inline-flex items-center gap-1 font-semibold text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 px-2 py-1 rounded-md text-[11px] transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1 font-semibold text-rose-600 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-300 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/50 px-2.5 py-1.5 rounded-lg text-xs min-h-[36px] transition-colors cursor-pointer"
           >
-            <Eye className="w-3 h-3" />
+            <Eye className="w-3.5 h-3.5" />
             <span>{locale === 'en' ? 'Read' : 'পড়ুন'}</span>
           </button>
         </div>
@@ -773,7 +773,7 @@ export default function DashboardPage() {
             <button
               type="button"
               onClick={() => setActiveTab('profile')}
-              className={`pb-3 px-3 sm:px-4 font-bengali text-xs sm:text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 whitespace-nowrap ml-auto min-h-[44px] cursor-pointer ${
+              className={`pb-3 px-3 sm:px-4 font-bengali text-xs sm:text-sm font-semibold transition-all border-b-2 flex items-center gap-1.5 whitespace-nowrap sm:ml-auto min-h-[44px] cursor-pointer ${
                 activeTab === 'profile'
                   ? 'border-rose-500 text-rose-600 dark:text-rose-400'
                   : 'border-transparent text-neutral-500 dark:text-neutral-400 hover:text-neutral-800 dark:hover:text-neutral-200'

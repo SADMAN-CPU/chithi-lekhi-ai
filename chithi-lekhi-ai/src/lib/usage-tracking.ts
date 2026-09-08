@@ -3,15 +3,11 @@ import { createClient as createServerSupabase } from './supabase/server'
 import { getUserPlan } from './subscription'
 import type { UserUsageRow } from '@/types/database'
 import { resetQuotaTestStore } from './quota-service'
+import { isSupabaseConfigured } from './supabase/config'
 
 export * from './quota-service'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const isConfigured = Boolean(
-  supabaseUrl &&
-  supabaseUrl !== 'your_supabase_url_here' &&
-  supabaseUrl.startsWith('https://')
-)
+const isConfigured = isSupabaseConfigured
 
 export interface UsageSummary {
   allowed: boolean

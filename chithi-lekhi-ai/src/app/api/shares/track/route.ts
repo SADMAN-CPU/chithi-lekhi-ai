@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { trackShareEvent } from '@/lib/shares'
+import { trackEvent } from '@/lib/analytics'
 import { checkRateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
@@ -39,6 +40,24 @@ export async function POST(request: NextRequest) {
       },
       true
     )
+
+    // Also record in privacy-friendly product analytics store
+    const analyticsTypeMap: Record<string, 'public_view' | 'share_created' | 'download' | 'voice_play'> = {
+      view: 'public_view',
+      share: 'share_created',
+      download: 'download',
+      audio_play: 'voice_play',
+      audio_generate: 'voice_play',
+    }
+
+    if (analyticsTypeMap[eventType]) {
+      await trackEvent({
+        type: analyticsTypeMap[eventType],
+        properties: {
+          platform,
+        },
+      })
+    }
 
     return NextResponse.json({ success: true })
   } catch (err) {

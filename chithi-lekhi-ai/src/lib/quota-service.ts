@@ -5,13 +5,9 @@ import { getUserPlan } from './subscription'
 import { getServerUser } from './auth-server'
 import { getClientIp } from './rate-limit'
 import type { AIUsageRow } from '@/types/database'
+import { isSupabaseConfigured } from './supabase/config'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const isConfigured = Boolean(
-  supabaseUrl &&
-  supabaseUrl !== 'your_supabase_url_here' &&
-  supabaseUrl.startsWith('https://')
-)
+const isConfigured = isSupabaseConfigured
 
 export type AIActionType = 'generation' | 'refinement' | 'voice'
 

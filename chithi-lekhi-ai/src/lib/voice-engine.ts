@@ -21,12 +21,9 @@ const inMemoryVoiceCache: Map<
   { audioBase64: string; format: string; style: VoiceStyle }
 > = new Map()
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const isConfigured = Boolean(
-  supabaseUrl &&
-  supabaseUrl !== 'your_supabase_url_here' &&
-  supabaseUrl.startsWith('https://')
-)
+import { isSupabaseConfigured } from './supabase/config'
+
+const isConfigured = isSupabaseConfigured
 
 import { cleanLetterForSpeech } from './voice-utils'
 export { cleanLetterForSpeech }

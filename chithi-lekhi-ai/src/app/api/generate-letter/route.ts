@@ -11,6 +11,7 @@ import {
   recordAIUsage,
   checkUserRateLimit,
 } from '@/lib/quota-service'
+import { trackEvent } from '@/lib/analytics'
 import type { ApiError, GenerateLetterRequest, GenerateLetterResponse } from '@/types'
 
 // Vercel serverless function max execution duration (seconds)
@@ -152,6 +153,16 @@ export async function POST(request: NextRequest) {
     } catch (saveErr) {
       console.warn('[generate-letter] Database save note:', saveErr)
     }
+
+    // 5. Track privacy-friendly product analytics
+    await trackEvent({
+      type: 'letter_created',
+      properties: {
+        style: sanitizedParams.writingStyle || sanitizedParams.style || sanitizedParams.personality || 'emotional',
+        relationship: sanitizedParams.relationship,
+        language: sanitizedParams.language,
+      },
+    })
 
     const response: GenerateLetterResponse = {
       success: true,

@@ -1,15 +1,11 @@
 import { createClient as createBrowserSupabase } from './supabase/client'
 import { createClient as createServerSupabase } from './supabase/server'
-import { getLetterById, updateLetter } from './supabase/letters'
+import { getLetterById, updateLetter, getLetterByShareId, incrementLetterViews } from './supabase/letters'
 import { generateSlug } from '@/utils/helpers'
 import type { ShareRow, ShareAnalyticsRow, LetterRow } from '@/types/database'
+import { isSupabaseConfigured } from './supabase/config'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const isConfigured = Boolean(
-  supabaseUrl &&
-  supabaseUrl !== 'your_supabase_url_here' &&
-  supabaseUrl.startsWith('https://')
-)
+const isConfigured = isSupabaseConfigured
 
 export type ShareExpiration = '24h' | '7d' | 'never'
 
@@ -123,7 +119,7 @@ export async function createShareRecord(
     try {
       await updateLetter(
         params.letter_id,
-        { is_public: true, share_slug: share_token },
+        { is_public: true, share_slug: share_token, share_id: share_token },
         isServer
       )
     } catch (syncErr) {
@@ -232,6 +228,45 @@ export async function getShareByToken(
   }
 
   if (!share) {
+    const directLetter = await getLetterByShareId(tokenOrId, isServer)
+    if (directLetter) {
+      const isPublic = directLetter.is_public !== false
+      if (!isPublic) {
+        return {
+          status: 'private',
+          share: null,
+          letter: null,
+          isExpired: false,
+          isPrivate: true,
+        }
+      }
+      if (incrementViews) {
+        await incrementLetterViews(tokenOrId, isServer)
+      }
+      const initialViews = (directLetter.view_count || 0) + (incrementViews ? 1 : 0)
+      const synthesizedShare: ShareRow = {
+        id: `share-auto-${directLetter.id}`,
+        letter_id: directLetter.id,
+        user_id: directLetter.user_id,
+        share_token: directLetter.share_id || directLetter.share_slug || tokenOrId,
+        is_public: true,
+        expiration: 'never',
+        expires_at: null,
+        views: initialViews > 0 ? initialViews : 1,
+        shares_count: 0,
+        downloads_count: 0,
+        audio_url: null,
+        created_at: directLetter.created_at,
+      }
+      return {
+        status: 'ok',
+        share: synthesizedShare,
+        letter: directLetter,
+        isExpired: false,
+        isPrivate: false,
+      }
+    }
+
     return {
       status: 'not_found',
       share: null,
