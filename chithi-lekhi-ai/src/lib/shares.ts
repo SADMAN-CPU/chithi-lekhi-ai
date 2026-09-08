@@ -31,6 +31,10 @@ export interface ShareLookupResult {
 const inMemoryShares: Map<string, ShareRow> = new Map()
 const inMemoryAnalytics: ShareAnalyticsRow[] = []
 
+export function getAllShares(): ShareRow[] {
+  return Array.from(inMemoryShares.values())
+}
+
 /**
  * Compute expiration timestamp
  */
