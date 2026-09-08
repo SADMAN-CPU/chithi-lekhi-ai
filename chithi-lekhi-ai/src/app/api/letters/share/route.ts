@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getLetterById, updateLetter, createLetter } from '@/lib/supabase/letters'
+import { getLetterById, createLetter } from '@/lib/supabase/letters'
 import { createShareRecord } from '@/lib/shares'
-import { generateSlug } from '@/utils/helpers'
 import { checkRateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import type { ApiError } from '@/types'
 

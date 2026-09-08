@@ -62,7 +62,7 @@ export async function createShareRecord(
   if (params.letter_id) {
     const existing = await getLetterById(params.letter_id, isServer)
     if (existing?.share_id || existing?.share_slug) {
-      share_token = existing.share_id || existing.share_slug
+      share_token = existing.share_id || existing.share_slug || share_token
     }
   }
 

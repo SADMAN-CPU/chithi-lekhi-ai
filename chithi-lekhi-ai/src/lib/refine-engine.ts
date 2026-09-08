@@ -282,6 +282,7 @@ ${customInstructionBlock}
  * Strips robotic AI phrases, preambles, bracketed notes, and meta comments from generated text
  */
 export function cleanAiArtifacts(text: string): string {
+  if (typeof text !== 'string') return ''
   let cleaned = text.trim()
 
   // Remove common AI preambles
@@ -449,11 +450,31 @@ export function ensureCompleteSignoff(letter: string, _receiverName?: string): s
  * Synthesizes a 100% complete cohesive letter — NEVER appends extra sentences to the end!
  */
 export function localRefineFallback(
-  letter: string,
-  action: RefineAction,
-  customInstruction?: string,
-  context?: { relationship?: string; receiverName?: string }
+  letterOrParams: string | RefineLetterParams,
+  actionParam?: RefineAction,
+  customInstructionParam?: string,
+  contextParam?: { relationship?: string; receiverName?: string }
 ): string {
+  let letter: string
+  let action: RefineAction
+  let _customInstruction: string | undefined
+  let context: { relationship?: string; receiverName?: string } | undefined
+
+  if (typeof letterOrParams === 'object' && letterOrParams !== null) {
+    letter = letterOrParams.letter || ''
+    action = letterOrParams.action
+    _customInstruction = letterOrParams.customInstruction
+    context = {
+      relationship: letterOrParams.relationship,
+      receiverName: letterOrParams.receiverName,
+    }
+  } else {
+    letter = typeof letterOrParams === 'string' ? letterOrParams : ''
+    action = actionParam || 'more-emotional'
+    _customInstruction = customInstructionParam
+    context = contextParam
+  }
+
   const cleaned = cleanAiArtifacts(letter)
   const isShortInput = cleaned.length < 80 || !cleaned.includes('\n')
 
