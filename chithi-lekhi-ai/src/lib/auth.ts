@@ -37,6 +37,35 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
   return null
 }
 
+/**
+ * Ensures a corresponding profile row exists in public.profiles table
+ */
+export async function ensureUserProfile(user: {
+  id: string
+  email?: string | null
+  name?: string | null
+}): Promise<void> {
+  if (!isSupabaseConfigured) return
+  try {
+    const supabase = createClient()
+    const { data: existing } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (!existing) {
+      await supabase.from('profiles').insert({
+        id: user.id,
+        email: user.email || null,
+        name: user.name || user.email?.split('@')[0] || 'ব্যবহারকারী',
+      })
+    }
+  } catch (err) {
+    console.warn('[Auth] ensureUserProfile note:', err)
+  }
+}
+
 export async function signInWithEmail(
   email: string,
   password: string
@@ -66,6 +95,7 @@ export async function signInWithEmail(
         name: data.user.user_metadata?.name || data.user.email?.split('@')[0] || 'ব্যবহারকারী',
         avatar: data.user.user_metadata?.avatar_url,
       }
+      await ensureUserProfile(authUser)
       return { user: authUser, error: null }
     }
   } catch (err) {
@@ -109,6 +139,9 @@ export async function signUpWithEmail(
         id: data.user.id,
         email: data.user.email || '',
         name: name || data.user.email?.split('@')[0] || 'ব্যবহারকারী',
+      }
+      if (data.session) {
+        await ensureUserProfile(authUser)
       }
       return { user: data.session ? authUser : null, needsEmailConfirmation, error: null }
     }
@@ -176,13 +209,15 @@ export async function verifyOtp(
     }
 
     if (data.user) {
+      const authUser: AuthUser = {
+        id: data.user.id,
+        email: data.user.email || '',
+        name: data.user.user_metadata?.name || data.user.email?.split('@')[0] || 'ব্যবহারকারী',
+        avatar: data.user.user_metadata?.avatar_url,
+      }
+      await ensureUserProfile(authUser)
       return {
-        user: {
-          id: data.user.id,
-          email: data.user.email || '',
-          name: data.user.user_metadata?.name || data.user.email?.split('@')[0] || 'ব্যবহারকারী',
-          avatar: data.user.user_metadata?.avatar_url,
-        },
+        user: authUser,
         error: null,
       }
     }

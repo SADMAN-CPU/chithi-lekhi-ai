@@ -233,6 +233,7 @@ export function VintageLetterVisualStudio({
       setDownloading(false)
     }
   }, [
+    downloading,
     totalPages,
     isMergedMode,
     qualitySetting,

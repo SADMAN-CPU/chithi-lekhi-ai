@@ -4,28 +4,71 @@
  *
  * Credentials MUST come from environment variables:
  * - ADMIN_EMAIL
- * - ADMIN_PASSWORD
+ * - ADMIN_PASSWORD or ADMIN_PASSWORD_HASH
+ * - ADMIN_SESSION_SECRET (optional, recommended for production)
  *
  * Cryptographic HMAC-SHA256 tokens using Web Crypto (compatible with Edge and Node.js).
  */
 
-const ADMIN_COOKIE_NAME = 'chithi_admin_token'
+export const ADMIN_COOKIE_NAME = 'chithi_admin_token'
 
-export function getAdminCredentials() {
-  const isProd = process.env.NODE_ENV === 'production'
-  const email = process.env.ADMIN_EMAIL || (isProd ? '' : 'admin@chithilekhi.com')
-  const password = process.env.ADMIN_PASSWORD || (isProd ? '' : 'AdminChithi#2026!')
-  return { email, password }
+export function getAdminConfig() {
+  const email = (process.env.ADMIN_EMAIL || '').trim().toLowerCase()
+  const password = process.env.ADMIN_PASSWORD || ''
+  const passwordHash = (process.env.ADMIN_PASSWORD_HASH || '').trim().toLowerCase()
+  const sessionSecret =
+    process.env.ADMIN_SESSION_SECRET ||
+    passwordHash ||
+    password ||
+    ''
+  return { email, password, passwordHash, sessionSecret }
 }
 
-export function validateAdminCredentials(email: string, pass: string): boolean {
-  const { email: adminEmail, password: adminPass } = getAdminCredentials()
-  if (!adminEmail || !adminPass) {
-    console.warn('[Admin Auth] ADMIN_EMAIL or ADMIN_PASSWORD is not configured in environment variables.')
+/**
+ * Constant-time string equality check to protect against timing attacks
+ */
+export function timingSafeEqualStr(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  let mismatch = 0
+  for (let i = 0; i < a.length; i++) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  }
+  return mismatch === 0
+}
+
+export async function hashStringSha256(str: string): Promise<string> {
+  const encoder = new TextEncoder()
+  const buf = await crypto.subtle.digest('SHA-256', encoder.encode(str))
+  return bufferToHex(buf)
+}
+
+export async function validateAdminCredentials(email: string, pass: string): Promise<boolean> {
+  const { email: adminEmail, password: adminPass, passwordHash: adminHash } = getAdminConfig()
+  if (!adminEmail || (!adminPass && !adminHash)) {
+    console.warn(
+      '[Admin Auth] ADMIN_EMAIL and either ADMIN_PASSWORD or ADMIN_PASSWORD_HASH must be configured in environment.'
+    )
     return false
   }
   if (!email || !pass) return false
-  return email.trim().toLowerCase() === adminEmail.trim().toLowerCase() && pass === adminPass
+  if (!timingSafeEqualStr(email.trim().toLowerCase(), adminEmail)) {
+    return false
+  }
+
+  // 1. Direct password match if configured
+  if (adminPass && timingSafeEqualStr(pass, adminPass)) {
+    return true
+  }
+
+  // 2. Hash match if ADMIN_PASSWORD_HASH is set
+  if (adminHash) {
+    const inputHash = await hashStringSha256(pass)
+    if (timingSafeEqualStr(inputHash, adminHash)) {
+      return true
+    }
+  }
+
+  return false
 }
 
 async function getHmacKey(secret: string): Promise<CryptoKey> {
@@ -59,9 +102,9 @@ function hexToBuffer(hex: string): ArrayBuffer {
  * Token format: base64(payload).signatureHex
  */
 export async function createAdminToken(email: string): Promise<string> {
-  const { password } = getAdminCredentials()
-  if (!password) {
-    throw new Error('ADMIN_PASSWORD is not configured in environment variables.')
+  const { sessionSecret } = getAdminConfig()
+  if (!sessionSecret) {
+    throw new Error('ADMIN_PASSWORD or ADMIN_SESSION_SECRET is not configured in environment variables.')
   }
   const payload = {
     email: email.toLowerCase(),
@@ -72,7 +115,7 @@ export async function createAdminToken(email: string): Promise<string> {
   const encodedPayload = btoa(payloadStr)
 
   const encoder = new TextEncoder()
-  const key = await getHmacKey(password)
+  const key = await getHmacKey(sessionSecret)
   const signatureBuffer = await crypto.subtle.sign(
     'HMAC',
     key,
@@ -98,13 +141,13 @@ export async function verifyAdminToken(
     return { valid: false }
   }
 
-  const { password, email: expectedEmail } = getAdminCredentials()
-  if (!password) {
+  const { sessionSecret, email: expectedEmail } = getAdminConfig()
+  if (!sessionSecret || !expectedEmail) {
     return { valid: false }
   }
 
   try {
-    const key = await getHmacKey(password)
+    const key = await getHmacKey(sessionSecret)
     const encoder = new TextEncoder()
     const signatureBuffer = hexToBuffer(signatureHex)
 
@@ -126,7 +169,7 @@ export async function verifyAdminToken(
       return { valid: false } // Expired
     }
 
-    if (payload.role !== 'admin' || payload.email !== expectedEmail.toLowerCase()) {
+    if (payload.role !== 'admin' || payload.email !== expectedEmail) {
       return { valid: false }
     }
 
@@ -135,5 +178,3 @@ export async function verifyAdminToken(
     return { valid: false }
   }
 }
-
-export { ADMIN_COOKIE_NAME }

@@ -188,7 +188,7 @@ export function buildRefinementPrompt(params: RefineLetterParams): string {
   const directive = ACTION_DIRECTIVES[params.action] || ACTION_DIRECTIVES['more-emotional']
 
   const customInstructionBlock = params.customInstruction
-    ? `\nবিশেষ ইউজার নির্দেশনা (USER CUSTOM INSTRUCTION):\n"${params.customInstruction}"\nএই নির্দেশকে সর্বোচ্চ অগ্রাধিকার দিয়ে চিঠিটি পরিমার্জন করো।`
+    ? `\nবিশেষ ইউজার নির্দেশনা (USER CUSTOM INSTRUCTION):\n"${params.customInstruction}"\nএই নির্দেশকে সর্বোচ্চ অগ্রাধিকার দিয়ে সম্পূর্ণ চিঠিটি সমন্বিতভাবে পুনর্লিখন ও পরিমার্জন করো।`
     : ''
 
   const contextInfo = [
@@ -199,7 +199,7 @@ export function buildRefinementPrompt(params: RefineLetterParams): string {
     .filter(Boolean)
     .join('\n')
 
-  return `তুমি একজন সংবেদনশীল সাহিত্যিক এবং চিঠির অভিজ্ঞ সম্পাদক। নিচে দেওয়া চিঠিটি অত্যন্ত মানবিক ও মননশীলভাবে পরিমার্জন করো।
+  return `তুমি একজন সংবেদনশীল সাহিত্যিক এবং চিঠির অভিজ্ঞ সম্পাদক। নিচে দেওয়া চিঠিটি অত্যন্ত মানবিক, সুসংহত ও মননশীলভাবে পুনর্লিখন ও পরিমার্জন করো।
 
 ${contextInfo ? `══════ প্রাসঙ্গিক প্রেক্ষাপট ══════\n${contextInfo}\n` : ''}
 ══════ বর্তমান মূল চিঠি (EXISTING LETTER) ══════
@@ -211,20 +211,20 @@ ${params.letter}
 নির্দেশনা: ${directive.promptGuide}
 ${customInstructionBlock}
 
-══════ মূলনীতি ও কঠোর নিয়মাবলী (CORE REQUIREMENTS) ══════
-১. অপ্রয়োজনে পুরো চিঠি নতুন করে নতুন আঙ্গিকে বদলে দেবে না। একই চিঠির আসল সুর, মূল অনুভূতি, স্মৃতি এবং লেখকের আসল উদ্দেশ্য ধরে রেখে পরিমার্জন করো (Do NOT completely rewrite unnecessarily. Improve the same letter).
-২. ভাষা হতে হবে ১০০% খাঁটি, স্বাভাবিক ও সংবেদনশীল বাংলা। কোনো কৃত্রিম অনুবাদ বা রোবোটিক যান্ত্রিক ভাব যেন না থাকে।
-৩. চিঠির ব্যক্তিগত আন্তরিক সুর (Personal tone), সম্পর্কের স্বাভাবিক টান এবং প্রাপকের সাথে সম্পর্ক বজায় রাখো।
-৪. চিঠির শুরুতে উপযুক্ত সম্বোধন (যেমন: "প্রিয়...", "স্নেহের...", "শ্রদ্ধেয়...") এবং শেষে যথোপযুক্ত সমাপ্তিসূচক বিদায় সম্ভাষণ ও স্বাক্ষর (Proper ending & signature) নিশ্চিত করো।
-৫. এআই-সুলভ বাক্য ও সাধারণ ক্লিশে বর্জন করো (Remove AI style sentences and generic phrases like "আশা করি ভালো আছো এবং সুস্থ আছো", "চিঠিটি কেমন লাগল", "As an AI")।
-৬. কোনো মেটা-কমেন্টারি বা ব্যাখ্যা (যেমন: "নিচে আপনার চিঠি দেওয়া হলো", "Subject:", "এখানে সংশোধিত চিঠি:") লিখবে না।
+══════ মূলনীতি ও কঠোর নিয়মাবলী (CRITICAL REQUIREMENTS) ══════
+১. সমগ্র চিঠিটি প্রথম থেকে শেষ পর্যন্ত একটি পূর্ণাঙ্গ, সমন্বিত ও অবিচ্ছেদ্য চিঠি হিসেবে পুনর্লিখন করো (Rewrite the ENTIRE letter from salutation to signature as a cohesive whole).
+২. কখনোই পুরানো চিঠির শেষে অতিরিক্ত কোনো প্যারাগ্রাফ, পরিশিষ্ট বা অংশ জুড়ে (append) দেবে না। কোনো বাড়তি টুকরো যোগ নয়—চিঠির প্রতিটি বাক্যের ভেতর নির্দেশিত ভাবটি মিশিয়ে দাও।
+৩. কোনো বন্ধনীযুক্ত নোট [bracketed note], ডাকটিকিট ট্যাগ, বিশেষ ভাবনা, পি.এস. নোট বা মেটা-কমেন্টারি লিখবে না।
+৪. চিঠির শেষে দ্বৈত বা পুনরাবৃত্তিমূলক স্বাক্ষর বা বিদায় সম্ভাষণ দেবে না। একটিমাত্র স্বাভাবিক সমাপনী স্বাক্ষর থাকবে।
+৫. ভাষা হতে হবে ১০০% খাঁটি, স্বাভাবিক ও সংবেদনশীল বাংলা। কোনো কৃত্রিম অনুবাদ, রোবোটিক ভাব বা এআই-ক্লিশে থাকবে না।
+৬. চিঠির শুরুতে যথাযথ সম্বোধন এবং শেষে প্রাপক ও সম্পর্কের সাথে সামঞ্জস্যপূর্ণ বিদায় সম্ভাষণ ও স্বাক্ষর নিশ্চিত করো।
 ৭. শুধুমাত্র সংশোধিত চিঠিটির টেক্সট আউটপুট হিসেবে দেবে।
 
 এখন সংশোধিত পূর্ণাঙ্গ চিঠিটি লেখো:`
 }
 
 /**
- * Strips robotic AI phrases, preambles, and meta comments from generated text
+ * Strips robotic AI phrases, preambles, bracketed notes, and meta comments from generated text
  */
 export function cleanAiArtifacts(text: string): string {
   let cleaned = text.trim()
@@ -232,9 +232,16 @@ export function cleanAiArtifacts(text: string): string {
   // Remove common AI preambles
   cleaned = cleaned.replace(/^(নিচে\s+.*চিঠি.*দেওয়া\s+হলো|এখানে\s+.*চিঠি.*হলো|Here\s+is\s+.*letter|Dear\s+User:?|Sure!?:?|Certainly!?:?)[^\n]*\n+/gi, '')
 
-  // Remove markdown headers or bold markers around subject
+  // Remove markdown headers or bold markers around subject/title
   cleaned = cleaned.replace(/^#+\s*.*(\n|$)/m, '')
   cleaned = cleaned.replace(/^(বিষয়|Subject|Title):\s*[^\n]*\n+/gi, '')
+
+  // Remove bracketed notes, stamps, thoughts (e.g. [নোট:...], [বিশেষ ভাবার্থ:...], [ডাকটিকিট:...], [Special Note:...])
+  cleaned = cleaned.replace(/\[(?:ডাকটিকিট|বিশেষ ভাবার্থ|বিশেষ ভাবনা|নোট|বি\.দ্র\.|Note|P\.S\.|Special Thought|উপসংহার)[^\]]*\]/gi, '')
+  cleaned = cleaned.replace(/^\s*\[[^\]]{2,100}\]\s*$/gm, '')
+
+  // Remove trailing meta sections
+  cleaned = cleaned.replace(/\n+\s*(?:বিশেষ দ্রষ্টব্য|বি\.দ্র\.|বিশেষ ভাবনা|পরিমার্জিত অংশ|সংশোধিত চিঠি|Note|P\.S\.):[\s\S]*$/gi, '')
 
   // Filter out any lines containing robotic AI meta chatter
   const aiLinePatterns = [
@@ -244,6 +251,8 @@ export function cleanAiArtifacts(text: string): string {
     /আশা করি চিঠিটি (আপনার|তোমার) পছন্দ/i,
     /Hope this (letter )?helps/i,
     /Let me know if/i,
+    /এখানে সংশোধিত/i,
+    /নিচে সংশোধিত/i,
   ]
 
   const filteredLines = cleaned.split('\n').filter((line) => {
@@ -252,6 +261,22 @@ export function cleanAiArtifacts(text: string): string {
   })
 
   cleaned = filteredLines.join('\n')
+
+  // Deduplicate accidental double/repetitive signatures at the end
+  const paragraphs = cleaned.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean)
+  if (paragraphs.length >= 3) {
+    const isClosingParagraph = (p: string) => {
+      const lines = p.split('\n').map((l) => l.trim()).filter(Boolean)
+      const markerRegex = /^(ইতি|তোমারই|তোমার বন্ধু|তোমার অনুগত|আপনার সন্তান|আপনার স্নেহধন্য|আপনার আদরের|আপনার ছেলে|আপনার মেয়ে|আপনার স্নেহের সন্তান|আপনার একান্ত|আপন কেউ|ভালোবাসায়|ভালোবাসা রইল|ভালো থেকো|সবসময় ভালো থেকো|শুভাকাঙ্ক্ষী|শুভকামনায়|স্নেহাশীষ)/i
+      return lines.length <= 4 && lines.some((l) => markerRegex.test(l))
+    }
+    const lastP = paragraphs[paragraphs.length - 1]
+    const secondLastP = paragraphs[paragraphs.length - 2]
+    if (isClosingParagraph(lastP) && isClosingParagraph(secondLastP)) {
+      paragraphs.pop()
+      cleaned = paragraphs.join('\n\n')
+    }
+  }
 
   // Strip wrapping quotes
   if (cleaned.startsWith('"') && cleaned.endsWith('"')) {
@@ -294,10 +319,12 @@ export function evaluateLetterQuality(
     'ভালোবাসায়',
     'ভালোবাসা নিও',
     'শুভাকাঙ্ক্ষী',
-    'প্রণামান্তে',
+    'শ্রদ্ধা ও ভালোবাসাসহ',
+    'আপনার সন্তান',
+    'আপনার স্নেহধন্য সন্তান',
+    'অনেক ভালোবাসা রইল',
     'স্নেহের',
     'বিদায়',
-    'আল্লাহ হাফেজ',
     'ভালো থেকো',
     'শুভকামনায়',
     'আশীর্বাদসহ',
@@ -365,37 +392,81 @@ export function ensureCompleteSignoff(letter: string, _receiverName?: string): s
 /**
  * Offline / Local Fallback Refinement Engine
  */
-function localRefineFallback(letter: string, action: RefineAction, customInstruction?: string): string {
+function localRefineFallback(letter: string, action: RefineAction, _customInstruction?: string): string {
   const cleaned = cleanAiArtifacts(letter)
+  const paragraphs = cleaned.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean)
+
+  if (paragraphs.length <= 1) {
+    return cleaned
+  }
+
+  const salutation = paragraphs[0]
+  const closing = paragraphs.length > 2 ? paragraphs[paragraphs.length - 1] : ''
+  const bodyParas = paragraphs.length > 2 ? paragraphs.slice(1, -1) : paragraphs.slice(1)
 
   switch (action) {
-    case 'more-emotional':
-    case 'deeper-feeling':
-      return `${cleaned}\n\nমনের গভীরে যে কথাগুলো জমে ছিল, আজ তা চিঠির পাতায় জলছাপ হয়ে রইল। তুমি আমার জীবনের সবচেয়ে মূল্যবান অনুভূতি।`
-    case 'more-romantic':
-      return `${cleaned}\n\nতোমার উপস্থিতি আমার প্রতিটা দিনকে রঙিন করে তোলে। যেখানেই থাকি না কেন, আমার সমস্ত ভালোবাসা নিঃশব্দে তোমার দিকেই ধাবিত হয়।`
-    case 'vintage-90s':
-      return `[ডাকটিকিট: ঢাকা জিপিও]\n\n${cleaned}\n\nসন্ধ্যা নামলেই পুরোনো দিনের স্মৃতিগুলো মনকে আচ্ছন্ন করে। ঝরনা কলমের নীল কালিতে লিখে গেলাম মনের এই ব্যাকুলতা।`
     case 'make-shorter':
-    case 'shorter': {
-      const paras = cleaned.split('\n\n').filter(Boolean)
-      if (paras.length > 2) {
-        return `${paras[0]}\n\n${paras[1]}\n\nসবসময় ভালো থেকো,\nতোমার আপনজন`
-      }
-      return cleaned
+    case 'shorter':
+    case 'short-version': {
+      const shortenedBody = bodyParas.length > 1 ? bodyParas[0] : bodyParas.join('\n\n')
+      return closing ? `${salutation}\n\n${shortenedBody}\n\n${closing}` : `${salutation}\n\n${shortenedBody}`
     }
+
     case 'make-longer':
-    case 'longer':
-      return `${cleaned}\n\nসময়ের স্রোতে অনেক কিছুই বদলে যায়, কিন্তু হৃদয়ের মণিকোঠায় জমে থাকা এই অনুভূতিগুলো কখনো মলিন হয় না। তোমার স্মৃতিগুলো আমার নিঃসঙ্গ রাতের একমাত্র সান্ত্বনা হয়ে বেঁচে থাকে।`
+    case 'longer': {
+      const enrichedBody = [
+        ...bodyParas,
+        'সময়ের স্রোতে অনেক কিছুই বদলে যায়, কিন্তু হৃদয়ের মণিকোঠায় জমে থাকা এই অনুভূতিগুলো কখনো মলিন হয় না। দূরে থেকেও প্রতিটি মুহূর্তে তোমার সান্নিধ্য হৃদয়ে অনুভব করি।',
+      ].join('\n\n')
+      return closing ? `${salutation}\n\n${enrichedBody}\n\n${closing}` : `${salutation}\n\n${enrichedBody}`
+    }
+
+    case 'more-emotional':
+    case 'deeper-feeling': {
+      const emotionalBody = bodyParas
+        .map((p, idx) => {
+          if (idx === bodyParas.length - 1) {
+            return `${p} মনের গভীরে যে কথাগুলো জমে ছিল, আজ তা চিঠির পাতায় গভীর অনুভব হয়ে রইল—তুমি আমার জীবনের সবচেয়ে মূল্যবান অনুভূতি।`
+          }
+          return p
+        })
+        .join('\n\n')
+      return closing ? `${salutation}\n\n${emotionalBody}\n\n${closing}` : `${salutation}\n\n${emotionalBody}`
+    }
+
+    case 'more-romantic':
+    case 'romantic': {
+      const romanticBody = bodyParas
+        .map((p, idx) => {
+          if (idx === bodyParas.length - 1) {
+            return `${p} যেখানেই থাকি না কেন, আমার সমস্ত ভালোবাসা নিঃশব্দে তোমার দিকেই ধাবিত হয়।`
+          }
+          return p
+        })
+        .join('\n\n')
+      return closing ? `${salutation}\n\n${romanticBody}\n\n${closing}` : `${salutation}\n\n${romanticBody}`
+    }
+
+    case 'vintage-90s':
+    case '90s-vintage':
+    case '90s-style': {
+      const vintageBody = bodyParas
+        .map((p, idx) => {
+          if (idx === 0) {
+            return `${p} আজ নীল খামে ঝরনা কলমের কালিতে বসে মনের এই আকুলতা লিখে গেলাম।`
+          }
+          return p
+        })
+        .join('\n\n')
+      return closing ? `${salutation}\n\n${vintageBody}\n\n${closing}` : `${salutation}\n\n${vintageBody}`
+    }
+
     case 'simpler-language':
     case 'simpler':
     case 'better-writing':
     case 'more-poetic':
     case 'custom':
     default:
-      if (customInstruction) {
-        return `${cleaned}\n\n[বিশেষ ভাবার্থ: ${customInstruction}]\nসব ভালোবাসা তোমারই জন্য।`
-      }
       return cleaned
   }
 }

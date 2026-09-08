@@ -210,7 +210,7 @@ export function generatePersonalizedFallback(params: GenerateLetterRequest): str
   if (isFather) {
     letter += `ইতি,\nআপনার স্নেহধন্য সন্তান`
   } else if (isMother) {
-    letter += `প্রণাম নেবেন মা,\nআপনার আদরের সন্তান`
+    letter += `অফুরন্ত শ্রদ্ধা ও ভালোবাসাসহ,\nআপনার সন্তান`
   } else if (personality === 'rabindranath-classical') {
     letter += `ইতি তোমার,\nচিরন্তন শুভানুধ্যায়ী`
   } else if (personality === 'mature-apology') {

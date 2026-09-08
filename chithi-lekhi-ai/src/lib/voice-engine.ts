@@ -28,6 +28,9 @@ const isConfigured = Boolean(
   supabaseUrl.startsWith('https://')
 )
 
+import { cleanLetterForSpeech } from './voice-utils'
+export { cleanLetterForSpeech }
+
 /**
  * Compute unique deterministic SHA-256 hash for letter text + voice style
  */
@@ -49,6 +52,8 @@ export interface SynthesizeVoiceResult {
   contentHash: string
   voiceStyle: VoiceStyle
   isDemoFallback?: boolean
+  fallbackToBrowser?: boolean
+  cleanText: string
 }
 
 /**
@@ -59,7 +64,8 @@ export async function synthesizeVoiceLetter(
 ): Promise<SynthesizeVoiceResult> {
   const { text, voiceStyle, isServer = true } = params
   const config = VOICE_STYLES[voiceStyle] || VOICE_STYLES.warm
-  const contentHash = computeVoiceHash(text, voiceStyle)
+  const cleanText = cleanLetterForSpeech(text)
+  const contentHash = computeVoiceHash(cleanText, voiceStyle)
 
   // 1. Check in-memory cost-optimization cache
   const inMem = inMemoryVoiceCache.get(contentHash)
@@ -70,6 +76,7 @@ export async function synthesizeVoiceLetter(
       fromCache: true,
       contentHash,
       voiceStyle,
+      cleanText,
     }
   }
 
@@ -96,6 +103,7 @@ export async function synthesizeVoiceLetter(
           fromCache: true,
           contentHash,
           voiceStyle,
+          cleanText,
         }
       }
     } catch (err) {
@@ -107,7 +115,7 @@ export async function synthesizeVoiceLetter(
   if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'mock_key_for_build' && openai) {
     try {
       // Chunk text if very large to prevent token blowup (max 4096 chars per TTS call)
-      const sanitized = text.slice(0, 4000).trim()
+      const sanitized = cleanText.slice(0, 4000).trim()
 
       const response = await openai.audio.speech.create({
         model: 'tts-1',
@@ -150,84 +158,24 @@ export async function synthesizeVoiceLetter(
         fromCache: false,
         contentHash,
         voiceStyle,
+        fallbackToBrowser: false,
+        cleanText,
       }
     } catch (err) {
       console.error('[VoiceEngine] OpenAI TTS synthesis error:', err)
     }
   }
 
-  // 4. Fallback: Generate lightweight synthesized acoustic chime / melody audio (WAV)
-  // This guarantees $0 development/offline cost and instant browser preview.
-  const fallbackWav = generateSynthesizedAudioTone(text.length, config.radioFilter)
-  inMemoryVoiceCache.set(contentHash, {
-    audioBase64: fallbackWav,
-    format: 'wav',
-    style: voiceStyle,
-  })
-
+  // 4. Clean Browser Speech Fallback (Dual Engine)
+  // When OpenAI TTS is offline, unconfigured, or rate-limited, delegate directly
+  // to browser SpeechSynthesis to read the ACTUAL letter text with appropriate style pitch/rate.
   return {
-    audioBase64: fallbackWav,
-    format: 'wav',
+    audioBase64: '',
+    format: 'mp3',
     fromCache: false,
     contentHash,
     voiceStyle,
-    isDemoFallback: true,
+    fallbackToBrowser: true,
+    cleanText,
   }
-}
-
-/**
- * Generate a subtle melodic harp & chime tone (WAV) representing the emotional cadence
- * for offline and zero-cost test environments.
- */
-function generateSynthesizedAudioTone(durationChars: number, radioFilter: boolean): string {
-  const sampleRate = 22050
-  const seconds = Math.min(Math.max(durationChars * 0.05, 3), 12)
-  const totalSamples = Math.floor(sampleRate * seconds)
-  const buffer = Buffer.alloc(44 + totalSamples * 2)
-
-  // WAV Header
-  buffer.write('RIFF', 0)
-  buffer.writeUInt32LE(36 + totalSamples * 2, 4)
-  buffer.write('WAVE', 8)
-  buffer.write('fmt ', 12)
-  buffer.writeUInt32LE(16, 16) // Subchunk1Size (16 for PCM)
-  buffer.writeUInt16LE(1, 20) // AudioFormat (1 = PCM)
-  buffer.writeUInt16LE(1, 22) // NumChannels (1 = Mono)
-  buffer.writeUInt32LE(sampleRate, 24) // SampleRate
-  buffer.writeUInt32LE(sampleRate * 2, 28) // ByteRate
-  buffer.writeUInt16LE(2, 32) // BlockAlign
-  buffer.writeUInt16LE(16, 34) // BitsPerSample
-  buffer.write('data', 36)
-  buffer.writeUInt32LE(totalSamples * 2, 40)
-
-  // Gentle acoustic frequencies (Pentatonic emotional chord: D, F#, A, B, D)
-  const baseFreqs = [293.66, 369.99, 440.0, 493.88, 587.33]
-
-  for (let i = 0; i < totalSamples; i++) {
-    const t = i / sampleRate
-    const noteIdx = Math.floor((t * 2) % baseFreqs.length)
-    const freq = baseFreqs[noteIdx]
-
-    // Envelope
-    const noteTime = (t * 2) % 1
-    const env = Math.exp(-noteTime * 3)
-
-    let sample = Math.sin(2 * Math.PI * freq * t) * env * 0.35
-
-    // Add radio warmth / harmonic saturation if vintage-radio
-    if (radioFilter) {
-      sample = Math.sin(sample * 1.8) * 0.8 // soft saturation
-      sample += (Math.random() - 0.5) * 0.02 // slight vintage tape/radio air
-    }
-
-    // Fade out at end
-    if (t > seconds - 0.5) {
-      sample *= Math.max(0, (seconds - t) / 0.5)
-    }
-
-    const int16 = Math.max(-32768, Math.min(32767, Math.floor(sample * 32767)))
-    buffer.writeInt16LE(int16, 44 + i * 2)
-  }
-
-  return buffer.toString('base64')
 }

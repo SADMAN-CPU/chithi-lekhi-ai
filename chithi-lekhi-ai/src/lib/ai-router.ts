@@ -157,6 +157,13 @@ export function validateAndCleanResponse(
     }
   }
 
+  // Strip bracketed notes like [নোট:...], [ডাকটিকিট:...], [Note:...]
+  cleaned = cleaned.replace(/\[(?:ডাকটিকিট|বিশেষ ভাবার্থ|বিশেষ ভাবনা|নোট|বি\.দ্র\.|Note|P\.S\.|Special Thought|উপসংহার)[^\]]*\]/gi, '')
+  cleaned = cleaned.replace(/^\s*\[[^\]]{2,100}\]\s*$/gm, '')
+
+  // Strip trailing meta blocks (e.g. "বিশেষ দ্রষ্টব্য: ...")
+  cleaned = cleaned.replace(/\n+\s*(?:বিশেষ দ্রষ্টব্য|বি\.দ্র\.|বিশেষ ভাবনা|পরিমার্জিত অংশ|সংশোধিত চিঠি|Note|P\.S\.):[\s\S]*$/gi, '').trim()
+
   // Check minimum length (at least 50 characters for a real letter)
   if (cleaned.length < 50) {
     issues.push('Letter is too short (less than 50 characters)')

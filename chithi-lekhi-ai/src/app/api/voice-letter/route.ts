@@ -36,17 +36,20 @@ export async function POST(request: NextRequest) {
       isServer: true,
     })
 
-    const audioDataUri = `data:audio/${result.format};base64,${result.audioBase64}`
+    const hasAudioData = Boolean(result.audioBase64)
+    const audioDataUri = hasAudioData ? `data:audio/${result.format};base64,${result.audioBase64}` : null
 
     return NextResponse.json(
       {
         success: true,
+        mode: hasAudioData ? 'server-tts' : 'browser-speech',
+        fallbackToBrowser: Boolean(result.fallbackToBrowser || !hasAudioData),
         audioDataUri,
+        cleanText: result.cleanText,
         format: result.format,
         fromCache: result.fromCache,
         contentHash: result.contentHash,
         voiceStyle: result.voiceStyle,
-        isDemoFallback: Boolean(result.isDemoFallback),
         styleInfo: VOICE_STYLES[selectedStyle],
         receiverName: receiverName ? sanitizeInput(receiverName) : undefined,
       },

@@ -102,17 +102,24 @@ export const RELATIONSHIP_OPTIONS: Array<{
   },
   {
     value: 'mother',
-    label: 'মা (Mother)',
-    labelEn: 'Mother',
+    label: 'মা / আম্মু (Mother / Ammu)',
+    labelEn: 'Mother / Ammu',
     emoji: '🤱',
     description: 'স্নেহের আঁচল, নিঃস্বার্থ ত্যাগ ও পরম আশ্রয়',
   },
   {
     value: 'father',
-    label: 'বাবা (Father)',
-    labelEn: 'Father',
+    label: 'বাবা / আব্বু (Father / Abbu)',
+    labelEn: 'Father / Abbu',
     emoji: '🌿',
     description: 'নিঃশব্দ বটবৃক্ষের মতো ভরসার ছায়া ও প্রেরণা',
+  },
+  {
+    value: 'sibling',
+    label: 'ভাই / বোন (Sibling)',
+    labelEn: 'Brother / Sister',
+    emoji: '👫',
+    description: 'শৈশবের খুনসুটি, অকৃত্রিম টান ও আজন্ম নির্ভরতা',
   },
   {
     value: 'friend',
@@ -129,11 +136,18 @@ export const RELATIONSHIP_OPTIONS: Array<{
     description: 'যার কাছে মনের সব না-বলা কথা বলা যায়',
   },
   {
+    value: 'mentor',
+    label: 'শিক্ষক / মেন্টর (Teacher / Mentor)',
+    labelEn: 'Teacher / Mentor',
+    emoji: '🎓',
+    description: 'দিকনির্দেশক, শ্রদ্ধেয় গুরুজন ও পথের দিশারী',
+  },
+  {
     value: 'family',
     label: 'পরিবার / আত্মীয়',
     labelEn: 'Family',
     emoji: '🏡',
-    description: 'ভাই, বোন বা পরিবারের প্রিয় স্বজন',
+    description: 'পরিবারের প্রিয় স্বজন ও রক্ত সম্পর্কের আপনজন',
   },
   {
     value: 'lost-person',
@@ -340,6 +354,289 @@ export const FEELING_SUGGESTIONS: SuggestionItem[] = [
     en: 'Feeling your soothing presence even in my deepest solitude',
   },
 ]
+
+export const RELATIONSHIP_CONTEXTUAL_SUGGESTIONS: Record<
+  string,
+  {
+    memories: SuggestionItem[]
+    situations: SuggestionItem[]
+    feelings: SuggestionItem[]
+  }
+> = {
+  mother: {
+    memories: [
+      {
+        bn: 'ছোটবেলায় অসুস্থ হলে সারারাত মাথায় হাত বুলিয়ে দেওয়া',
+        en: 'Staying awake all night comforting me during childhood illness',
+      },
+      {
+        bn: 'স্কুল থেকে ফিরে তোমার হাতের গরম ভাতের অমলিন সুবাস',
+        en: 'The comforting aroma of your home-cooked meal after school',
+      },
+      {
+        bn: 'আমাদের আবদার মেটাতে তোমার নীরবে নিজের শখ বিসর্জন দেওয়া',
+        en: 'Your quiet sacrifices to fulfill our small childhood wishes',
+      },
+      {
+        bn: 'বড় হয়ে দূর শহরে এসে তোমার পরম যত্নের অভাব অনুভব করা',
+        en: 'Feeling the void of your unconditional warmth in a distant city',
+      },
+    ],
+    situations: [
+      {
+        bn: 'আজ তোমার জন্মদিনে দূরে থেকেও অফুরন্ত ভালোবাসা জানাতে চাই',
+        en: 'Wishing you on your birthday with endless devotion from afar',
+      },
+      {
+        bn: 'ব্যস্ততার ভিড়ে প্রতিদিন ফোন করা হয় না, কিন্তু মনে থাকো সবসময়',
+        en: "Busy days keep me from calling, but you live in my heart daily",
+      },
+      {
+        bn: 'জীবনের কঠিন সময়ে তোমার দোয়া আর নির্ভরতার গভীর প্রয়োজন',
+        en: 'Deeply needing your prayers and steady blessing in tough times',
+      },
+    ],
+    feelings: [
+      {
+        bn: 'তোমার প্রতি অফুরন্ত শ্রদ্ধা, অপত্য ভালোবাসা ও আজন্ম কৃতজ্ঞতা',
+        en: 'Boundless reverence, filial devotion, and lifelong gratitude',
+      },
+      {
+        bn: 'কখনো মুখে ধন্যবাদ বলা হয়নি, আজ চিঠির অক্ষরে সবটুকু প্রকাশ',
+        en: 'Never could thank you in person; expressing it in this letter today',
+      },
+      {
+        bn: 'তোমার সুস্বাস্থ্য ও দীর্ঘায়ুর জন্য প্রতি নিঃশ্বাসে অন্তরের দোয়া',
+        en: 'Praying with every heartbeat for your good health and long life',
+      },
+    ],
+  },
+  father: {
+    memories: [
+      {
+        bn: 'ছোটবেলায় তোমার শক্ত হাত ধরে প্রথম নির্ভয়ে পথ চলার স্মৃতি',
+        en: 'Holding your protective hand while learning to walk fearlessly',
+      },
+      {
+        bn: 'আমাদের মুখে হাসি ফোটাতে তোমার রোদ-বৃষ্টি মাথায় নিয়ে অবিরাম পরিশ্রম',
+        en: 'Your relentless toil through heat and rain just to bring us joy',
+      },
+      {
+        bn: 'কখনো নিজের জন্য কিছু না চেয়ে সবসময় সন্তানদের আবদার আগে রাখা',
+        en: 'Never asking for yourself, always placing your family first',
+      },
+      {
+        bn: 'পরীক্ষায় ভালো ফলাফল করার পর তোমার চোখের নীরব গর্বের ঝলক',
+        en: 'The quiet glow of fatherly pride in your eyes after my success',
+      },
+    ],
+    situations: [
+      {
+        bn: 'বড় হওয়ার পর উপলব্ধি করছি আমাদের জন্য কতটা ত্যাগ তুমি করেছো',
+        en: 'Now as an adult I truly comprehend the magnitude of your sacrifices',
+      },
+      {
+        bn: 'আজ বিশেষ দিনে তোমার চরণে বিনম্র শ্রদ্ধা ও ভালোবাসা জানাতে চাই',
+        en: 'On this special day, offering my deepest respect and love to you',
+      },
+      {
+        bn: 'জীবনের প্রতিটি পদক্ষেপে তোমার সততা ও আদর্শই আমার প্রধান পাথেয়',
+        en: 'Your honesty and principles remain my enduring compass in life',
+      },
+    ],
+    feelings: [
+      {
+        bn: 'মুখে বলা হয়নি কখনো, কিন্তু মনে মনে তুমিই আমার জীবনের সবচেয়ে বড় শক্তি',
+        en: "Never spoken aloud, but you are my greatest strength and role model",
+      },
+      {
+        bn: 'তোমার ছায়াতলে সন্তান হিসেবে বেড়ে ওঠার অপরিসীম গর্ব ও শ্রদ্ধা',
+        en: 'Immense pride and reverent gratitude for being raised in your shelter',
+      },
+      {
+        bn: 'সবসময় তোমার মুখ উজ্জ্বল করার আন্তরিক আত্মপ্রত্যয়',
+        en: 'A heartfelt promise to honor your legacy and make you proud',
+      },
+    ],
+  },
+  sibling: {
+    memories: [
+      {
+        bn: 'ছোটবেলার সেই খুনসুটি, খুনসুটির পর পরই আবার একসাথে ভাগ করে খাওয়া',
+        en: 'Childhood silly fights followed immediately by sharing treats',
+      },
+      {
+        bn: 'পারিবারিক বকুনি থেকে একে অপরকে রক্ষা করার গোপন সমঝোতা',
+        en: 'Conspiring together to shield each other from scolding',
+      },
+      {
+        bn: 'এক ছাদের নিচে বড় হয়ে ওঠার খুনসুটি আর হাসির অমূল্য দিনগুলো',
+        en: 'The golden days of growing up and laughing under one roof',
+      },
+    ],
+    situations: [
+      {
+        bn: 'আজ তোমার বিশেষ দিনে অনেক অনেক ভালোবাসা ও আন্তরিক শুভেচ্ছা',
+        en: 'Sending heartfelt congratulations and love on your special milestone',
+      },
+      {
+        bn: 'এখন যে যার মতো দূরে থাকি, পুরোনো আড্ডার সেই দিনগুলো খুব মিস করি',
+        en: 'Living far apart now, missing our everyday childhood banter',
+      },
+    ],
+    feelings: [
+      {
+        bn: 'যতই খুনসুটি হোক, তোর প্রতি আমার টান আর স্নেহ চিরকালের',
+        en: 'Beyond all our teasing, my love and affection for you are timeless',
+      },
+      {
+        bn: 'জীবনের প্রতিটি বাঁকে সবসময় তোর পাশে ছায়ার মতো আছি ও থাকব',
+        en: 'I will stand steadfastly by your side through every chapter of life',
+      },
+    ],
+  },
+  mentor: {
+    memories: [
+      {
+        bn: 'জীবনের দিকভ্রান্ত মুহূর্তে আপনার মূল্যবান পরামর্শ ও সঠিক দিকনির্দেশনা',
+        en: 'Your invaluable counsel when I felt uncertain about the future',
+      },
+      {
+        bn: 'আমার সামর্থ্যের ওপর আপনার অটল আস্থা ও আত্মবিশ্বাস জাগিয়ে তোলা',
+        en: 'Your steadfast belief in my capabilities when I doubted myself',
+      },
+    ],
+    situations: [
+      {
+        bn: 'আজকের এই অবস্থানে পৌঁছানোর পেছনে আপনার ভূমিকা অনস্বীকার্য',
+        en: 'Your mentorship is the cornerstone of where I stand today',
+      },
+      {
+        bn: 'বিশেষ মুহূর্তে আপনাকে হৃদয় নিংড়ানো বিনম্র শ্রদ্ধা জানাতে এই চিঠি',
+        en: 'Writing to express my profound reverence and respect to you',
+      },
+    ],
+    feelings: [
+      {
+        bn: 'আপনার নিঃস্বার্থ শিক্ষাদান ও অনুপ্রেরণার প্রতি আজীবন বিনম্র কৃতজ্ঞতা',
+        en: 'Lifelong gratitude for your dedicated mentorship and inspiration',
+      },
+    ],
+  },
+  friend: {
+    memories: [
+      {
+        bn: 'বৃষ্টির দিনে চায়ের দোকানে ঘণ্টার পর ঘণ্টা জীবনের গল্প করা',
+        en: 'Hours of endless storytelling over steaming tea on rainy days',
+      },
+      {
+        bn: 'কঠিন সময়ে যখন সবাই দূরে সরে গিয়েছিল, তুই পাশে দাঁড়িয়েছিলি',
+        en: 'When everyone drifted away, you stood steadfastly by my side',
+      },
+      {
+        bn: 'একসাথে কাটানো পাগলামি, প্রাণখোলা হাসি আর সোনালী আড্ডার স্মৃতি',
+        en: 'Golden memories of hearty laughter and effortless companionship',
+      },
+    ],
+    situations: [
+      {
+        bn: 'অনেক দিন দেখা হয় না, কিন্তু মনের সংযোগ আগের মতোই তাজা',
+        en: "We haven't met in a long time, but our bond remains vibrant",
+      },
+      {
+        bn: 'আজ তোর জন্মদিনে প্রাণখোলা অভিনন্দন ও অফুরন্ত শুভকামনা',
+        en: 'Warmest birthday cheers and deepest well-wishes on your big day',
+      },
+    ],
+    feelings: [
+      {
+        bn: 'তোর মতো একজন খাঁটি বন্ধু পাওয়া আমার জীবনের বড় পাওয়া',
+        en: 'Finding a true friend like you is a genuine blessing in life',
+      },
+      {
+        bn: 'দূরত্ব যাই হোক, আমাদের বন্ধুত্ব কখনো ম্লান হবে না',
+        en: 'No distance can ever diminish the strength of our friendship',
+      },
+    ],
+  },
+  lover: {
+    memories: [
+      {
+        bn: 'এক ছাতার নিচে একসাথে ভেজা বৃষ্টির সেই অবিস্মরণীয় বিকেল',
+        en: 'That unforgettable afternoon sharing an umbrella in the pouring rain',
+      },
+      {
+        bn: 'প্রথমবার যখন দুজন দুজনের চোখের দিকে তাকিয়ে স্তব্ধ হয়েছিলাম',
+        en: 'That breathless silence the first time our eyes truly met',
+      },
+      {
+        bn: 'গভীর রাতে ফিসফিস করে ঘণ্টার পর ঘণ্টা মনের কথা বলা',
+        en: 'Whispering heartfelt confessions late into the night for hours',
+      },
+    ],
+    situations: [
+      {
+        bn: 'আজ এই বিশেষ ক্ষণে আমার হৃদয় নিংড়ানো ভালোবাসা জানাতে চাই',
+        en: 'Wishing to pour out the deepest devotion of my heart on this day',
+      },
+      {
+        bn: 'দূরে থাকলেও প্রতি ক্ষণে তোমার উপস্থিতি আমার নিঃশ্বাসে অনুভব করি',
+        en: 'Though miles apart, I feel your warmth in every breath I take',
+      },
+      {
+        bn: 'অভিমানের মেঘ কাটিয়ে আবার আগের মতো আপন হতে চাই',
+        en: 'Wishing to clear every misunderstanding and hold you close again',
+      },
+    ],
+    feelings: [
+      {
+        bn: 'আমার পুরোটা পৃথিবী জুড়ে কেবল তোমারই মায়াবী সুর ও অস্তিত্ব',
+        en: 'My whole world resonates with your gentle presence and love',
+      },
+      {
+        bn: 'প্রতিটি জন্মে তোমাকেই নতুন করে ভালোবাসার চিরন্তন অঙ্গীকার',
+        en: 'An eternal promise to fall in love with you in every lifetime',
+      },
+      {
+        bn: 'তোমার একটা মিষ্টি হাসির কাছে আমার সমস্ত ক্লান্তি দূর হয়ে যায়',
+        en: 'A single warm smile of yours melts all my exhaustion away',
+      },
+    ],
+  },
+}
+
+export function getSuggestionsForRelationship(relationship: string): {
+  memories: SuggestionItem[]
+  situations: SuggestionItem[]
+  feelings: SuggestionItem[]
+} {
+  const rel = (relationship || '').toLowerCase()
+  if (rel === 'mother' || rel.includes('মা') || rel.includes('আম্মু')) {
+    return RELATIONSHIP_CONTEXTUAL_SUGGESTIONS.mother
+  }
+  if (rel === 'father' || rel.includes('বাবা') || rel.includes('আব্বু')) {
+    return RELATIONSHIP_CONTEXTUAL_SUGGESTIONS.father
+  }
+  if (rel === 'sibling' || rel.includes('ভাই') || rel.includes('বোন')) {
+    return RELATIONSHIP_CONTEXTUAL_SUGGESTIONS.sibling
+  }
+  if (rel === 'mentor' || rel.includes('শিক্ষক') || rel.includes('গুরু')) {
+    return RELATIONSHIP_CONTEXTUAL_SUGGESTIONS.mentor
+  }
+  if (rel === 'lover' || rel === 'spouse' || rel === 'crush' || rel.includes('প্রেম') || rel.includes('ভালোবাসা') || rel.includes('বউ') || rel.includes('স্বামী')) {
+    return RELATIONSHIP_CONTEXTUAL_SUGGESTIONS.lover
+  }
+  if (rel === 'friend' || rel === 'best-friend' || rel.includes('বন্ধু') || rel.includes('দোস্ত')) {
+    return RELATIONSHIP_CONTEXTUAL_SUGGESTIONS.friend
+  }
+
+  // Fallback to default memories, situations, and feelings
+  return {
+    memories: MEMORY_SUGGESTIONS,
+    situations: SITUATION_SUGGESTIONS,
+    feelings: FEELING_SUGGESTIONS,
+  }
+}
 
 // ─── Emotion Options (Phase 02) ───────────────────────────────────────────────
 

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useMemo } from 'react'
 import {
   Heart,
   Feather,
@@ -14,9 +14,7 @@ import {
   LETTER_LENGTH_OPTIONS,
   WRITING_PERSONALITIES,
   LANGUAGES,
-  MEMORY_SUGGESTIONS,
-  SITUATION_SUGGESTIONS,
-  FEELING_SUGGESTIONS,
+  getSuggestionsForRelationship,
 } from '@/constants'
 import { useLanguage } from '@/components/providers/LanguageProvider'
 import { useWritingLanguage } from '@/hooks/useWritingLanguage'
@@ -64,6 +62,11 @@ export function EmotionalStorytellerForm({
     initialValues?.language || null
   )
   const language = selectedLanguage || writingLanguage
+
+  // Dynamic suggestions tailored to selected relationship
+  const contextualSuggestions = useMemo(() => {
+    return getSuggestionsForRelationship(relationship)
+  }, [relationship])
 
   // UI / Loading states
   const [loading, setLoading] = useState(false)
@@ -326,7 +329,7 @@ export function EmotionalStorytellerForm({
               {t('form.memoryInspire')}
             </span>
             <div className="flex flex-wrap gap-1.5 pt-0.5">
-              {MEMORY_SUGGESTIONS.slice(0, 4).map((suggestion, i) => {
+              {contextualSuggestions.memories.slice(0, 4).map((suggestion, i) => {
                 const text = locale === 'en' ? suggestion.en : suggestion.bn
                 return (
                   <button
@@ -361,7 +364,7 @@ export function EmotionalStorytellerForm({
           />
           {/* Situation suggestions */}
           <div className="flex flex-wrap gap-1.5 pt-0.5">
-            {SITUATION_SUGGESTIONS.slice(0, 3).map((item, i) => {
+            {contextualSuggestions.situations.slice(0, 3).map((item, i) => {
               const text = locale === 'en' ? item.en : item.bn
               return (
                 <button
@@ -395,7 +398,7 @@ export function EmotionalStorytellerForm({
           <div className="space-y-1">
             <span className="text-[11px] font-bengali text-neutral-500 dark:text-neutral-400">{t('form.quickFeelings')}</span>
             <div className="flex flex-wrap gap-1.5 pt-0.5">
-              {FEELING_SUGGESTIONS.map((item, i) => {
+              {contextualSuggestions.feelings.map((item, i) => {
                 const text = locale === 'en' ? item.en : item.bn
                 return (
                   <button

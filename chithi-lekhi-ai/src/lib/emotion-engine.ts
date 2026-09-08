@@ -25,7 +25,7 @@ export interface EmotionalContextAnalysis {
 
 // ─── Relationship Dynamics Knowledge Base ────────────────────────────────────
 
-const RELATIONSHIP_DYNAMICS: Record<
+export const RELATIONSHIP_DYNAMICS: Record<
   string,
   {
     intimacyLevel: EmotionalContextAnalysis['relationshipContext']['intimacyLevel']
@@ -70,7 +70,7 @@ const RELATIONSHIP_DYNAMICS: Record<
     intimacyLevel: 'reverent',
     bengaliTone: 'পরম শ্রদ্ধা, অপত্য স্নেহ, মাতৃত্বের অসীম ত্যাগ ও আঁচলের সুবাস',
     addressSuggestions: ['শ্রদ্ধেয়া মা,', 'মা আমার,', 'আম্মু,'],
-    signoffSuggestions: ['তোমার স্নেহের সন্তান,', 'তোমার চরণে অনন্ত প্রণাম,', 'তোমার আশীর্বাদের ছায়ায়...'],
+    signoffSuggestions: ['তোমার স্নেহের সন্তান,', 'অফুরন্ত শ্রদ্ধা ও ভালোবাসাসহ,', 'তোমার স্নেহের ছায়ায়...'],
     psychologicalCues: [
       'মায়ের বিনিদ্র রজনী, অসুস্থতায় সেবা এবং আঁচলের চিরশান্তি স্মৃতিতে আনুন।',
       'ব্যস্ততার কারণে ঠিকমতো খোঁজ না নেওয়ার মৃদু অপরাধবোধ ও অশেষ কৃতজ্ঞতা প্রকাশ করুন।',
@@ -81,7 +81,7 @@ const RELATIONSHIP_DYNAMICS: Record<
     intimacyLevel: 'reverent',
     bengaliTone: 'নীরব বটবৃক্ষের মতো ছায়া, গম্ভীর ভালোবাসা ও আজন্ম কৃতজ্ঞতা',
     addressSuggestions: ['শ্রদ্ধেয় বাবা,', 'আব্বু,', 'আমার জীবনের পথপ্রদর্শক,'],
-    signoffSuggestions: ['তোমার গর্বিত সন্তান,', 'প্রণামান্তে তোমার সন্তান,', 'তোমারই ছায়ায় বেড়ে ওঠা...'],
+    signoffSuggestions: ['আপনার গর্বিত সন্তান,', 'শ্রদ্ধা ও ভালোবাসাসহ আপনার সন্তান,', 'আপনারই ছায়ায় বেড়ে ওঠা...'],
     psychologicalCues: [
       'বাবার নিঃশব্দ ত্যাগ, মাথার ঘাম পায়ে ফেলে সন্তানদের জন্য সব বিলিয়ে দেওয়ার কথা স্মরণ করুন।',
       'মুখে হয়তো ভালোবাসি বলা হয়নি কখনো, কিন্তু মনে মনে বাবা সবসময়ই আদর্শ ও সাহসের উৎস।',
@@ -94,6 +94,24 @@ const RELATIONSHIP_DYNAMICS: Record<
     signoffSuggestions: ['পারিবারিক ভালোবাসায়,', 'সবসময়ের শুভকামনায়,', 'তোমার আপনজন'],
     psychologicalCues: [
       'একসাথে বড় হওয়া, পুরোনো বাড়ির স্মৃতি ও চিরন্তন মমত্ববোধ ব্যক্ত করুন।',
+    ],
+  },
+  sibling: {
+    intimacyLevel: 'tender',
+    bengaliTone: 'শৈশবের খুনসুটি, অকৃত্রিম রক্তের টান ও আজন্ম নির্ভরতা',
+    addressSuggestions: ['স্নেহের...,', 'প্রিয় ভাইয়া/আপু,', 'আমার আদরের...'],
+    signoffSuggestions: ['তোরই ভাই/বোন,', 'সবসময়ের ভালোবাসায়,', 'তোর পাশে সবসময়'],
+    psychologicalCues: [
+      'একসাথে বড় হওয়া, খুনসুটি এবং পরিবারের বিপদে একে অপরের পাশে ঢাল হয়ে দাঁড়ানোর চিরন্তন বন্ধন তুলে ধরুন।',
+    ],
+  },
+  mentor: {
+    intimacyLevel: 'reverent',
+    bengaliTone: 'বিনম্র শ্রদ্ধা, আজীবন কৃতজ্ঞতা ও গুরুজনের প্রতি সম্মান',
+    addressSuggestions: ['শ্রদ্ধেয় স্যার,', 'শ্রদ্ধেয়া ম্যাডাম,', 'শ্রদ্ধেয় শিক্ষক,'],
+    signoffSuggestions: ['আপনার কৃতজ্ঞ শিক্ষার্থী,', 'বিনম্র শ্রদ্ধাসহ আপনার ছাত্র/ছাত্রী,', 'আপনার স্নেহধন্য'],
+    psychologicalCues: [
+      'শিক্ষকের দিকনির্দেশনা কীভাবে জীবনের মোড় ঘুরিয়ে দিয়েছিল তা শ্রদ্ধার সাথে স্মরণ করুন।',
     ],
   },
   friend: {
@@ -158,7 +176,7 @@ const RELATIONSHIP_DYNAMICS: Record<
 
 // ─── Emotion Dynamics Knowledge Base ─────────────────────────────────────────
 
-const EMOTION_PROFILES: Record<
+export const EMOTION_PROFILES: Record<
   string,
   {
     bengaliLabel: string

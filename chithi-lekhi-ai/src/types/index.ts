@@ -21,6 +21,8 @@ export type Relationship =
   | 'husband-wife'
   | 'best-friend'
   | 'family'
+  | 'sibling'
+  | 'mentor'
   | 'lost-connection'
   | 'someone-special'
 

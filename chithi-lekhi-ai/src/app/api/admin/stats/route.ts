@@ -58,7 +58,7 @@ export async function GET(_request: NextRequest) {
         }
 
         const { count: usersCount } = await supabase
-          .from('user_quotas')
+          .from('profiles')
           .select('*', { count: 'exact', head: true })
 
         if (typeof usersCount === 'number') {

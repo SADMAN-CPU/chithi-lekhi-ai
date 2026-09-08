@@ -8,6 +8,8 @@ export interface VoiceStyleConfig {
   emoji: string
   openaiVoice: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer'
   speed: number
+  speechRate: number
+  speechPitch: number
   radioFilter: boolean
 }
 
@@ -20,6 +22,8 @@ export const VOICE_STYLES: Record<VoiceStyle, VoiceStyleConfig> = {
     emoji: '🌸',
     openaiVoice: 'shimmer',
     speed: 0.92,
+    speechRate: 0.88,
+    speechPitch: 1.05,
     radioFilter: false,
   },
   emotional: {
@@ -30,6 +34,8 @@ export const VOICE_STYLES: Record<VoiceStyle, VoiceStyleConfig> = {
     emoji: '❤️',
     openaiVoice: 'nova',
     speed: 0.9,
+    speechRate: 0.82,
+    speechPitch: 0.92,
     radioFilter: false,
   },
   storytelling: {
@@ -40,16 +46,20 @@ export const VOICE_STYLES: Record<VoiceStyle, VoiceStyleConfig> = {
     emoji: '📖',
     openaiVoice: 'fable',
     speed: 0.95,
+    speechRate: 0.95,
+    speechPitch: 1.0,
     radioFilter: false,
   },
   'vintage-radio': {
     id: 'vintage-radio',
-    nameBn: '৯০ দশকের ভিন্টেজ রেডিও',
-    nameEn: '90s Vintage Radio',
-    descriptionBn: 'ট্রানজিস্টর রেডিওর নস্টালজিক অনুরণন',
+    nameBn: '৯০ দশকের ভিন্টেজ',
+    nameEn: 'Classic / Vintage',
+    descriptionBn: 'নস্টালজিক ও ক্লাসিক অনুভূতি',
     emoji: '📻',
     openaiVoice: 'onyx',
     speed: 0.93,
+    speechRate: 0.88,
+    speechPitch: 0.95,
     radioFilter: true,
   },
 }

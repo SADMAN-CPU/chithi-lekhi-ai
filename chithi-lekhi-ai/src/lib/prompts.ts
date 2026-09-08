@@ -57,9 +57,13 @@ const RELATIONSHIP_NUANCE: Record<string, string> = {
   'husband-wife':
     'Recipient is husband or wife. Express the sacred comfort of shared years, quiet devotion, domestic warmth, and love that has deepened beyond mere words.',
   mother:
-    'Recipient is mother (মা). Infuse deep reverence, unconditional maternal warmth, gratitude for sacrifices, memories of her comforting presence and tender lap.',
+    'Recipient is mother (মা / আম্মু). Infuse deep reverence, unconditional maternal warmth, gratitude for sacrifices, memories of her comforting presence. Culturally inclusive, tender tone.',
   father:
-    'Recipient is father (বাবা). Respectful, proud, honoring his silent sacrifices, protective guidance, and the quiet dignity of a loving father.',
+    'Recipient is father (বাবা / আব্বু). Respectful (use \'আপনি\'), honoring his silent sacrifices, protective guidance, and steadfast dignity. Culturally inclusive, honoring tone.',
+  'brother-sister':
+    'Recipient is brother or sister (ভাই / বোন). Warm, nostalgic, shared childhood memories, playful teasing, and unbreakable lifelong sibling bond.',
+  'mentor-teacher':
+    'Recipient is a respected teacher or mentor (শিক্ষক / গুরুজন). Deeply respectful (use \'আপনি\'), expressing lifelong gratitude for guidance, wisdom, and encouragement.',
   friend:
     'Recipient is a friend. Authentic, candid, warm banter, shared laughs, shared struggles, and steadfast loyalty with zero pretension.',
   'best-friend':
@@ -198,16 +202,24 @@ export function buildLetterPrompt(params: GenerateLetterRequest): string {
   const relStr = (params.relationship || '').toString().toLowerCase()
   const isFather = relStr === 'father' || relStr.includes('বাবা') || relStr.includes('আব্বা')
   const isMother = relStr === 'mother' || relStr.includes('মা') || relStr.includes('আম্মা')
+  const isMentor = relStr === 'mentor' || relStr.includes('শিক্ষক') || relStr.includes('মেন্টর')
+  const isSibling = relStr === 'sibling' || relStr.includes('ভাই') || relStr.includes('বোন')
 
   let greetingRule = `1. Start directly with an affectionate greeting addressing ${params.receiverName} (e.g. "প্রিয় ${params.receiverName}," or appropriate intimate greeting).`
-  let closingRule = `5. End with a heartfelt, era- and personality-appropriate closing and emotional sign-off (e.g. "ইতি তোমার...", "ভালোবাসায়...", "সবসময় তোমারই...", "শুভকামনায়...").`
+  let closingRule = `5. End with a heartfelt, era- and personality-appropriate closing and emotional sign-off (e.g. "ইতি তোমার...", "ভালোবাসায়...", "সবসময় তোমারই...", "শুভকামনায়...", "অনেক ভালোবাসা রইল...").`
 
   if (isFather) {
-    greetingRule = `1. Start with a respectful and deeply affectionate greeting for Father (e.g. "শ্রদ্ধেয় বাবা," or "বাবা," or "পূজনীয় বাবা,"). NEVER address a father casually as "প্রিয় ${params.receiverName}" as that is culturally inappropriate in Bengali heritage.`
-    closingRule = `5. End with a reverent and tender closing for Father (e.g. "ইতি আপনার স্নেহধন্য সন্তান...", "প্রণামান্তে...", "আপনার আদরের সন্তান..."). NEVER use romantic or peer phrases like "সবসময় তোমারই".`
+    greetingRule = `1. Start with a respectful and deeply affectionate greeting for Father/Abbu (e.g. "শ্রদ্ধেয় বাবা," or "শ্রদ্ধেয় আব্বু," or "বাবা,"). Use the respectful pronoun 'আপনি'. NEVER address a father casually as "প্রিয় ${params.receiverName}".`
+    closingRule = `5. End with a reverent, culturally inclusive, and tender closing for Father (e.g. "শ্রদ্ধা ও ভালোবাসাসহ, আপনার সন্তান", "ইতি, আপনার স্নেহধন্য সন্তান", "আপনারই স্নেহের ছায়ায়..."). Must be universally suitable and culturally inclusive across all backgrounds. Never use romantic phrases like "সবসময় তোমারই".`
   } else if (isMother) {
-    greetingRule = `1. Start with a tender, reverent greeting for Mother (e.g. "শ্রদ্ধেয়া মা," or "মা," or "পূজনীয় মা,"). NEVER address a mother casually as "প্রিয় ${params.receiverName}".`
-    closingRule = `5. End with a warm, grateful, and devoted closing for Mother (e.g. "ইতি তোমার স্নেহধন্য সন্তান...", "প্রণাম নেবেন মা...", "তোমার আদরের সন্তান..."). NEVER use romantic or peer phrases like "সবসময় তোমারই".`
+    greetingRule = `1. Start with a tender, reverent greeting for Mother/Ammu (e.g. "শ্রদ্ধেয়া মা," or "মা আমার," or "আম্মু,"). NEVER address a mother casually as "প্রিয় ${params.receiverName}".`
+    closingRule = `5. End with a warm, grateful, culturally inclusive, and devoted closing for Mother (e.g. "অফুরন্ত শ্রদ্ধা ও ভালোবাসাসহ, আপনার সন্তান", "ইতি, আপনার আদরের সন্তান", "সবটুকু ভালোবাসায় ও শ্রদ্ধায়..."). Must be universally suitable and culturally inclusive across all backgrounds. Never use romantic phrases like "সবসময় তোমারই".`
+  } else if (isMentor) {
+    greetingRule = `1. Start with a reverent and respectful greeting for Teacher/Mentor (e.g. "শ্রদ্ধেয় স্যার,", "শ্রদ্ধেয়া ম্যাডাম,", "শ্রদ্ধেয় শিক্ষক,"). Always address with 'আপনি'.`
+    closingRule = `5. End with a humble and respectful sign-off for a mentor (e.g. "বিনম্র শ্রদ্ধা ও কৃতজ্ঞতাসহ, আপনার ছাত্র/ছাত্রী", "ইতি, আপনার স্নেহধন্য শিক্ষার্থী"). Never use romantic phrases.`
+  } else if (isSibling) {
+    greetingRule = `1. Start with a warm, affectionate greeting for brother/sister (e.g. "স্নেহের ${params.receiverName}," or "প্রিয় ভাইয়া/আপু,").`
+    closingRule = `5. End with a loving sibling sign-off (e.g. "সবসময় তোর পাশে, তোরই ভাই/বোন", "অনেক ভালোবাসা রইল, তোর ভাই/বোন").`
   }
 
   return `Write a personal, emotional handwritten-style letter according to the following details:
