@@ -13,6 +13,9 @@ import {
 } from '@/lib/quota-service'
 import type { ApiError, GenerateLetterRequest, GenerateLetterResponse } from '@/types'
 
+// Vercel serverless function max execution duration (seconds)
+export const maxDuration = 60
+
 export async function POST(request: NextRequest) {
   try {
     // 1. Enforce Premium & Daily Quota Guard (5 letters/day for Free users, Unlimited for Premium)

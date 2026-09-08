@@ -4,6 +4,12 @@
   "functions": {
     "src/app/api/generate-letter/route.ts": {
       "maxDuration": 60
+    },
+    "src/app/api/refine-letter/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/voice-letter/route.ts": {
+      "maxDuration": 60
     }
   }
 }

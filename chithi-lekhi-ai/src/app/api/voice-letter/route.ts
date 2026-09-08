@@ -3,6 +3,9 @@ import { synthesizeVoiceLetter, VOICE_STYLES, type VoiceStyle } from '@/lib/voic
 import { checkRateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { sanitizeInput } from '@/utils/helpers'
 
+// Vercel serverless function max execution duration (seconds)
+export const maxDuration = 60
+
 export async function POST(request: NextRequest) {
   try {
     // 1. Rate Limiting (20 voice generations per minute per IP)

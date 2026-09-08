@@ -12,6 +12,9 @@ import {
 } from '@/lib/quota-service'
 import type { ApiError } from '@/types'
 
+// Vercel serverless function max execution duration (seconds)
+export const maxDuration = 60
+
 export async function POST(request: NextRequest) {
   try {
     // 1. Quota Verification (10 refinements/day for Free users, Unlimited for Premium)
