@@ -14,7 +14,8 @@ import {
   LETTER_LENGTH_OPTIONS,
   WRITING_PERSONALITIES,
   LANGUAGES,
-  getSuggestionsForRelationship,
+  getRelationshipPromptConfig,
+  detectRelationshipIntent,
 } from '@/constants'
 import { useLanguage } from '@/components/providers/LanguageProvider'
 import { useWritingLanguage } from '@/hooks/useWritingLanguage'
@@ -63,10 +64,60 @@ export function EmotionalStorytellerForm({
   )
   const language = selectedLanguage || writingLanguage
 
-  // Dynamic suggestions tailored to selected relationship
-  const contextualSuggestions = useMemo(() => {
-    return getSuggestionsForRelationship(relationship)
+  // Smart Intent & Dynamic Relationship State
+  const [userManuallySelectedRel, setUserManuallySelectedRel] = useState(Boolean(initialValues?.relationship))
+  const [suggestedIntent, setSuggestedIntent] = useState<{
+    rel: Relationship
+    labelBn: string
+    reasonBn: string
+  } | null>(null)
+
+  // Dynamic config tailored to selected relationship
+  const relConfig = useMemo(() => {
+    return getRelationshipPromptConfig(relationship)
   }, [relationship])
+
+  // Intelligent text intent detection on typing
+  const handleTextIntentCheck = (nameText: string, memText: string) => {
+    const combinedText = `${nameText} ${memText}`.trim()
+    if (!combinedText || combinedText.length < 2) {
+      setSuggestedIntent(null)
+      return
+    }
+
+    const detected = detectRelationshipIntent(combinedText, relationship)
+
+    // 1. Check deceased / remembrance intent
+    if (detected.isDeceased && relationship !== 'lost-person') {
+      const labelBn = '🕊️ স্মৃতির মানুষ'
+      const reasonBn = detected.matchedIntent || 'স্মৃতির ওপারে থাকা প্রিয়জন'
+      setSuggestedIntent({ rel: 'lost-person', labelBn, reasonBn })
+      if (!userManuallySelectedRel) {
+        setRelationship('lost-person')
+      }
+      return
+    }
+
+    // 2. Check lost connection intent
+    if (detected.isLostConnection && relationship !== 'lost-connection') {
+      const labelBn = '📩 হারিয়ে যাওয়া যোগাযোগ'
+      const reasonBn = 'যোগাযোগ বিচ্ছিন্ন হওয়ার স্মৃতি'
+      setSuggestedIntent({ rel: 'lost-connection', labelBn, reasonBn })
+      if (!userManuallySelectedRel) {
+        setRelationship('lost-connection')
+      }
+      return
+    }
+
+    // 3. General relationship auto-selection when user hasn't explicitly locked it
+    if (!userManuallySelectedRel && detected.relationship && detected.relationship !== relationship) {
+      setRelationship(detected.relationship)
+      setSuggestedIntent(null)
+      return
+    }
+
+    setSuggestedIntent(null)
+  }
 
   // UI / Loading states
   const [loading, setLoading] = useState(false)
@@ -87,6 +138,8 @@ export function EmotionalStorytellerForm({
   const fillSampleStory = () => {
     setReceiverName('তানিয়া')
     setRelationship('first-love')
+    setUserManuallySelectedRel(true)
+    setSuggestedIntent(null)
     setPersonality('90s-handwritten')
     setMemory('টিএসসির চায়ের দোকানে সেই বৃষ্টিভেজা বিকেলে তোমার ভেজা কাজল আর একটুকরো মিষ্টি হাসি')
     setSituation('অনেক দিন হলো আমাদের কথা হয় না, সময়ের স্রোতে দুজন দুদিকে ব্যস্ত')
@@ -249,7 +302,11 @@ export function EmotionalStorytellerForm({
             type="text"
             required
             value={receiverName}
-            onChange={(e) => setReceiverName(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value
+              setReceiverName(val)
+              handleTextIntentCheck(val, memory)
+            }}
             placeholder={t('form.receiverPlaceholder')}
             className="w-full font-bengali px-3.5 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-700 focus:border-rose-400 focus:ring-2 focus:ring-rose-100 dark:focus:ring-rose-950/60 outline-none text-neutral-800 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 text-sm sm:text-base transition-all bg-neutral-50/40 dark:bg-neutral-800/40 focus:bg-white dark:focus:bg-neutral-800"
           />
@@ -267,7 +324,11 @@ export function EmotionalStorytellerForm({
                 <button
                   key={rel.value}
                   type="button"
-                  onClick={() => setRelationship(rel.value)}
+                  onClick={() => {
+                    setUserManuallySelectedRel(true)
+                    setRelationship(rel.value)
+                    setSuggestedIntent(null)
+                  }}
                   className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all min-h-[44px] cursor-pointer ${
                     selected
                       ? 'border-rose-400 dark:border-rose-500 bg-rose-50/70 dark:bg-rose-950/60 shadow-xs ring-1 ring-rose-300 dark:ring-rose-800'
@@ -285,6 +346,29 @@ export function EmotionalStorytellerForm({
               )
             })}
           </div>
+
+          {/* Smart Intent Detection Banner */}
+          {suggestedIntent && suggestedIntent.rel !== relationship && (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 bg-amber-50/95 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800/80 p-3 rounded-xl text-xs font-bengali text-amber-900 dark:text-amber-200 transition-all shadow-xs mt-2">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                <span>
+                  আপনার বর্ণনায় <strong>{suggestedIntent.reasonBn}</strong> বোঝা যাচ্ছে। আপনি কি ক্যাটাগরি <strong>{suggestedIntent.labelBn}</strong> করতে চান?
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setUserManuallySelectedRel(true)
+                  setRelationship(suggestedIntent.rel)
+                  setSuggestedIntent(null)
+                }}
+                className="self-start sm:self-auto shrink-0 bg-amber-600 hover:bg-amber-700 text-white font-medium px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+              >
+                হ্যাঁ, পরিবর্তন করুন
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -298,10 +382,10 @@ export function EmotionalStorytellerForm({
           </div>
           <div>
             <h3 className="font-bengali font-semibold text-neutral-900 dark:text-white text-base">
-              {t('form.section2Title')}
+              {locale === 'en' ? relConfig.sectionTitleEn : relConfig.sectionTitle}
             </h3>
             <p className="text-xs font-bengali text-neutral-500 dark:text-neutral-400">
-              {t('form.section2Subtitle')}
+              {locale === 'en' ? relConfig.sectionSubtitleEn : relConfig.sectionSubtitle}
             </p>
           </div>
         </div>
@@ -310,7 +394,7 @@ export function EmotionalStorytellerForm({
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <label htmlFor="memory" className="block text-sm font-bengali font-medium text-neutral-800 dark:text-neutral-200">
-              {t('form.memoryLabel')}
+              {locale === 'en' ? relConfig.memoryLabelEn : relConfig.memoryLabel}
             </label>
             <span className="text-[11px] font-bengali text-neutral-400 dark:text-neutral-500">{t('form.memoryOptional')}</span>
           </div>
@@ -318,8 +402,12 @@ export function EmotionalStorytellerForm({
             id="memory"
             rows={2}
             value={memory}
-            onChange={(e) => setMemory(e.target.value)}
-            placeholder={t('form.memoryPlaceholder')}
+            onChange={(e) => {
+              const val = e.target.value
+              setMemory(val)
+              handleTextIntentCheck(receiverName, val)
+            }}
+            placeholder={locale === 'en' ? relConfig.memoryPlaceholderEn : relConfig.memoryPlaceholder}
             className="w-full font-bengali px-3.5 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-700 focus:border-rose-400 focus:ring-2 focus:ring-rose-100 dark:focus:ring-rose-950/60 outline-none text-neutral-800 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 text-sm transition-all bg-neutral-50/40 dark:bg-neutral-800/40 focus:bg-white dark:focus:bg-neutral-800 resize-none"
           />
           {/* Inspiration chips */}
@@ -329,13 +417,16 @@ export function EmotionalStorytellerForm({
               {t('form.memoryInspire')}
             </span>
             <div className="flex flex-wrap gap-1.5 pt-0.5">
-              {contextualSuggestions.memories.slice(0, 4).map((suggestion, i) => {
+              {relConfig.memorySuggestions.slice(0, 4).map((suggestion, i) => {
                 const text = locale === 'en' ? suggestion.en : suggestion.bn
                 return (
                   <button
                     key={i}
                     type="button"
-                    onClick={() => setMemory(text)}
+                    onClick={() => {
+                      setMemory(text)
+                      handleTextIntentCheck(receiverName, text)
+                    }}
                     className="text-xs font-bengali bg-neutral-100 dark:bg-neutral-800 hover:bg-rose-50 dark:hover:bg-rose-950/60 hover:text-rose-700 dark:hover:text-rose-300 text-neutral-600 dark:text-neutral-300 px-3 py-1.5 min-h-[38px] sm:min-h-0 inline-flex items-center rounded-lg transition-all active:scale-95 border border-neutral-200/60 dark:border-neutral-700 cursor-pointer"
                   >
                     {text}
@@ -359,12 +450,12 @@ export function EmotionalStorytellerForm({
             type="text"
             value={situation}
             onChange={(e) => setSituation(e.target.value)}
-            placeholder={t('form.situationPlaceholder')}
+            placeholder={locale === 'en' ? relConfig.situationPlaceholderEn : relConfig.situationPlaceholder}
             className="w-full font-bengali px-3.5 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-700 focus:border-rose-400 focus:ring-2 focus:ring-rose-100 dark:focus:ring-rose-950/60 outline-none text-neutral-800 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 text-sm transition-all bg-neutral-50/40 dark:bg-neutral-800/40 focus:bg-white dark:focus:bg-neutral-800"
           />
           {/* Situation suggestions */}
           <div className="flex flex-wrap gap-1.5 pt-0.5">
-            {contextualSuggestions.situations.slice(0, 3).map((item, i) => {
+            {relConfig.situationSuggestions.slice(0, 3).map((item, i) => {
               const text = locale === 'en' ? item.en : item.bn
               return (
                 <button
@@ -391,14 +482,14 @@ export function EmotionalStorytellerForm({
             required
             value={feeling}
             onChange={(e) => setFeeling(e.target.value)}
-            placeholder={t('form.feelingPlaceholder')}
+            placeholder={locale === 'en' ? relConfig.feelingPlaceholderEn : relConfig.feelingPlaceholder}
             className="w-full font-bengali px-3.5 py-2.5 rounded-xl border border-neutral-200 dark:border-neutral-700 focus:border-rose-400 focus:ring-2 focus:ring-rose-100 dark:focus:ring-rose-950/60 outline-none text-neutral-800 dark:text-neutral-100 placeholder:text-neutral-400 dark:placeholder:text-neutral-500 text-sm sm:text-base transition-all bg-neutral-50/40 dark:bg-neutral-800/40 focus:bg-white dark:focus:bg-neutral-800"
           />
           {/* Feeling suggestions */}
           <div className="space-y-1">
             <span className="text-[11px] font-bengali text-neutral-500 dark:text-neutral-400">{t('form.quickFeelings')}</span>
             <div className="flex flex-wrap gap-1.5 pt-0.5">
-              {contextualSuggestions.feelings.map((item, i) => {
+              {relConfig.feelingSuggestions.map((item, i) => {
                 const text = locale === 'en' ? item.en : item.bn
                 return (
                   <button

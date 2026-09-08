@@ -18,7 +18,7 @@ export function ThemeSwitcher() {
 
   if (!mounted) {
     return (
-      <div className="w-8 h-8 rounded-xl border border-rose-100/60 dark:border-neutral-800 bg-neutral-100/50 dark:bg-neutral-800/50" />
+      <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl border border-rose-100/60 dark:border-neutral-800 bg-neutral-100/50 dark:bg-neutral-800/50 shrink-0" />
     )
   }
 
@@ -46,7 +46,7 @@ export function ThemeSwitcher() {
           : 'সিস্টেম মোড সক্রিয় (লাইটে পরিবর্তন করুন)'
       }
       aria-label="Toggle Theme"
-      className="p-2 rounded-xl text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white bg-neutral-100/80 hover:bg-neutral-200/80 dark:bg-neutral-800/80 dark:hover:bg-neutral-700/80 border border-neutral-200/60 dark:border-neutral-700/60 transition-all active:scale-95 flex items-center justify-center min-w-[36px] min-h-[36px] sm:min-w-[40px] sm:min-h-[40px] cursor-pointer"
+      className="h-9 w-9 sm:h-10 sm:w-10 p-2 rounded-xl text-neutral-600 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white bg-neutral-100/90 hover:bg-neutral-200/90 dark:bg-neutral-800/90 dark:hover:bg-neutral-700/90 border border-neutral-200/80 dark:border-neutral-700/80 hover:border-rose-300 dark:hover:border-rose-700 transition-all active:scale-95 flex items-center justify-center min-w-[36px] min-h-[36px] sm:min-w-[40px] sm:min-h-[40px] cursor-pointer shrink-0 focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:outline-none"
     >
       {theme === 'dark' ? (
         <Moon className="w-4 h-4 text-amber-300 transition-transform rotate-0 scale-100" />

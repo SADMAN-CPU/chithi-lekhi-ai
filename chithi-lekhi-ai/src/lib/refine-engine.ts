@@ -460,20 +460,40 @@ export function localRefineFallback(
   // Context inference
   const textLower = cleaned.toLowerCase()
   const rel = (context?.relationship || '').toLowerCase()
-  const isMother = rel.includes('মা') || rel.includes('mother') || textLower.includes('আম্মু') || textLower.includes('মা')
-  const isFather = rel.includes('বাবা') || rel.includes('father') || textLower.includes('আব্বু') || textLower.includes('বাবা')
+  const isDeceased = textLower.includes('প্রয়াত') || textLower.includes('মরহুম') || textLower.includes('পরপারে') || textLower.includes('আর নেই') || textLower.includes('বেঁচে নেই') || rel === 'lost-person'
+  const isLostConnection = rel === 'lost-connection' || textLower.includes('যোগাযোগ নেই') || textLower.includes('যোগাযোগ বন্ধ') || textLower.includes('অনেক বছর')
+  const isMother = (rel.includes('মা') || rel.includes('mother') || textLower.includes('আম্মু') || textLower.includes('মা')) && !isDeceased
+  const isFather = (rel.includes('বাবা') || rel.includes('father') || textLower.includes('আব্বু') || textLower.includes('বাবা')) && !isDeceased
   const isLover = rel.includes('love') || rel.includes('প্রেম') || textLower.includes('ভালোবাসি') || textLower.includes('প্রিয়তমা')
+  const isMentor = rel.includes('mentor') || rel.includes('শিক্ষক') || textLower.includes('শিক্ষক') || textLower.includes('স্যার')
   const isFormal = action === 'formal' || action === 'professional'
 
   let salutation = context?.receiverName ? `প্রিয় ${context.receiverName},` : 'প্রিয়জন,'
   let signoff = 'ইতি,\nতোমারই ভালোবাসার মানুষ'
 
-  if (isMother) {
+  if (isDeceased) {
+    if (rel.includes('বাবা') || textLower.includes('বাবা') || textLower.includes('আব্বু')) {
+      salutation = 'শ্রদ্ধেয় বাবা,'
+      signoff = 'চিরকাল আপনার আদর্শের পথেই,\nআপনার সন্তান'
+    } else if (rel.includes('মা') || textLower.includes('মা') || textLower.includes('আম্মু')) {
+      salutation = 'শ্রদ্ধেয়া মা,'
+      signoff = 'আপনার আঁচলের স্মৃতি বুকে নিয়ে,\nআপনার সন্তান'
+    } else {
+      salutation = context?.receiverName ? `প্রিয় ${context.receiverName},` : 'স্মৃতির ওপারে থাকা মানুষটিকে,'
+      signoff = 'স্মৃতির ওপারে শান্তিতে থেকো,\nচিরকালের নীরব ভালোবাসায়'
+    }
+  } else if (isLostConnection) {
+    salutation = context?.receiverName ? `প্রিয় ${context.receiverName},` : 'হারিয়ে যাওয়া ঠিকানার মানুষটিকে,'
+    signoff = 'যেখানেই থাকো ভালো থেকো,\nতোমার পুরোনো বন্ধু'
+  } else if (isMother) {
     salutation = 'শ্রদ্ধেয়া আম্মু,'
     signoff = 'অফুরন্ত শ্রদ্ধা ও ভালোবাসাসহ,\nতোমার সন্তান'
   } else if (isFather) {
     salutation = 'শ্রদ্ধেয় বাবা,'
     signoff = 'বিনম্র শ্রদ্ধা ও ভালোবাসায়,\nআপনার সন্তান'
+  } else if (isMentor) {
+    salutation = context?.receiverName ? `শ্রদ্ধেয় ${context.receiverName},` : 'শ্রদ্ধেয় শিক্ষক,'
+    signoff = 'বিনম্র শ্রদ্ধা ও কৃতজ্ঞতাসহ,\nআপনার ছাত্র/ছাত্রী'
   } else if (isFormal) {
     salutation = context?.receiverName ? `শ্রদ্ধেয় ${context.receiverName},` : 'শ্রদ্ধেয় মহাশয়,'
     signoff = 'বিনীত ও শুভাকাঙ্ক্ষী,\nএক শুভানুধ্যায়ী'
@@ -481,6 +501,16 @@ export function localRefineFallback(
 
   // If the user provided a short seed thought like "আম্মুকে অনেক ভালোবাসি"
   if (isShortInput) {
+    if (isDeceased) {
+      if (rel.includes('বাবা') || textLower.includes('বাবা') || textLower.includes('আব্বু')) {
+        return `${salutation}\n\nআজ হঠাৎ করেই আপনার কথা খুব বেশি মনে পড়ছে। আপনার সেই নিঃশব্দ ত্যাগ, মাথার ঘাম পায়ে ফেলে আমাদের আগলে রাখার স্মৃতিগুলো আজও বুকের গভীরে জ্বলজ্বল করছে। আজ হয়তো আপনি পাশে নেই, কিন্তু জীবনের প্রতিটি পদক্ষেপে আপনার শেখানো আদর্শই আমার সবচেয়ে বড় শক্তি হয়ে রয়েছে।\n\nস্মৃতির ওপারে শান্তিতে থাকুন বাবা।\n\n${signoff}`
+      }
+      return `${salutation}\n\nসময়ের স্রোত সবকিছু ভাসিয়ে নিয়ে গেলেও স্মৃতির পাতায় তোমার মুখটি আজও চিরসবুজ হয়ে আছে। আজ হয়তো কথা বলার কোনো উপায় নেই, কিন্তু মনের নিভৃত কোণে তোমার স্মৃতি চিরকাল বেঁচে থাকবে। স্মৃতির ওপারে ভালো থেকো।\n\n${signoff}`
+    }
+
+    if (isLostConnection) {
+      return `${salutation}\n\nসময়ের ব্যবধানে হয়তো আমাদের মাঝে অনেক দূরত্ব তৈরি হয়েছে, যোগাযোগও বন্ধ হয়ে গেছে বহু বছর। তবুও স্মৃতির ধুলো ঝেড়ে আজও তোমার কথা মনে পড়ে। কোনো অভিযোগ নেই, কেবল দূর থেকে একরাশ আন্তরিক শুভকামনা—যেখানেই থাকো, খুব ভালো থেকো।\n\n${signoff}`
+    }
     if (isMother) {
       switch (action) {
         case 'short-version':

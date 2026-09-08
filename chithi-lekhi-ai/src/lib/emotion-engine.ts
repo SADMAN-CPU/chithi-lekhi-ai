@@ -1,4 +1,5 @@
 import type { GenerateLetterRequest, LetterEmotion } from '@/types'
+import { detectRelationshipIntent } from '@/constants/relationshipPrompts'
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 
@@ -135,22 +136,23 @@ export const RELATIONSHIP_DYNAMICS: Record<
   },
   'lost-person': {
     intimacyLevel: 'reflective',
-    bengaliTone: 'নীরব দীর্ঘশ্বাস, কোনো অভিযোগহীন স্মৃতিকাতরতা ও মৃদু শুভকামনা',
-    addressSuggestions: ['স্মৃতির ওপারে থাকা মানুষটিকে,', 'বহুদিন পর প্রিয়...,', 'একদিন যার সাথে কথা না হলে চলত না,'],
-    signoffSuggestions: ['দূর থেকে ভালো থেকো,', 'নীরব শুভাকাঙ্ক্ষী,', 'স্মৃতির ওপার থেকে...'],
+    bengaliTone: 'চিরস্মরণীয় শ্রদ্ধা ও বেদনা, অপার্থিব ভালোবাসা ও শান্ত দীর্ঘশ্বাস',
+    addressSuggestions: ['স্মৃতির ওপারে থাকা প্রিয়...,', 'যে মানুষটি আর পাশে নেই কিন্তু হৃদয়ে চিরস্থায়ী,', 'স্মৃতির ওপার থেকে...'],
+    signoffSuggestions: ['স্মৃতির ওপারে শান্তিতে থেকো,', 'চিরকালের নীরব ভালোবাসায় ও শ্রদ্ধায়,', 'দূর দিগন্তের ওপার থেকে...'],
     psychologicalCues: [
-      'কোনো প্রকার তিক্ততা, রাগ বা ক্ষোভ থাকবে না। সময় যে দুজন মানুষকে আলাদা করে দেয়, তার শান্ত উপলব্ধি থাকবে।',
-      'হঠাৎ একদিন পুরোনো কোনো জিনিসের স্পর্শে তার কথা মনে পড়ে যাওয়ার অনুভূতি।',
-      'পুনরায় ফিরে পাওয়ার দাবি নেই, কেবল সে যেন ভালো থাকে এই আন্তরিক প্রার্থনা।',
+      'যিনি পরপারে চলে গেছেন বা জীবনে আর কখনো ফিরবেন না, তাঁর প্রতি অপার্থিব শ্রদ্ধা ও অমলিন স্মৃতি।',
+      'চিঠিতে কোনো উত্তর আশা করা যাবে না ("চিঠি পেয়ে উত্তর দিও" বা "কেমন আছো লিখে জানিও" জাতীয় কথা সম্পূর্ণ নিষিদ্ধ)।',
+      'স্মৃতির আলোয় তাঁর ত্যাগ, স্নেহ ও শান্ত উপস্থিতিকে চিরন্তন সম্মান জানান।',
     ],
   },
   'lost-connection': {
     intimacyLevel: 'reflective',
-    bengaliTone: 'হারিয়ে যাওয়া যোগাযোগের বিষাদ ও ফেলে আসা সোনালী স্মৃতি',
-    addressSuggestions: ['হারিয়ে যাওয়া ঠিকানার মানুষটিকে,', 'যে আজ অনেক দূরে,'],
-    signoffSuggestions: ['পুরোনো দিনের স্মৃতিসহ,', 'তোমার স্মরণে,'],
+    bengaliTone: 'হারিয়ে যাওয়া যোগাযোগের বিষাদ, ফেলে আসা দিন ও কোনো অভিযোগহীন শুভকামনা',
+    addressSuggestions: ['হারিয়ে যাওয়া ঠিকানার প্রিয় বন্ধু,', 'একদিন যার সাথে প্রতিদিন কথা হতো,', 'সময়ের ব্যবধানে হারিয়ে যাওয়া মানুষ,'],
+    signoffSuggestions: ['যেখানেই থাকো ভালো থেকো,', 'পুরোনো দিনের অমলিন স্মৃতিসহ,', 'তোমার পুরোনো বন্ধু'],
     psychologicalCues: [
-      'সময়ের ব্যবধানে হারিয়ে গেলেও ভেতরের শ্রদ্ধা ও টান অমলিন থাকার অনুভূতি।',
+      'যোগাযোগ বন্ধ হয়ে গেলেও মনের ভেতর কোনো ক্ষোভ বা তিক্ততা নেই। জীবন যার যার স্রোতে এগিয়ে গেছে।',
+      'স্মৃতির ধুলো ঝেড়ে শুধু দূর থেকে তাঁর ভালো থাকা কামনা করা এবং অতীতের সুন্দর দিনগুলোকে স্মরণ করা।',
     ],
   },
   'special-person': {
@@ -301,24 +303,57 @@ function extractSensoryAnchors(text: string): string[] {
  * to construct a deeply nuanced epistolary blueprint for the generation engine.
  */
 export function analyzeEmotionalContext(params: GenerateLetterRequest): EmotionalContextAnalysis {
-  // 1. Resolve Relationship
-  const rawRel = (params.relationship || 'special-person').toString().toLowerCase().trim()
-  const relKey =
-    rawRel in RELATIONSHIP_DYNAMICS
-      ? rawRel
-      : rawRel.includes('love') || rawRel.includes('প্রেম')
-      ? 'lover'
-      : rawRel.includes('mother') || rawRel.includes('মা')
-      ? 'mother'
-      : rawRel.includes('father') || rawRel.includes('বাবা')
-      ? 'father'
-      : rawRel.includes('friend') || rawRel.includes('বন্ধু')
-      ? 'friend'
-      : rawRel.includes('lost') || rawRel.includes('হারি')
-      ? 'lost-person'
-      : 'special-person'
+  // 1. Resolve Relationship with intelligent intent detection
+  const combinedContextText = `${params.receiverName || ''} ${params.memory || ''} ${params.situation || ''} ${params.feeling || ''} ${params.relationship || ''}`
+  const detectedIntent = detectRelationshipIntent(combinedContextText, params.relationship)
 
-  const relContext = RELATIONSHIP_DYNAMICS[relKey] || RELATIONSHIP_DYNAMICS['special-person']
+  let relKey = (params.relationship || 'special-person').toString().toLowerCase().trim()
+  if (detectedIntent.isDeceased) {
+    relKey = 'lost-person'
+  } else if (detectedIntent.isLostConnection) {
+    relKey = 'lost-connection'
+  } else if (relKey in RELATIONSHIP_DYNAMICS) {
+    // keep as is
+  } else if (detectedIntent.relationship in RELATIONSHIP_DYNAMICS) {
+    relKey = detectedIntent.relationship
+  } else if (relKey.includes('love') || relKey.includes('প্রেম')) {
+    relKey = 'lover'
+  } else if (relKey.includes('mother') || relKey.includes('মা')) {
+    relKey = 'mother'
+  } else if (relKey.includes('father') || relKey.includes('বাবা')) {
+    relKey = 'father'
+  } else if (relKey.includes('friend') || relKey.includes('বন্ধু')) {
+    relKey = 'friend'
+  } else {
+    relKey = 'special-person'
+  }
+
+  let relContext = RELATIONSHIP_DYNAMICS[relKey] || RELATIONSHIP_DYNAMICS['special-person']
+
+  // Custom reverence for deceased parents
+  if (detectedIntent.isDeceased && (detectedIntent.originalPerson === 'father' || relKey === 'father' || (params.relationship || '').includes('বাবা'))) {
+    relContext = {
+      intimacyLevel: 'reverent',
+      bengaliTone: 'প্রয়াত বাবার প্রতি বিনম্র শ্রদ্ধা, চিরস্মরণীয় স্মৃতি ও অপার্থিব অপত্য ভক্তি',
+      addressSuggestions: ['শ্রদ্ধেয় বাবা,', 'বাবা আমার,', 'স্মৃতির ওপারে শ্রদ্ধেয় বাবা,'],
+      signoffSuggestions: ['চিরকাল আপনার দেখানো পথেই আপনার সন্তান,', 'বিনম্র শ্রদ্ধা ও ভালোবাসায় আপনার সন্তান,', 'আপনার স্নেহের ছায়ায়...'],
+      psychologicalCues: [
+        'প্রয়াত বাবার নীরব ত্যাগ, স্নেহ ও আদর্শের চিরন্তন স্মৃতিকে সশ্রদ্ধ চিত্তে স্মরণ করুন।',
+        'চিঠিতে কোনো উত্তর আশা করা যাবে না—এটি এক সন্তানের বাবার স্মৃতির উদ্দেশ্যে একমুখী পবিত্র অঞ্জলি।',
+      ],
+    }
+  } else if (detectedIntent.isDeceased && (detectedIntent.originalPerson === 'mother' || relKey === 'mother' || (params.relationship || '').includes('মা'))) {
+    relContext = {
+      intimacyLevel: 'reverent',
+      bengaliTone: 'প্রয়াত মায়ের প্রতি চিরন্তন শ্রদ্ধা, আঁচলের অমর সুরভী ও গভীর আকুলতা',
+      addressSuggestions: ['শ্রদ্ধেয়া মা,', 'মা আমার,', 'স্মৃতির ওপারে শ্রদ্ধেয়া মা,'],
+      signoffSuggestions: ['আপনার আঁচলের স্মৃতি বুকে নিয়ে আপনার সন্তান,', 'অফুরন্ত শ্রদ্ধা ও ভালোবাসায় আপনার আদরের সন্তান,'],
+      psychologicalCues: [
+        'প্রয়াত মায়ের বিনিদ্র রজনীর সেবা, অপত্য স্নেহ ও অসীম ভালোবাসার চিরন্তন স্মৃতি স্মরণ করুন।',
+        'চিঠিতে কোনো উত্তর আশা করা যাবে না—এটি মায়ের স্মৃতির উদ্দেশ্যে পবিত্র শ্রদ্ধা ও ভালোবাসার নিবেদন।',
+      ],
+    }
+  }
 
   // 2. Resolve Emotion
   const feelingInput = `${params.feeling || ''} ${params.emotion || ''}`.toLowerCase()

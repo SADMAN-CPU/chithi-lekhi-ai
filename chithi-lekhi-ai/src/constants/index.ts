@@ -9,6 +9,9 @@ import type {
   EraStyle,
   RefinementType,
 } from '../types'
+import { getRelationshipPromptConfig } from './relationshipPrompts'
+
+export * from './relationshipPrompts'
 
 // ─── Letter Categories ────────────────────────────────────────────────────────
 
@@ -151,31 +154,24 @@ export const RELATIONSHIP_OPTIONS: Array<{
   },
   {
     value: 'lost-person',
-    label: 'হারিয়ে যাওয়া মানুষ',
-    labelEn: 'Lost Person',
-    emoji: '🍂',
-    description: 'স্মৃতির ওপারে হারিয়ে যাওয়া চিরচেনা কেউ',
+    label: '🕊️ স্মৃতির মানুষ',
+    labelEn: 'Someone I Miss',
+    emoji: '🕊️',
+    description: 'যিনি আর পাশে নেই বা স্মৃতির ওপারে চিরচেনা কেউ',
   },
   {
     value: 'lost-connection',
-    label: 'হারিয়ে যাওয়া যোগাযোগ',
+    label: '📩 হারিয়ে যাওয়া যোগাযোগ',
     labelEn: 'Lost Connection',
-    emoji: '⏳',
-    description: 'সময়ের স্রোতে দূরে সরে যাওয়া কেউ',
+    emoji: '📩',
+    description: 'যোগাযোগ থেমে গেছে কিন্তু যার কথা আজও মনে পড়ে',
   },
   {
     value: 'special-person',
     label: 'বিশেষ কেউ',
     labelEn: 'Special Person',
     emoji: '✨',
-    description: 'অনুচ্চারিত ভালোলাগা ও দূরবর্তী মুগ্ধতা',
-  },
-  {
-    value: 'someone-special',
-    label: 'গোপন প্রিয়জন',
-    labelEn: 'Someone Special',
-    emoji: '💫',
-    description: 'যাকে দূর থেকে ভালোবেসেছি বা গোপনে ভাবি',
+    description: 'অনুচ্চারিত ভালোলাগা, মুগ্ধতা বা অনুভূতির মানুষ',
   },
 ] as const
 
@@ -610,31 +606,11 @@ export function getSuggestionsForRelationship(relationship: string): {
   situations: SuggestionItem[]
   feelings: SuggestionItem[]
 } {
-  const rel = (relationship || '').toLowerCase()
-  if (rel === 'mother' || rel.includes('মা') || rel.includes('আম্মু')) {
-    return RELATIONSHIP_CONTEXTUAL_SUGGESTIONS.mother
-  }
-  if (rel === 'father' || rel.includes('বাবা') || rel.includes('আব্বু')) {
-    return RELATIONSHIP_CONTEXTUAL_SUGGESTIONS.father
-  }
-  if (rel === 'sibling' || rel.includes('ভাই') || rel.includes('বোন')) {
-    return RELATIONSHIP_CONTEXTUAL_SUGGESTIONS.sibling
-  }
-  if (rel === 'mentor' || rel.includes('শিক্ষক') || rel.includes('গুরু')) {
-    return RELATIONSHIP_CONTEXTUAL_SUGGESTIONS.mentor
-  }
-  if (rel === 'lover' || rel === 'spouse' || rel === 'crush' || rel.includes('প্রেম') || rel.includes('ভালোবাসা') || rel.includes('বউ') || rel.includes('স্বামী')) {
-    return RELATIONSHIP_CONTEXTUAL_SUGGESTIONS.lover
-  }
-  if (rel === 'friend' || rel === 'best-friend' || rel.includes('বন্ধু') || rel.includes('দোস্ত')) {
-    return RELATIONSHIP_CONTEXTUAL_SUGGESTIONS.friend
-  }
-
-  // Fallback to default memories, situations, and feelings
+  const config = getRelationshipPromptConfig(relationship)
   return {
-    memories: MEMORY_SUGGESTIONS,
-    situations: SITUATION_SUGGESTIONS,
-    feelings: FEELING_SUGGESTIONS,
+    memories: config.memorySuggestions,
+    situations: config.situationSuggestions,
+    feelings: config.feelingSuggestions,
   }
 }
 
