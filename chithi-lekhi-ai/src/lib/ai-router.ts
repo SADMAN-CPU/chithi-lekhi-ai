@@ -35,38 +35,51 @@ export function classifyAITask(input: {
   text?: string
 }): AIRouteDecision {
   const action = (input.action || '').toLowerCase()
-  const text = (input.text || '').toLowerCase()
 
-  // Grammar, simplification, shortening, and precision polishing -> OpenAI
-  const isGrammarOrPrecision =
-    action === 'simpler' ||
-    action === 'shorter' ||
-    action === 'better-writing' ||
-    action === 'fix-grammar' ||
-    text.includes('grammar') ||
-    text.includes('বানান') ||
-    text.includes('সংক্ষিপ্ত') ||
-    text.includes('শুদ্ধ')
-
-  if (isGrammarOrPrecision) {
+  // Short version
+  if (action === 'short-version' || action === 'make-shorter' || action === 'shorter') {
     return {
       taskType: 'GRAMMAR_PRECISION',
-      preferredProvider: 'openai',
-      modelName: 'gpt-4o-mini',
-      maxTokens: 500,
-      temperature: 0.3, // Lower temperature for precision and adherence
-      rationale: 'OpenAI GPT-4o-mini selected for structural precision, spelling accuracy, and concise refinement.',
+      preferredProvider: 'gemini',
+      modelName: process.env.GEMINI_MODEL || 'gemini-1.5-flash',
+      maxTokens: 450,
+      temperature: 0.5,
+      rationale: 'Gemini Flash selected for concise, distilled letter synthesis.',
     }
   }
 
-  // Emotional, poetic, vintage, romantic, and fresh letter generation -> Gemini
+  // Formal / Professional
+  if (action === 'formal' || action === 'professional') {
+    return {
+      taskType: 'GRAMMAR_PRECISION',
+      preferredProvider: 'gemini',
+      modelName: process.env.GEMINI_MODEL || 'gemini-1.5-flash',
+      maxTokens: 600,
+      temperature: 0.4,
+      rationale: 'Gemini Flash selected with low temperature for dignified formal structure.',
+    }
+  }
+
+  // Storytelling / 90s vintage / Poetic
+  if (action === 'storytelling' || action.includes('vintage') || action.includes('poetic')) {
+    return {
+      taskType: 'CREATIVE_EMOTIONAL',
+      preferredProvider: 'gemini',
+      modelName: process.env.GEMINI_MODEL || 'gemini-1.5-flash',
+      maxTokens: 950,
+      temperature: 0.88,
+      rationale: 'Gemini Flash selected for rich narrative depth and nostalgic atmosphere.',
+    }
+  }
+
+  // Emotional, Deep Feelings, Romantic, Simple, Regenerate
   return {
     taskType: 'CREATIVE_EMOTIONAL',
     preferredProvider: 'gemini',
-    modelName: 'gemini-1.5-flash',
+    modelName: process.env.GEMINI_MODEL || 'gemini-1.5-flash',
     maxTokens: 750,
-    temperature: 0.85, // Higher temperature for emotional warmth and literary flair
-    rationale: 'Gemini 1.5 Flash selected for Bengali emotional nuance, lyrical vocabulary, and cost efficiency.',
+    temperature: action === 'simple' || action === 'simpler' ? 0.7 : 0.85,
+    rationale: 'Gemini Flash selected for natural Bengali emotional nuance and cost efficiency.',
   }
 }
 

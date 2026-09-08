@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const validStyles: VoiceStyle[] = ['warm', 'emotional', 'storytelling', 'vintage-radio']
+    const validStyles: VoiceStyle[] = ['warm-mother', 'warm', 'emotional', 'storytelling', 'professional', 'vintage-radio']
     const selectedStyle: VoiceStyle = validStyles.includes(voiceStyle) ? voiceStyle : 'warm'
     const sanitizedText = sanitizeInput(text)
 

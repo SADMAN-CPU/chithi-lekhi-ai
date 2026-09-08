@@ -259,12 +259,14 @@ export function VoiceLetterPlayer({
       if (isPlaying) {
         audioRef.current.pause()
         setIsPlaying(false)
+        setIsPaused(true)
       } else {
         audioRef.current.playbackRate = playbackSpeed
         audioRef.current
           .play()
           .then(() => {
             setIsPlaying(true)
+            setIsPaused(false)
             trackAudioEvent('audio_play')
           })
           .catch((err) => console.error('Audio play error:', err))
@@ -396,9 +398,9 @@ export function VoiceLetterPlayer({
           {locale === 'en' ? 'Select Reading Tone:' : 'পড়ার সুর ও বাচনভঙ্গি নির্বাচন করুন:'}
         </label>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {(Object.keys(VOICE_STYLES) as VoiceStyle[]).map((styleId) => {
+          {(['warm-mother', 'emotional', 'storytelling', 'professional'] as VoiceStyle[]).map((styleId) => {
             const style = VOICE_STYLES[styleId]
-            const isSelected = selectedStyle === styleId
+            const isSelected = selectedStyle === styleId || (selectedStyle === 'warm' && styleId === 'warm-mother')
 
             return (
               <button

@@ -73,12 +73,21 @@ export type EraStyle = 'modern' | '90s-handwritten' | 'vintage'
 
 /** Phase 04: AI Letter Refinement options */
 export type RefinementType =
+  | 'emotional'
+  | 'deep-feelings'
+  | 'formal'
+  | 'simple'
+  | 'romantic'
+  | 'professional'
+  | 'short-version'
+  | 'storytelling'
   | 'more-emotional'
   | 'more-romantic'
   | 'simpler'
   | 'longer'
   | 'shorter'
   | 'vintage-90s'
+  | 'custom'
 
 // ─── Mapped Types ─────────────────────────────────────────────────────────────
 

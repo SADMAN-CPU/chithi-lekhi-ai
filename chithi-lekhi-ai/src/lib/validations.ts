@@ -71,27 +71,34 @@ export type GenerateLetterInput = z.infer<typeof generateLetterSchema>
 // ─── Phase 04: AI Letter Refinement Schema ────────────────────────────────────
 
 export const refineActionEnum = z.enum([
+  'emotional',
   'more-emotional',
   'make-more-emotional',
+  'deep-feelings',
+  'deeper-feeling',
+  'formal',
+  'simple',
+  'simpler',
+  'simpler-language',
+  'make-simpler',
+  'romantic',
   'more-romantic',
   'make-more-romantic',
-  'romantic',
+  'professional',
+  'short-version',
+  'make-shorter',
+  'shorter',
+  'storytelling',
   'more-poetic',
   'make-more-poetic',
   'vintage-90s',
   'add-90s-vintage-feeling',
   '90s-vintage',
   '90s-style',
-  'make-shorter',
-  'shorter',
-  'short-version',
   'make-longer',
   'longer',
-  'simpler-language',
-  'make-simpler',
-  'simpler',
   'better-writing',
-  'deeper-feeling',
+  'regenerate',
   'custom',
   'custom-instruction',
 ])
@@ -116,9 +123,9 @@ export const refineLetterSchema = z
   .refine(
     (data) => {
       const content = data.originalLetter?.trim() || data.letter?.trim()
-      return Boolean(content && content.length >= 20)
+      return Boolean(content && content.length >= 2)
     },
-    { message: 'বিদ্যমান চিঠির বিষয়বস্তু আবশ্যক / Existing letter content is required (min 20 characters)' }
+    { message: 'চিঠির বিষয়বস্তু বা ভাবনা আবশ্যক / Letter content or thought is required' }
   )
   .refine(
     (data) => Boolean(data.action || data.refinementType || data.customInstruction),

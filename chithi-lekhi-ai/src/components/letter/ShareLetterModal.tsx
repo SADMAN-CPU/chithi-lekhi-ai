@@ -54,7 +54,7 @@ export function ShareLetterModal({
   const [expiration, setExpiration] = useState<ShareExpiration>('never')
 
   // Loading & Result state
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const [generatedUrl, setGeneratedUrl] = useState<string | null>(null)
   const [shareToken, setShareToken] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
@@ -77,6 +77,59 @@ export function ShareLetterModal({
       // Non-blocking
     }
   }
+
+  // Auto-generate public share link on modal mount for frictionless sharing
+  React.useEffect(() => {
+    let active = true
+    const initShare = async () => {
+      try {
+        const res = await fetch('/api/shares', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            letter_id: letterId || `local-${Date.now()}`,
+            letter_content: letter,
+            receiver_name: receiverName,
+            relationship: relationship || null,
+            era_style: _eraStyle || 'vintage',
+            is_public: isPublic,
+            expiration,
+          }),
+        })
+
+        const data = await res.json()
+        if (active) {
+          if (data.success && data.shareUrl) {
+            setGeneratedUrl(data.shareUrl)
+            setShareToken(data.shareToken)
+          } else {
+            setErrorMessage(
+              data.error?.message ||
+                (locale === 'en'
+                  ? 'Could not generate share link. Please try again.'
+                  : 'শেয়ার লিংক তৈরি করা যায়নি। অনুগ্রহ করে আবার চেষ্টা করুন।')
+            )
+          }
+          setIsLoading(false)
+        }
+      } catch (err) {
+        if (active) {
+          console.error('Failed to generate share link:', err)
+          setErrorMessage(
+            locale === 'en'
+              ? 'Network error while generating link. Please try again.'
+              : 'লিংক তৈরিতে নেটওয়ার্ক সমস্যা হয়েছে। আবার চেষ্টা করুন।'
+          )
+          setIsLoading(false)
+        }
+      }
+    }
+
+    initShare()
+    return () => {
+      active = false
+    }
+  }, [letterId, letter, receiverName, relationship, _eraStyle, isPublic, expiration, locale])
 
   const handleGenerateLink = async () => {
     if (isLoading) return
@@ -266,7 +319,15 @@ export function ShareLetterModal({
           {/* Modal Body */}
           <div className="p-6 space-y-5">
             {!generatedUrl ? (
-              <>
+              isLoading ? (
+                <div className="py-12 text-center space-y-3">
+                  <div className="w-10 h-10 border-3 border-rose-500 border-t-transparent rounded-full animate-spin mx-auto" />
+                  <p className="text-sm font-bengali text-neutral-700 dark:text-neutral-300 font-medium">
+                    {locale === 'en' ? 'Preparing secure share link...' : 'চিঠির শেয়ার লিংক প্রস্তুত হচ্ছে...'}
+                  </p>
+                </div>
+              ) : (
+                <>
                 {/* 1. Privacy Mode */}
                 <div className="space-y-2">
                   <label className="block text-xs font-bengali font-bold text-neutral-700 dark:text-neutral-300">
@@ -362,6 +423,7 @@ export function ShareLetterModal({
                   <span>{isLoading ? t('shareModal.generatingBtn') : t('shareModal.generateBtn')}</span>
                 </button>
               </>
+              )
             ) : (
               /* Result: Generated Link + Unified Share Buttons */
               <div className="space-y-4 text-center py-1 animate-in zoom-in-95 duration-200">

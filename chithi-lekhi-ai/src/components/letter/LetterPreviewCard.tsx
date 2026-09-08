@@ -23,7 +23,6 @@ import {
   Flame,
 } from 'lucide-react'
 import { downloadFormattedTxt } from '@/lib/export-utils'
-import { shareLetter } from '@/lib/share-engine'
 import { WRITING_PERSONALITIES } from '@/constants'
 import type { EraStyle, Language, LetterLength } from '@/types'
 import type { RefineAction } from '@/lib/validations'
@@ -74,46 +73,60 @@ interface RefineQuickChip {
 
 const REFINE_QUICK_CHIPS: RefineQuickChip[] = [
   {
-    id: 'more-emotional',
-    labelBn: '❤️ আরও আবেগঘন',
-    labelEn: 'More Emotional',
+    id: 'emotional',
+    labelBn: '❤️ আবেগঘন',
+    labelEn: 'Emotional ❤️',
     icon: <Heart className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />,
     colorClass: 'border-rose-200 dark:border-rose-900/50 bg-rose-50/70 dark:bg-rose-950/30 hover:bg-rose-100/80 dark:hover:bg-rose-900/40 text-rose-900 dark:text-rose-200',
   },
   {
-    id: 'more-romantic',
+    id: 'deep-feelings',
+    labelBn: '😭 গভীর অনুভূতি',
+    labelEn: 'Deep Feelings',
+    icon: <Flame className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />,
+    colorClass: 'border-orange-200 dark:border-orange-900/50 bg-orange-50/70 dark:bg-orange-950/30 hover:bg-orange-100/80 dark:hover:bg-orange-900/40 text-orange-900 dark:text-orange-200',
+  },
+  {
+    id: 'formal',
+    labelBn: '🏛️ আনুষ্ঠানিক',
+    labelEn: 'Formal',
+    icon: <PenTool className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />,
+    colorClass: 'border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/30 hover:bg-slate-100/80 dark:hover:bg-slate-800/40 text-slate-900 dark:text-slate-200',
+  },
+  {
+    id: 'simple',
+    labelBn: '🌸 সহজ ভাষা',
+    labelEn: 'Simple',
+    icon: <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />,
+    colorClass: 'border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/70 dark:bg-emerald-950/30 hover:bg-emerald-100/80 dark:hover:bg-emerald-900/40 text-emerald-900 dark:text-emerald-200',
+  },
+  {
+    id: 'romantic',
     labelBn: '🌹 রোমান্টিক',
     labelEn: 'Romantic',
     icon: <Sparkles className="w-3.5 h-3.5 text-pink-600 dark:text-pink-400" />,
     colorClass: 'border-pink-200 dark:border-pink-900/50 bg-pink-50/70 dark:bg-pink-950/30 hover:bg-pink-100/80 dark:hover:bg-pink-900/40 text-pink-900 dark:text-pink-200',
   },
   {
-    id: 'vintage-90s',
-    labelBn: '📜 ৯০-এর ধাঁচে',
-    labelEn: '90s Style',
-    icon: <Scroll className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400" />,
-    colorClass: 'border-amber-200 dark:border-amber-900/50 bg-amber-50/70 dark:bg-amber-950/30 hover:bg-amber-100/80 dark:hover:bg-amber-900/40 text-amber-900 dark:text-amber-200',
-  },
-  {
-    id: 'better-writing',
-    labelBn: '✍ সুন্দর ভাষা',
-    labelEn: 'Better Writing',
+    id: 'professional',
+    labelBn: '💼 পেশাদার',
+    labelEn: 'Professional',
     icon: <PenTool className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />,
     colorClass: 'border-indigo-200 dark:border-indigo-900/50 bg-indigo-50/70 dark:bg-indigo-950/30 hover:bg-indigo-100/80 dark:hover:bg-indigo-900/40 text-indigo-900 dark:text-indigo-200',
   },
   {
-    id: 'deeper-feeling',
-    labelBn: '😭 গভীর অনুভূতি',
-    labelEn: 'Deeper Feeling',
-    icon: <Flame className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />,
-    colorClass: 'border-orange-200 dark:border-orange-900/50 bg-orange-50/70 dark:bg-orange-950/30 hover:bg-orange-100/80 dark:hover:bg-orange-900/40 text-orange-900 dark:text-orange-200',
-  },
-  {
-    id: 'make-shorter',
-    labelBn: '✂ সংক্ষিপ্ত',
-    labelEn: 'Short Version',
+    id: 'short-version',
+    labelBn: '✂️ সংক্ষিপ্ত রূপ',
+    labelEn: 'Short version',
     icon: <Scissors className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />,
     colorClass: 'border-teal-200 dark:border-teal-900/50 bg-teal-50/70 dark:bg-teal-950/30 hover:bg-teal-100/80 dark:hover:bg-teal-900/40 text-teal-900 dark:text-teal-200',
+  },
+  {
+    id: 'storytelling',
+    labelBn: '📖 গল্পগাথা',
+    labelEn: 'Storytelling',
+    icon: <Scroll className="w-3.5 h-3.5 text-amber-700 dark:text-amber-400" />,
+    colorClass: 'border-amber-200 dark:border-amber-900/50 bg-amber-50/70 dark:bg-amber-950/30 hover:bg-amber-100/80 dark:hover:bg-amber-900/40 text-amber-900 dark:text-amber-200',
   },
 ]
 
@@ -138,7 +151,6 @@ function LetterPreviewCardInner({
   // Feedback & Modal States
   const [copied, setCopied] = useState(false)
   const [txtDownloaded, setTxtDownloaded] = useState(false)
-  const [whatsappSharing, setWhatsappSharing] = useState(false)
   const [showVisualStudio, setShowVisualStudio] = useState(false)
   const [showPdfModal, setShowPdfModal] = useState(false)
   const [showShareModal, setShowShareModal] = useState(false)
@@ -148,13 +160,11 @@ function LetterPreviewCardInner({
   // Timeout refs to prevent unmounted component state updates
   const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const txtTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const whatsappTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     return () => {
       if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
       if (txtTimeoutRef.current) clearTimeout(txtTimeoutRef.current)
-      if (whatsappTimeoutRef.current) clearTimeout(whatsappTimeoutRef.current)
     }
   }, [])
 
@@ -197,48 +207,46 @@ function LetterPreviewCardInner({
     txtTimeoutRef.current = setTimeout(() => setTxtDownloaded(false), 2500)
   }, [currentLetter, receiverName, relationship])
 
-  // Handle WhatsApp Share via universal share engine
-  const handleWhatsAppShare = useCallback(async () => {
-    setWhatsappSharing(true)
-    await shareLetter({
-      platform: 'whatsapp',
-      letterText: currentLetter,
-      receiverName,
-    })
-    if (whatsappTimeoutRef.current) clearTimeout(whatsappTimeoutRef.current)
-    whatsappTimeoutRef.current = setTimeout(() => setWhatsappSharing(false), 2000)
-  }, [currentLetter, receiverName])
-
   // Handle AI Refinement Request
   const handleRefine = useCallback(
     async (action: RefineAction, customInstruction?: string) => {
       if (isRefining) return
       setIsRefining(true)
       setRefineError(null)
+      const statusMapEn: Record<string, string> = {
+        emotional: 'Infusing deep emotional resonance...',
+        'more-emotional': 'Infusing deep emotional resonance...',
+        'deep-feelings': 'Unearthing silent, unspoken feelings...',
+        formal: 'Polishing with graceful formal etiquette...',
+        simple: 'Simplifying with genuine, direct language...',
+        romantic: 'Adding tender romantic romance...',
+        'more-romantic': 'Adding tender romantic romance...',
+        professional: 'Refining into articulate professional structure...',
+        'short-version': 'Condensing to concise, powerful essence...',
+        'make-shorter': 'Condensing to concise, powerful essence...',
+        storytelling: 'Weaving nostalgic storytelling atmosphere...',
+        'vintage-90s': 'Infusing 90s vintage letter nostalgia...',
+        regenerate: 'Rewriting complete letter with fresh perspective...',
+      }
+      const statusMapBn: Record<string, string> = {
+        emotional: 'শব্দে গভীর আবেগ ও নির্ভরতা ছড়ানো হচ্ছে...',
+        'more-emotional': 'শব্দে গভীর আবেগ ও নির্ভরতা ছড়ানো হচ্ছে...',
+        'deep-feelings': 'অন্তরের নীরব ও অনুচ্চারিত অনুভূতি সাজানো হচ্ছে...',
+        formal: 'মার্জিত ও শ্রদ্ধাপূর্ণ আনুষ্ঠানিকতায় রূপ দেওয়া হচ্ছে...',
+        simple: 'একদম সহজ ও আন্তরিক মুখের ভাষায় সাজানো হচ্ছে...',
+        romantic: 'মিষ্টি রোমান্টিক সুবাস ও অনুরাগ যোগ করা হচ্ছে...',
+        'more-romantic': 'মিষ্টি রোমান্টিক সুবাস ও অনুরাগ যোগ করা হচ্ছে...',
+        professional: 'দায়িত্বশীল ও সুবিন্যস্ত পেশাদার ভাষায় রূপান্তর হচ্ছে...',
+        'short-version': 'চিঠির সারমর্ম নিবিড় ও সংক্ষিপ্ত করা হচ্ছে...',
+        'make-shorter': 'চিঠির সারমর্ম নিবিড় ও সংক্ষিপ্ত করা হচ্ছে...',
+        storytelling: 'স্মৃতিকাতর দৃশ্যপট ও গল্পের মায়াজালে বোনা হচ্ছে...',
+        'vintage-90s': 'নব্বই দশকের নীল খামের ডাকচিঠির স্মৃতি সাজানো হচ্ছে...',
+        regenerate: 'চিঠিটি সম্পূর্ণ নতুন আঙ্গিকে পুনর্লিখন করা হচ্ছে...',
+      }
       setRefiningStatus(
         locale === 'en'
-          ? action === 'more-emotional'
-            ? 'Adding deep emotional resonance...'
-            : action === 'more-romantic'
-            ? 'Adding romantic touches...'
-            : action === 'vintage-90s'
-            ? 'Infusing 90s vintage nostalgia...'
-            : action === 'make-shorter'
-            ? 'Condensing letter essence...'
-            : action === 'better-writing'
-            ? 'Polishing literary quality...'
-            : 'Refining letter with AI...'
-          : action === 'more-emotional'
-          ? 'শব্দে গভীর আবেগ ছড়ানো হচ্ছে...'
-          : action === 'more-romantic'
-          ? 'মিষ্টি রোমান্টিক সুবাস যোগ করা হচ্ছে...'
-          : action === 'vintage-90s'
-          ? 'নব্বই দশকের নীল খামের স্মৃতি সাজানো হচ্ছে...'
-          : action === 'make-shorter'
-          ? 'চিঠির সারমর্ম নিবিড় করা হচ্ছে...'
-          : action === 'better-writing'
-          ? 'সাহিত্যিক মান নিখুঁত করা হচ্ছে...'
-          : 'চিঠির ভাষা পরিশোধন চলছে...'
+          ? statusMapEn[action] || 'Refining letter with AI...'
+          : statusMapBn[action] || 'চিঠির ভাষা পরিশোধন চলছে...'
       )
 
       try {
@@ -465,8 +473,60 @@ function LetterPreviewCardInner({
           )}
         </div>
 
-        {/* Quick Refine Action Chips */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        {/* 4 Post-Generation Quick Actions: Regenerate, Make shorter, Make emotional, Make formal */}
+        <div className="space-y-1.5">
+          <span className="text-[11px] font-bengali font-semibold text-neutral-600 dark:text-neutral-400">
+            {locale === 'en' ? 'Quick Refinements:' : 'দ্রুত পরিবর্তন করুন:'}
+          </span>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <button
+              type="button"
+              disabled={isRefining}
+              onClick={() => handleRefine('regenerate')}
+              className="flex items-center justify-center gap-1.5 p-2.5 rounded-xl border border-rose-200 dark:border-rose-900/50 bg-rose-50/80 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-800 dark:text-rose-200 text-xs font-bengali font-bold transition-all shadow-2xs active:scale-95 disabled:opacity-50 min-h-[44px] cursor-pointer"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-rose-600 dark:text-rose-400 ${isRefining ? 'animate-spin' : ''}`} />
+              <span>{locale === 'en' ? 'Regenerate' : 'পুনরায় লিখুন'}</span>
+            </button>
+
+            <button
+              type="button"
+              disabled={isRefining}
+              onClick={() => handleRefine('short-version')}
+              className="flex items-center justify-center gap-1.5 p-2.5 rounded-xl border border-teal-200 dark:border-teal-900/50 bg-teal-50/80 dark:bg-teal-950/40 hover:bg-teal-100 dark:hover:bg-teal-900/60 text-teal-800 dark:text-teal-200 text-xs font-bengali font-bold transition-all shadow-2xs active:scale-95 disabled:opacity-50 min-h-[44px] cursor-pointer"
+            >
+              <Scissors className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+              <span>{locale === 'en' ? 'Make shorter' : 'সংক্ষিপ্ত করুন'}</span>
+            </button>
+
+            <button
+              type="button"
+              disabled={isRefining}
+              onClick={() => handleRefine('emotional')}
+              className="flex items-center justify-center gap-1.5 p-2.5 rounded-xl border border-pink-200 dark:border-pink-900/50 bg-pink-50/80 dark:bg-pink-950/40 hover:bg-pink-100 dark:hover:bg-pink-900/60 text-pink-800 dark:text-pink-200 text-xs font-bengali font-bold transition-all shadow-2xs active:scale-95 disabled:opacity-50 min-h-[44px] cursor-pointer"
+            >
+              <Heart className="w-3.5 h-3.5 text-pink-600 dark:text-pink-400 fill-pink-500/20" />
+              <span>{locale === 'en' ? 'Make emotional' : 'আবেগঘন করুন'}</span>
+            </button>
+
+            <button
+              type="button"
+              disabled={isRefining}
+              onClick={() => handleRefine('formal')}
+              className="flex items-center justify-center gap-1.5 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/40 hover:bg-slate-100 dark:hover:bg-slate-800/60 text-slate-800 dark:text-slate-200 text-xs font-bengali font-bold transition-all shadow-2xs active:scale-95 disabled:opacity-50 min-h-[44px] cursor-pointer"
+            >
+              <PenTool className="w-3.5 h-3.5 text-slate-600 dark:text-slate-400" />
+              <span>{locale === 'en' ? 'Make formal' : 'আনুষ্ঠানিক করুন'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 8 Canonical Enhancement Modes */}
+        <div className="space-y-1.5">
+          <span className="text-[11px] font-bengali font-semibold text-neutral-600 dark:text-neutral-400">
+            {locale === 'en' ? '8 Enhancement Modes:' : '৮টি বিশেষ শৈলী (Enhancement Modes):'}
+          </span>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {REFINE_QUICK_CHIPS.map((chip) => (
             <button
               key={chip.id}
@@ -479,6 +539,7 @@ function LetterPreviewCardInner({
               <span className="truncate">{language === 'english' ? chip.labelEn : chip.labelBn}</span>
             </button>
           ))}
+          </div>
         </div>
 
         {/* Custom AI Instruction Box */}
@@ -609,23 +670,14 @@ function LetterPreviewCardInner({
           )}
         </button>
 
-        {/* WhatsApp Share Button — uses universal shareLetter() engine */}
+        {/* Universal Share Letter Button — opens share menu (WhatsApp, Messenger, Telegram, Email, Copy Link, Native Share) */}
         <button
           type="button"
-          onClick={handleWhatsAppShare}
-          disabled={whatsappSharing}
-          className={`flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bengali text-xs sm:text-sm font-medium shadow-xs transition-all min-h-[44px] cursor-pointer ${
-            whatsappSharing
-              ? 'bg-[#25D366]/70 text-white cursor-not-allowed'
-              : 'bg-[#25D366] hover:bg-[#20bd5a] text-white'
-          }`}
+          onClick={() => setShowShareModal(true)}
+          className="flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-bengali text-xs sm:text-sm font-bold shadow-xs transition-all min-h-[44px] cursor-pointer bg-gradient-to-r from-rose-500 to-pink-500 hover:from-rose-600 hover:to-pink-600 text-white active:scale-95 glow-pink"
         >
-          {whatsappSharing ? (
-            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-          ) : (
-            <Share2 className="w-4 h-4" />
-          )}
-          <span>{t('preview.whatsappBtn')}</span>
+          <Share2 className="w-4 h-4" />
+          <span>{locale === 'en' ? 'Share Letter 💌' : 'চিঠি শেয়ার করুন 💌'}</span>
         </button>
 
         {/* Formatted TXT Export Button — shows success feedback */}
