@@ -2,7 +2,7 @@
 
 import React from 'react'
 import Link from 'next/link'
-import { Heart, Feather, LayoutDashboard, LogIn } from 'lucide-react'
+import { Heart, Feather, CircleUser, ChevronRight } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useLanguage } from '@/components/providers/LanguageProvider'
 import { ThemeSwitcher } from '@/components/ui/ThemeSwitcher'
@@ -10,7 +10,7 @@ import { LanguageSwitcher } from '@/components/ui/LanguageSwitcher'
 
 export function Navbar() {
   const { isAuthenticated } = useAuth()
-  const { t } = useLanguage()
+  const { t, locale } = useLanguage()
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-rose-100/60 dark:border-neutral-800 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-md transition-colors duration-200">
@@ -41,22 +41,32 @@ export function Navbar() {
           <LanguageSwitcher />
           <ThemeSwitcher />
 
-          {/* Navigation links */}
+          {/* User Account / Login CTA */}
           {isAuthenticated ? (
             <Link
               href="/dashboard"
-              className="inline-flex items-center gap-1.5 text-xs font-bengali font-medium text-rose-700 dark:text-rose-300 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/50 dark:hover:bg-rose-900/50 px-2.5 sm:px-3 py-2 rounded-xl transition-colors border border-rose-200/60 dark:border-rose-900/40 min-h-[36px] sm:min-h-[40px]"
+              title={locale === 'en' ? 'My Account' : 'আমার অ্যাকাউন্ট'}
+              aria-label={locale === 'en' ? 'My Account' : 'আমার অ্যাকাউন্ট'}
+              className="group inline-flex items-center justify-center gap-1.5 w-9 sm:w-auto h-9 sm:h-10 px-0 sm:px-3.5 rounded-full font-bengali text-xs sm:text-sm font-semibold text-rose-700 dark:text-rose-300 bg-gradient-to-r from-rose-50/90 via-pink-50/70 to-rose-50/90 dark:from-rose-950/50 dark:via-pink-950/40 dark:to-rose-950/50 border border-rose-200/80 dark:border-rose-900/60 hover:border-rose-300 dark:hover:border-rose-700 shadow-xs hover:shadow-[0_0_15px_rgba(244,63,94,0.18)] dark:hover:shadow-[0_0_15px_rgba(244,63,94,0.25)] hover:scale-[1.02] active:scale-95 transition-all duration-200 shrink-0"
             >
-              <LayoutDashboard className="w-3.5 h-3.5 text-rose-500" />
-              <span className="hidden xs:inline">{t('nav.dashboard')}</span>
+              <CircleUser className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-rose-500 dark:text-rose-400 group-hover:scale-105 transition-transform duration-200 shrink-0" />
+              <span className="hidden sm:inline">
+                {locale === 'en' ? 'My Account' : 'আমার অ্যাকাউন্ট'}
+              </span>
+              <ChevronRight className="w-3.5 h-3.5 text-rose-400/80 dark:text-rose-400/60 group-hover:translate-x-0.5 group-hover:text-rose-600 dark:group-hover:text-rose-300 transition-all duration-200 hidden md:inline" />
             </Link>
           ) : (
             <Link
               href="/login"
-              className="inline-flex items-center gap-1.5 text-xs font-bengali font-medium text-neutral-700 dark:text-neutral-300 hover:text-rose-600 dark:hover:text-rose-400 bg-neutral-100/80 hover:bg-rose-50 dark:bg-neutral-800 dark:hover:bg-neutral-700 px-2.5 sm:px-3 py-2 rounded-xl transition-colors min-h-[36px] sm:min-h-[40px]"
+              title={locale === 'en' ? 'Log in' : 'লগইন করুন'}
+              aria-label={locale === 'en' ? 'Log in' : 'লগইন করুন'}
+              className="group inline-flex items-center justify-center gap-1.5 w-9 sm:w-auto h-9 sm:h-10 px-0 sm:px-3.5 rounded-full font-bengali text-xs sm:text-sm font-semibold text-rose-700 dark:text-rose-300 bg-gradient-to-r from-rose-50/90 via-pink-50/70 to-rose-50/90 dark:from-rose-950/50 dark:via-pink-950/40 dark:to-rose-950/50 border border-rose-200/80 dark:border-rose-900/60 hover:border-rose-300 dark:hover:border-rose-700 shadow-xs hover:shadow-[0_0_15px_rgba(244,63,94,0.18)] dark:hover:shadow-[0_0_15px_rgba(244,63,94,0.25)] hover:scale-[1.02] active:scale-95 transition-all duration-200 shrink-0"
             >
-              <LogIn className="w-3.5 h-3.5" />
-              <span className="hidden xs:inline">{t('nav.login')}</span>
+              <CircleUser className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-rose-500 dark:text-rose-400 group-hover:scale-105 transition-transform duration-200 shrink-0" />
+              <span className="hidden sm:inline">
+                {locale === 'en' ? 'Log in' : 'লগইন'}
+              </span>
+              <ChevronRight className="w-3.5 h-3.5 text-rose-400/80 dark:text-rose-400/60 group-hover:translate-x-0.5 group-hover:text-rose-600 dark:group-hover:text-rose-300 transition-all duration-200 hidden md:inline" />
             </Link>
           )}
 
