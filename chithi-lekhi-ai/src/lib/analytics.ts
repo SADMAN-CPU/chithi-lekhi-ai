@@ -170,7 +170,14 @@ export async function trackEvent(event: AnalyticsEvent): Promise<void> {
     if (env.isConfigured && isServiceRoleConfigured()) {
       const adminClient = createAdminClient()
       if (adminClient) {
-        await adminClient.from('share_analytics').insert({
+        const untypedClient = adminClient as unknown as {
+          from: (table: string) => {
+            insert: (row: Record<string, unknown>) => Promise<{ error: unknown }>
+          }
+        }
+
+        await untypedClient.from('share_analytics').insert({
+          share_token: 'app',
           event_type: event.type,
           platform: event.properties?.platform || event.properties?.format || 'web',
           metadata: {
@@ -216,7 +223,14 @@ export async function getProductAnalytics(): Promise<ProductAnalyticsSummary> {
         if (typeof lettersCount === 'number') dbLetters = lettersCount
 
         // 3. Analytics events breakdown
-        const { data: analyticsRows } = await client
+        const untyped = client as unknown as {
+          from: (table: string) => {
+            select: (cols: string) => {
+              limit: (n: number) => Promise<{ data: Array<{ event_type: string; platform?: string | null }> | null }>
+            }
+          }
+        }
+        const { data: analyticsRows } = await untyped
           .from('share_analytics')
           .select('event_type, platform')
           .limit(1000)
