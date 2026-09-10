@@ -12,6 +12,7 @@ import {
   checkUserRateLimit,
 } from '@/lib/quota-service'
 import { trackEvent } from '@/lib/analytics'
+import { moderateContent } from '@/lib/content-moderation'
 import type { ApiError, GenerateLetterRequest, GenerateLetterResponse } from '@/types'
 
 // Vercel serverless function max execution duration (seconds)
@@ -86,6 +87,33 @@ export async function POST(request: NextRequest) {
       emotion: data.emotion ? sanitizeInput(data.emotion) : undefined,
     }
 
+    // Content Moderation Screening (§11)
+    const inputsToScreen = [
+      sanitizedParams.receiverName,
+      sanitizedParams.relationship,
+      sanitizedParams.memory,
+      sanitizedParams.situation,
+      sanitizedParams.feeling,
+    ]
+    for (const text of inputsToScreen) {
+      if (text) {
+        const mod = moderateContent(text)
+        if (!mod.safe) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: {
+                code: 'CONTENT_FLAGGED',
+                message: mod.reason || 'ইনপুটটিতে অনিরাপদ বিষয়বস্তু রয়েছে।',
+                status: 400,
+              },
+            },
+            { status: 400 }
+          )
+        }
+      }
+    }
+
     // Phase 02: Perform deep emotional & psychological context analysis
     const emotionalAnalysis = analyzeEmotionalContext(sanitizedParams)
 
@@ -98,7 +126,6 @@ export async function POST(request: NextRequest) {
       )
     } catch (aiErr) {
       // Quota is NOT consumed if AI generation fails.
-      // Record failed AI audit log for cost and reliability tracking.
       await recordAIUsage({
         userId: premiumGuard.userId,
         identifier: premiumGuard.usage.identifier,
@@ -106,28 +133,28 @@ export async function POST(request: NextRequest) {
         model: 'gemini-1.5-flash',
         tokensUsed: 0,
         success: false,
-        error: aiErr instanceof Error ? aiErr.message : 'AI generation error',
+        error: aiErr instanceof Error ? aiErr.message : 'AI generation failure',
       })
       throw aiErr
     }
 
     const { letter, provider } = generatedResult
 
-    // Deduct quota ONLY after confirmed successful AI generation
+    // Deduct quota ONLY after confirmed successful AI letter generation
     const quotaConsumption = await consumeUserQuota({
       identifier: premiumGuard.usage.identifier,
       userId: premiumGuard.userId,
       actionType: 'generation',
     })
 
-    // Calculate approx word count and record usage audit trail
+    // Record successful AI usage audit trail for billing and analytics
     const wordCount = letter.trim().split(/\s+/).length
-    const estimatedTokens = Math.ceil((wordCount + 120) * 1.5)
+    const estimatedTokens = Math.ceil((wordCount + 150) * 1.5)
     await recordAIUsage({
       userId: premiumGuard.userId,
       identifier: premiumGuard.usage.identifier,
       actionType: 'generation',
-      model: provider === 'gemini' ? 'gemini-1.5-flash' : 'openai/gpt-4o-mini',
+      model: 'gemini-1.5-flash',
       tokensUsed: estimatedTokens,
       success: true,
     })
@@ -137,13 +164,19 @@ export async function POST(request: NextRequest) {
     try {
       const saved = await createLetter(
         {
+          recipient_name: sanitizedParams.receiverName,
           receiver_name: sanitizedParams.receiverName,
           relationship: sanitizedParams.relationship,
           emotion: sanitizedParams.feeling,
+          style: sanitizedParams.style || sanitizedParams.personality || 'vintage',
           era_style: sanitizedParams.eraStyle,
           language: sanitizedParams.language,
           memory_context: sanitizedParams.memory || null,
+          original_input: sanitizedParams.memory || sanitizedParams.feeling,
+          original_letter: sanitizedParams.memory || sanitizedParams.feeling,
+          generated_content: letter,
           content: letter,
+          letter_content: letter,
           favorite: false,
           is_public: false,
         },

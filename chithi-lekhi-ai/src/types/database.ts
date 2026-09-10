@@ -30,6 +30,9 @@ export interface Database {
           pdf_url?: string | null
           is_favorite?: boolean
           content: string
+          original_input?: string | null
+          generated_content?: string | null
+          enhanced_content?: string | null
           status: 'published' | 'draft'
           favorite: boolean
           share_slug: string | null
@@ -58,6 +61,9 @@ export interface Database {
           memory_context?: string | null
           letter_content?: string
           content: string
+          original_input?: string | null
+          generated_content?: string | null
+          enhanced_content?: string | null
           theme?: string
           image_url?: string | null
           pdf_url?: string | null
@@ -90,6 +96,9 @@ export interface Database {
           memory_context?: string | null
           letter_content?: string
           content?: string
+          original_input?: string | null
+          generated_content?: string | null
+          enhanced_content?: string | null
           theme?: string
           image_url?: string | null
           pdf_url?: string | null
@@ -522,6 +531,70 @@ export interface Database {
         }
         Relationships: []
       }
+      letter_views: {
+        Row: {
+          id: string
+          letter_id: string
+          ip_hash: string | null
+          device: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          letter_id: string
+          ip_hash?: string | null
+          device?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          letter_id?: string
+          ip_hash?: string | null
+          device?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'letter_views_letter_id_fkey'
+            columns: ['letter_id']
+            isOneToOne: false
+            referencedRelation: 'letters'
+            referencedColumns: ['id']
+          }
+        ]
+      }
+      voice_history: {
+        Row: {
+          id: string
+          letter_id: string
+          voice_type: string | null
+          duration: number | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          letter_id: string
+          voice_type?: string | null
+          duration?: number | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          letter_id?: string
+          voice_type?: string | null
+          duration?: number | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'voice_history_letter_id_fkey'
+            columns: ['letter_id']
+            isOneToOne: false
+            referencedRelation: 'letters'
+            referencedColumns: ['id']
+          }
+        ]
+      }
     }
     Views: {
       users: {
@@ -535,6 +608,14 @@ export interface Database {
       }
     }
     Functions: {
+      record_letter_view: {
+        Args: {
+          target_share_id: string
+          viewer_ip_hash?: string | null
+          viewer_device?: string | null
+        }
+        Returns: Json
+      }
       increment_public_letter_views: {
         Args: { target_short_id: string }
         Returns: void
@@ -586,3 +667,9 @@ export type FavoriteRow = Database['public']['Tables']['favorites']['Row']
 export type AIUsageRow = Database['public']['Tables']['ai_usage']['Row']
 export type AIUsageInsert = Database['public']['Tables']['ai_usage']['Insert']
 export type AIUsageUpdate = Database['public']['Tables']['ai_usage']['Update']
+export type LetterViewRow = Database['public']['Tables']['letter_views']['Row']
+export type LetterViewInsert = Database['public']['Tables']['letter_views']['Insert']
+export type LetterViewUpdate = Database['public']['Tables']['letter_views']['Update']
+export type VoiceHistoryRow = Database['public']['Tables']['voice_history']['Row']
+export type VoiceHistoryInsert = Database['public']['Tables']['voice_history']['Insert']
+export type VoiceHistoryUpdate = Database['public']['Tables']['voice_history']['Update']

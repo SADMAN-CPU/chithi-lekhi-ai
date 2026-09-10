@@ -21,11 +21,13 @@ export async function createLetter(
   const now = new Date().toISOString()
   const slug = data.share_id || data.share_slug || generateSlug(6)
   const status = data.status || 'published'
-  const letterBody = data.letter_content || data.content || ''
+  const letterBody = data.generated_content || data.letter_content || data.content || ''
   const recipientName = data.recipient_name || data.receiver_name
   const letterStyle = data.letter_style || data.era_style || data.style || 'vintage'
-  const originalBody = data.original_letter || letterBody
-  const enhancedBody = data.enhanced_letter || null
+  const originalInput = data.original_input || data.original_letter || letterBody
+  const originalBody = data.original_letter || originalInput
+  const enhancedContent = data.enhanced_content || data.enhanced_letter || null
+  const enhancedBody = data.enhanced_letter || enhancedContent
   const enhancementStyle = data.enhancement_style || null
 
   if (isConfigured) {
@@ -43,10 +45,13 @@ export async function createLetter(
           recipient_name: recipientName,
           content: letterBody,
           letter_content: letterBody,
+          original_input: originalInput,
+          original_letter: originalBody,
+          generated_content: letterBody,
+          enhanced_content: enhancedContent,
+          enhanced_letter: enhancedBody,
           era_style: letterStyle,
           letter_style: letterStyle,
-          original_letter: originalBody,
-          enhanced_letter: enhancedBody,
           enhancement_style: enhancementStyle,
           status,
           share_slug: slug,
@@ -61,7 +66,8 @@ export async function createLetter(
         .single()
 
       if (error) {
-        console.warn('[Supabase letters] Insert error, falling back to local store:', error.message)
+        console.error('[Supabase letters] Database insert error:', error.message)
+        throw new Error(`Database save failed: ${error.message}`)
       } else if (inserted) {
         const record = inserted as LetterRow
         inMemoryStore.set(record.id, record)
@@ -69,12 +75,14 @@ export async function createLetter(
         if (record.share_slug) inMemoryStore.set(record.share_slug, record)
         return record
       }
+      throw new Error('Database save failed: No record returned from database')
     } catch (err) {
-      console.warn('[Supabase letters] Insert exception, falling back to local store:', err)
+      console.error('[Supabase letters] Insert exception in configured environment:', err)
+      throw err
     }
   }
 
-  // Fallback / Development mode
+  // Fallback / Local development mode (only when Supabase is unconfigured)
   const record: LetterRow = {
     id: newId,
     user_id: data.user_id ?? null,
@@ -91,7 +99,10 @@ export async function createLetter(
     memory_context: data.memory_context ?? null,
     content: letterBody,
     letter_content: letterBody,
+    original_input: originalInput,
     original_letter: originalBody,
+    generated_content: letterBody,
+    enhanced_content: enhancedContent,
     enhanced_letter: enhancedBody,
     enhancement_style: enhancementStyle,
     theme: data.theme || 'vintage',
@@ -155,10 +166,15 @@ export async function getLetterByShareId(shareId: string, isServer = false): Pro
         ? (isServiceRoleConfigured() ? createAdminClient() : await createServerSupabase())
         : createBrowserSupabase()
 
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(shareId)
+      const orFilter = isUuid
+        ? `share_id.eq.${shareId},share_slug.eq.${shareId},id.eq.${shareId}`
+        : `share_id.eq.${shareId},share_slug.eq.${shareId}`
+
       const { data, error } = await client
         .from('letters')
         .select('*')
-        .or(`share_id.eq.${shareId},share_slug.eq.${shareId},id.eq.${shareId}`)
+        .or(orFilter)
         .maybeSingle()
 
       if (!error && data) {
@@ -388,27 +404,75 @@ export async function updateLetter(
         .update({ ...updates, updated_at: now })
         .eq('id', letterId)
         .select()
-        .single()
+        .maybeSingle()
 
-      if (!error && data) {
-        return data as LetterRow
+      if (error) {
+        console.error('[Supabase letters] updateLetter database error:', error.message)
+        throw new Error(`Database update failed: ${error.message}`)
       }
+
+      if (data) {
+        const record = data as LetterRow
+        inMemoryStore.set(record.id, record)
+        if (record.share_id) inMemoryStore.set(record.share_id, record)
+        if (record.share_slug) inMemoryStore.set(record.share_slug, record)
+        return record
+      }
+      return null
     } catch (err) {
-      console.warn('[Supabase letters] updateLetter error:', err)
+      console.error('[Supabase letters] updateLetter persistence failure:', err)
+      throw err
     }
   }
 
   const existing = inMemoryStore.get(letterId)
   if (existing) {
-    const syncedBody = updates.content || updates.letter_content || existing.content
+    const syncedBody =
+      updates.enhanced_content ||
+      updates.enhanced_letter ||
+      updates.content ||
+      updates.letter_content ||
+      existing.content
+    const syncedOriginal =
+      updates.original_input ||
+      updates.original_letter ||
+      existing.original_input ||
+      existing.original_letter ||
+      existing.content
+    const syncedEnhanced =
+      updates.enhanced_content ||
+      updates.enhanced_letter ||
+      existing.enhanced_content ||
+      existing.enhanced_letter ||
+      null
+    const syncedRecipient =
+      updates.recipient_name ||
+      updates.receiver_name ||
+      existing.recipient_name ||
+      existing.receiver_name
+    const syncedShareId =
+      updates.share_id ||
+      updates.share_slug ||
+      existing.share_id ||
+      existing.share_slug
+
     const updated = {
       ...existing,
       ...updates,
       content: syncedBody,
       letter_content: syncedBody,
+      original_input: syncedOriginal,
+      original_letter: syncedOriginal,
+      enhanced_content: syncedEnhanced,
+      enhanced_letter: syncedEnhanced,
+      recipient_name: syncedRecipient,
+      receiver_name: syncedRecipient,
+      share_id: syncedShareId,
+      share_slug: syncedShareId,
       updated_at: now,
     } as LetterRow
     inMemoryStore.set(letterId, updated)
+    if (syncedShareId) inMemoryStore.set(syncedShareId, updated)
     return updated
   }
 

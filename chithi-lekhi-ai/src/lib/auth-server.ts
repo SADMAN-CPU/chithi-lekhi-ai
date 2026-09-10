@@ -38,7 +38,9 @@ export async function getServerUser(): Promise<ServerUser | null> {
         error,
       } = await supabase.auth.getUser()
       if (!error && user) {
-        let role: 'user' | 'admin' = (user.user_metadata?.role as 'user' | 'admin') || 'user'
+        // SECURITY: user_metadata is user-writable on signup/update and MUST NEVER be trusted for authorization.
+        // Role is strictly determined by non-editable app_metadata or authoritative public.profiles.
+        let role: 'user' | 'admin' = (user.app_metadata?.role as 'user' | 'admin') === 'admin' ? 'admin' : 'user'
         if (role !== 'admin') {
           try {
             const { data: profile } = await supabase

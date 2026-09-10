@@ -132,11 +132,16 @@ export async function getPublicLetter(
       const client = isServer
         ? (isServiceRoleConfigured() ? createAdminClient() : await createServerSupabase())
         : createBrowserSupabase()
-      // Try by short_id first, then id
+      // Try by short_id first, then id (if valid UUID)
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(shortIdOrId)
+      const orFilter = isUuid
+        ? `short_id.eq.${shortIdOrId},id.eq.${shortIdOrId}`
+        : `short_id.eq.${shortIdOrId}`
+
       const { data, error } = await client
         .from('public_letters')
         .select('*')
-        .or(`short_id.eq.${shortIdOrId},id.eq.${shortIdOrId}`)
+        .or(orFilter)
         .maybeSingle()
 
       if (!error && data) {

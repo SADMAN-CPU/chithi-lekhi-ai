@@ -228,10 +228,15 @@ export async function getShareByToken(
       const client = isServer
         ? (isServiceRoleConfigured() ? createAdminClient() : await createServerSupabase())
         : createBrowserSupabase()
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tokenOrId)
+      const orFilter = isUuid
+        ? `share_token.eq.${tokenOrId},id.eq.${tokenOrId}`
+        : `share_token.eq.${tokenOrId}`
+
       const { data, error } = await client
         .from('shares')
         .select('*')
-        .or(`share_token.eq.${tokenOrId},id.eq.${tokenOrId}`)
+        .or(orFilter)
         .maybeSingle()
 
       if (!error && data) {

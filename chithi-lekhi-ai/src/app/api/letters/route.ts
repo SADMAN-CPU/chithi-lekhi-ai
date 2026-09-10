@@ -10,6 +10,7 @@ import {
 import { sanitizeInput } from '@/utils/helpers'
 import { checkRateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { getServerUser, isSupabaseConfigured } from '@/lib/auth-server'
+import { moderateContent } from '@/lib/content-moderation'
 import type { ApiError } from '@/types'
 
 // ── GET /api/letters — Query letters ──────────────────────────────────────────
@@ -102,13 +103,32 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
 
-    if (!body.receiver_name || !body.content) {
+    const rawRecipient = body.recipient_name || body.receiver_name
+    const rawContent = body.generated_content || body.content || body.letter_content
+
+    if (!rawRecipient || !rawContent) {
       const error: ApiError = {
-        message: 'receiver_name and content are required',
+        message: 'recipient_name (or receiver_name) and content are required',
         code: 'VALIDATION_ERROR',
         status: 400,
       }
       return NextResponse.json({ success: false, error }, { status: 400 })
+    }
+
+    // Moderate content
+    const modContent = moderateContent(rawContent)
+    if (!modContent.safe) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'CONTENT_FLAGGED',
+            message: modContent.reason || 'চিঠিতে অনিরাপদ বিষয়বস্তু পাওয়া গেছে।',
+            status: 400,
+          },
+        },
+        { status: 400 }
+      )
     }
 
     const serverUser = await getServerUser()
@@ -116,24 +136,36 @@ export async function POST(request: NextRequest) {
     // SECURITY: In production, unauthenticated clients cannot claim an arbitrary user_id
     const resolvedUserId = serverUser?.id || (!isProduction && body.user_id ? sanitizeInput(body.user_id) : null)
 
+    const sanitizedRecipient = sanitizeInput(rawRecipient)
+    const sanitizedContent = sanitizeInput(rawContent)
+    const sanitizedOriginal = body.original_input ? sanitizeInput(body.original_input) : (body.original_letter ? sanitizeInput(body.original_letter) : sanitizedContent)
+    const sanitizedEnhanced = body.enhanced_content ? sanitizeInput(body.enhanced_content) : (body.enhanced_letter ? sanitizeInput(body.enhanced_letter) : undefined)
+    const shareSlug = body.share_id ? sanitizeInput(body.share_id) : (body.share_slug ? sanitizeInput(body.share_slug) : undefined)
+
     const saved = await createLetter(
       {
         user_id: resolvedUserId,
-        receiver_name: sanitizeInput(body.receiver_name),
+        receiver_name: sanitizedRecipient,
+        recipient_name: sanitizedRecipient,
         relationship: body.relationship ? sanitizeInput(body.relationship) : null,
         emotion: body.emotion ? sanitizeInput(body.emotion) : null,
         style: body.style ? sanitizeInput(body.style) : null,
         era_style: body.era_style ? sanitizeInput(body.era_style) : null,
         language: body.language || 'bengali',
         memory_context: body.memory_context ? sanitizeInput(body.memory_context) : null,
-        content: sanitizeInput(body.content),
-        original_letter: body.original_letter ? sanitizeInput(body.original_letter) : undefined,
-        enhanced_letter: body.enhanced_letter ? sanitizeInput(body.enhanced_letter) : undefined,
+        content: sanitizedContent,
+        letter_content: sanitizedContent,
+        original_input: sanitizedOriginal,
+        original_letter: sanitizedOriginal,
+        generated_content: sanitizedContent,
+        enhanced_content: sanitizedEnhanced,
+        enhanced_letter: sanitizedEnhanced,
         enhancement_style: body.enhancement_style ? sanitizeInput(body.enhancement_style) : undefined,
         status: body.status === 'draft' ? 'draft' : 'published',
         favorite: Boolean(body.favorite),
         is_public: Boolean(body.is_public),
-        share_slug: body.share_slug ? sanitizeInput(body.share_slug) : undefined,
+        share_slug: shareSlug,
+        share_id: shareSlug,
       },
       true
     )

@@ -5,7 +5,7 @@ import { Navbar } from '@/components/layout/Navbar'
 import { AnonymousLetterReader } from '@/components/letter/AnonymousLetterReader'
 import { getShareByToken } from '@/lib/shares'
 import { getPublicLetter } from '@/lib/supabase/public-letters'
-import { getLetterById, getLetterBySlug } from '@/lib/supabase/letters'
+import { getLetterById, getLetterByShareId } from '@/lib/supabase/letters'
 import { FileQuestion, Feather, Lock, Clock } from 'lucide-react'
 import type { LetterRow } from '@/types/database'
 
@@ -19,28 +19,51 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   let receiverName = 'প্রিয়জন'
   if (shareLookup.letter) {
-    receiverName = shareLookup.letter.receiver_name
+    receiverName = shareLookup.letter.recipient_name || shareLookup.letter.receiver_name || 'প্রিয়জন'
   } else {
     const pubLookup = await getPublicLetter(id, false, true)
     if (pubLookup.letter) {
-      receiverName = pubLookup.letter.receiver_name
+      receiverName = pubLookup.letter.receiver_name || 'প্রিয়জন'
+    } else {
+      const canonicalLetter = await getLetterByShareId(id, true)
+      if (canonicalLetter) {
+        receiverName = canonicalLetter.recipient_name || canonicalLetter.receiver_name || 'প্রিয়জন'
+      }
     }
   }
 
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://chithi-lekhi-ai.vercel.app'
+  const pageUrl = `${appUrl.replace(/\/+$/, '')}/read/${id}`
+  const title = `চিঠি — ${receiverName}-এর জন্য 💌 | Chithi Lekhi AI`
+  const description = `কেউ একজন ${receiverName}-এর জন্য একটি আন্তরিক ও আবেগঘন চিঠি পাঠিয়েছে। পড়ে দেখুন...`
+
   return {
-    title: `চিঠি — ${receiverName}-এর জন্য 💌 | Chithi Lekhi AI`,
-    description: `কেউ একজন ${receiverName}-এর জন্য একটি আন্তরিক ও আবেগঘন চিঠি পাঠিয়েছে। পড়ে দেখুন...`,
+    title,
+    description,
+    alternates: {
+      canonical: pageUrl,
+    },
     openGraph: {
       title: `💌 ${receiverName}-এর জন্য একটি চিঠি এসেছে`,
-      description: `চিঠি লেখাই এআই (Chithi Lekhi AI)-এর মাধ্যমে পাঠানো একটি বিশেষ vintage চিঠি।`,
+      description,
+      url: pageUrl,
       type: 'article',
       locale: 'bn_BD',
       siteName: 'Chithi Lekhi AI',
+      images: [
+        {
+          url: `${appUrl}/og-image.png`,
+          width: 1200,
+          height: 630,
+          alt: `চিঠি — ${receiverName}-এর জন্য`,
+        },
+      ],
     },
     twitter: {
       card: 'summary_large_image',
       title: `💌 ${receiverName}-এর জন্য একটি চিঠি এসেছে`,
-      description: `চিঠি লেখাই এআই-এর মাধ্যমে পাঠানো একটি বিশেষ চিঠি।`,
+      description,
+      images: [`${appUrl}/og-image.png`],
     },
   }
 }
@@ -88,15 +111,16 @@ export default async function ReadLetterPage({ params }: Props) {
     }
   }
 
-  // 3. Tertiary fallback: legacy letters table
+  // 3. Tertiary fallback: canonical letters table by share_id, share_slug, or ID
   if (!letter && status === 'not_found') {
-    let legacy = await getLetterBySlug(id, true)
-    if (!legacy) {
-      legacy = await getLetterById(id, true)
+    let canonical = await getLetterByShareId(id, true)
+    if (!canonical) {
+      canonical = await getLetterById(id, true)
     }
-    if (legacy) {
-      letter = legacy
+    if (canonical && (canonical.is_public || process.env.NODE_ENV !== 'production')) {
+      letter = canonical
       status = 'ok'
+      views = canonical.view_count || 1
     }
   }
 

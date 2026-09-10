@@ -7,6 +7,7 @@ import {
   calculateOptimalTokens,
   validateAndCleanResponse,
 } from './ai-router'
+import { verifyEnhancementGuardrail, calculateLetterSimilarity } from './similarity'
 
 const geminiApiKey = process.env.GEMINI_API_KEY
 const geminiModelName = process.env.GEMINI_MODEL || 'gemini-1.5-flash'
@@ -65,12 +66,15 @@ export interface LetterQualityAudit {
  * Core Product Philosophy:
  * "AI লেখক নয়, AI editor — Preserve first, improve second."
  */
-export const ENHANCEMENT_EDITOR_SYSTEM_PROMPT = `You are an expert Bengali emotional editor and letter refiner.
+export const ENHANCEMENT_EDITOR_SYSTEM_PROMPT = `You are a professional Bengali emotional editor, NOT a co-author.
 Your sole purpose is to polish and enhance the letter written by the user while strictly preserving their authentic voice, stated feelings, recipient, relationship dynamics, and real memories.
 
-EDITORIAL ETHOS:
-- YOU ARE AN EDITOR, NEVER A FICTION WRITER.
+EDITORIAL ETHOS & STRICT CONSTRAINTS:
+- YOU ARE A PROFESSIONAL EDITOR, NOT A CO-AUTHOR OR FICTION WRITER.
 - NEVER invent fictional memories, fabricated events, or fake situations that the user never wrote.
+- DO NOT change the recipient, relationship perspective, or core emotional tone.
+- DO NOT add, remove, or alter personal memories or facts stated by the user.
+- DO NOT restructure the order of the user's thoughts or arguments.
 - NEVER inject artificial melodrama, cinematic weeping, burning memories, or exaggerated metaphors (e.g. do NOT invent rain, darkness, tear-stained pillows, or dramatic storms unless the user specifically wrote about them).
 - STRICTLY RESPECT RELATIONSHIP PERSPECTIVES:
   * Teacher / Mentor (e.g. Setu Sir, শিক্ষাগুরু): Must strictly maintain respectful student-to-teacher tone ("আপনি"), honoring guidance, knowledge, and grateful appreciation. NEVER romanticize or melodramatize.
@@ -78,12 +82,17 @@ EDITORIAL ETHOS:
   * Friend (বন্ধু / দোস্ত): Maintain natural warmth, camaraderie, and authentic candid connection.
   * Romantic Partner (জীবনসঙ্গী / ভালোবাসা): Express genuine tender affection corresponding directly to what the user expressed—no forced soap-opera hyperbole.
 - WHAT TO IMPROVE:
-  * Bengali grammar and natural syntax flow (বাক্যগঠন ও প্রবহমানতা).
+  * Bengali grammar, spelling, and natural syntax flow (বাক্যগঠন ও প্রবহমানতা).
   * Refined word choice (শ্রুতিমধুর, সহজ ও সংবেদনশীল শব্দচয়ন).
   * Heartfelt emotional coherence so the letter feels sincere, human, and touching.
 - OUTPUT FORMAT:
-  * Return ONLY the polished letter text from salutation to sign-off.
-  * NO preambles, NO introductory chatter, NO bracketed notes (e.g. [নোট], [ডাকটিকিট]), and NO explanations.`
+  You must output valid JSON matching this exact schema:
+  {
+    "enhanced_letter": "<the polished letter text from salutation to sign-off>",
+    "changes_summary": "<one sentence in Bengali describing what was improved>",
+    "meaning_preserved": true
+  }
+  NO preambles, NO markdown code blocks around JSON if possible, just the raw JSON object.`
 
 /**
  * 4 Canonical Enhancement Modes + Legacy Aliases
@@ -423,14 +432,19 @@ ${params.letter}
 ${customInstructionBlock}
 
 ══════ কঠোর সম্পাদকীয় মূলনীতি (STRICT EDITORIAL RULES) ══════
-১. মূল কথা ও সত্যতা সংরক্ষণ করো (PRESERVE FIRST): ব্যবহারকারী যা লিখেছেন—তার মূল অনুভূতি, ঘটনা, স্মৃতি ও বক্তব্য পুরোপুরি অক্ষুণ্ণ রাখতে হবে।
+১. মূল কথা ও সত্যতা সংরক্ষণ করো (PRESERVE FIRST): ব্যবহারকারী যা লিখেছেন—তার মূল অনুভূতি, ঘটনা, স্মৃতি ও বক্তব্য পুরোপুরি অক্ষুণ্ণ রাখতে হবে। প্রাপক, স্মৃতি বা ঘটনার ক্রম কোনোভাবেই বদলানো যাবে না।
 ২. কোনো মিথ্যা বা কাল্পনিক গল্প বানাবে না: ব্যবহারকারী যে কথা লেখেননি, তা নিজে বানিয়ে চিঠিতে যোগ করবে না (যেমন: কাল্পনিক বৃষ্টি, স্মৃতির আগুন, গভীর রাতের অশ্রু ইত্যাদি সস্তা নাটকীয়তা কঠোরভাবে নিষিদ্ধ)।
 ৩. সম্পর্কের মর্যাদা অক্ষুণ্ণ রাখো: যদি শিক্ষক হন, তবে ছাত্রের শ্রদ্ধা ও দিকনির্দেশনার কৃতজ্ঞতা ("আপনি" সম্বোধন) থাকবে—কোনো রোমান্টিক মেলোড্রামা নয়।
 ৪. ভাষা ও বাক্যগঠন নিখুঁত করো: ব্যাকরণ ঠিক করো, বাক্যগুলো সাবলীল ও সংলগ্ন করো, এবং পড়ার সময় যেন মন ছুঁয়ে যায় তেমন আন্তরিক বাংলা শব্দ ব্যবহার করো।
-৫. পূর্ণাঙ্গ চিঠি আউটপুট দাও: সমগ্র চিঠিটি প্রথম থেকে শেষ পর্যন্ত একটি পূর্ণাঙ্গ, সমন্বিত ও অবিচ্ছেদ্য চিঠি হিসেবে পুনর্লিখন করো। চিঠির শুরু থেকে (সম্বোধন) শেষ পর্যন্ত (স্বাক্ষর) একটিমাত্র সংলগ্ন ও সম্পূর্ণ চিঠি লেখো। কখনোই পুরানো চিঠির শেষে অতিরিক্ত কোনো প্যারাগ্রাফ, পরিশিষ্ট বা অংশ জুড়ে (append) দেবে না।
-৬. কোনো নোট বা এআই মেসেজ নয়: শুধুমাত্র পরিমার্জিত চিঠিটির টেক্সট আউটপুট হিসেবে দাও। কোনো বন্ধনীযুক্ত নোট [bracketed note], ডাকটিকিট ট্যাগ বা ভূমিকা লিখবে না।
+৫. পূর্ণাঙ্গ চিঠি আউটপুট দাও: সমগ্র চিঠিটি প্রথম থেকে শেষ পর্যন্ত একটি পূর্ণাঙ্গ, সমন্বিত ও অবিচ্ছেদ্য চিঠি হিসেবে পুনর্লিখন করো (সম্বোধন থেকে সমাপ্তিসূচক স্বাক্ষর পর্যন্ত)। কখনোই পুরানো চিঠির শেষে অতিরিক্ত কোনো প্যারাগ্রাফ, পরিশিষ্ট বা অংশ জুড়ে (append) দেবে না।
 
-এখন পরিমার্জিত সুন্দর চিঠিটি লেখো:`
+══════ আউটপুট ফরম্যাট (STRICT JSON OUTPUT) ══════
+শুধুমাত্র নিচের কাঠামোর একটি বৈধ JSON অবজেক্ট আউটপুট হিসেবে দেবে:
+{
+  "enhanced_letter": "সম্পূর্ণ পরিমার্জিত চিঠিটি এখানে থাকবে",
+  "changes_summary": "চিঠির কী কী পরিমার্জন করা হয়েছে তার এক লাইনের সংক্ষিপ্ত বিবরণী",
+  "meaning_preserved": true
+}`
 }
 
 /**
@@ -762,12 +776,50 @@ export function localRefineFallback(
 }
 
 /**
+ * Parse structured JSON output from enhancement models.
+ */
+export function parseEnhancedJson(raw: string): {
+  enhanced_letter: string
+  changes_summary?: string
+  meaning_preserved?: boolean
+} | null {
+  if (!raw || typeof raw !== 'string') return null
+  try {
+    const cleanStr = raw.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim()
+    const jsonMatch = cleanStr.match(/\{[\s\S]*\}/)
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0])
+      if (parsed && typeof parsed.enhanced_letter === 'string' && parsed.enhanced_letter.trim().length > 10) {
+        return {
+          enhanced_letter: parsed.enhanced_letter.trim(),
+          changes_summary: typeof parsed.changes_summary === 'string' ? parsed.changes_summary.trim() : undefined,
+          meaning_preserved: typeof parsed.meaning_preserved === 'boolean' ? parsed.meaning_preserved : true,
+        }
+      }
+    }
+  } catch {
+    // ignore parse errors and fallback to text
+  }
+  return null
+}
+
+export interface RefineResult {
+  refinedLetter: string
+  provider: 'gemini' | 'openai' | 'fallback'
+  audit: LetterQualityAudit
+  changesSummary: string
+  meaningPreserved: boolean
+  similarityScore: number
+}
+
+/**
  * Main Refine Letter Pipeline
- * Executes via Gemini Flash -> OpenAI -> Local Fallback with calibrated low temperatures
+ * Executes via Gemini Flash -> OpenAI -> Local Fallback with calibrated low temperatures (0.25 - 0.30)
+ * and technical similarity guardrail (threshold >= 0.55).
  */
 export async function refineLetterContent(
   params: RefineLetterParams
-): Promise<{ refinedLetter: string; provider: 'gemini' | 'openai' | 'fallback'; audit: LetterQualityAudit }> {
+): Promise<RefineResult> {
   const route = classifyAITask({ action: params.action, text: params.letter })
   const rawPrompt = buildRefinementPrompt(params)
   const prompt = compressPrompt(rawPrompt)
@@ -777,7 +829,10 @@ export async function refineLetterContent(
     taskType: route.taskType,
   })
 
-  // 1. Try Gemini with low temperature (0.30 - 0.45) and strict editor persona
+  // Calibrate temperature to strictly 0.25 - 0.30 for editing precision
+  const editorTemperature = Math.min(Math.max(route.temperature, 0.25), 0.30)
+
+  // 1. Try Gemini with low temperature (0.25 - 0.30) and strict editor persona
   const tryGemini = async (): Promise<string | null> => {
     if (!genAI) return null
     for (let attempt = 0; attempt <= 2; attempt++) {
@@ -787,7 +842,7 @@ export async function refineLetterContent(
           systemInstruction: ENHANCEMENT_EDITOR_SYSTEM_PROMPT,
           safetySettings,
           generationConfig: {
-            temperature: route.temperature, // 0.30 - 0.45
+            temperature: editorTemperature,
             topP: 0.85,
             topK: 20,
             maxOutputTokens: optimalTokens,
@@ -798,7 +853,7 @@ export async function refineLetterContent(
         const text = response.text()?.trim()
         if (text && text.length > 20) {
           const validated = validateAndCleanResponse(text, params.language || 'bengali')
-          return cleanAiArtifacts(validated.cleanedText)
+          return validated.cleanedText
         }
       } catch (err) {
         console.warn(`[Refine Engine] Gemini attempt ${attempt + 1} error:`, err)
@@ -820,13 +875,13 @@ export async function refineLetterContent(
           { role: 'system', content: ENHANCEMENT_EDITOR_SYSTEM_PROMPT },
           { role: 'user', content: prompt },
         ],
-        temperature: route.temperature,
+        temperature: editorTemperature,
         max_tokens: optimalTokens,
       })
       const text = completion.choices[0]?.message?.content?.trim()
       if (text && text.length > 20) {
         const validated = validateAndCleanResponse(text, params.language || 'bengali')
-        return cleanAiArtifacts(validated.cleanedText)
+        return validated.cleanedText
       }
     } catch (err) {
       console.warn('[Refine Engine] OpenAI attempt error:', err)
@@ -841,21 +896,43 @@ export async function refineLetterContent(
   ]
 
   for (const { name, fn } of providers) {
-    const output = await fn()
-    if (output) {
-      const finalized = ensureCompleteSignoff(output, {
+    const rawOutput = await fn()
+    if (rawOutput) {
+      const parsed = parseEnhancedJson(rawOutput)
+      const rawCandidate = parsed ? parsed.enhanced_letter : cleanAiArtifacts(rawOutput)
+      const changesSummary = parsed?.changes_summary || 'চিঠির স্বাভাবিক প্রবহমানতা ও ব্যাকরণ নিখুঁত করা হয়েছে।'
+      const meaningPreserved = parsed?.meaning_preserved ?? true
+
+      const finalized = ensureCompleteSignoff(rawCandidate, {
         receiverName: params.receiverName,
         relationship: params.relationship,
       })
-      const audit = evaluateLetterQuality(finalized, {
-        relationship: params.relationship,
-        receiverName: params.receiverName,
-      })
-      return { refinedLetter: finalized, provider: name, audit }
+
+      // Guardrail Check (§4.3): similarity threshold >= 0.55
+      const guardrail = verifyEnhancementGuardrail(params.letter, finalized, 0.55)
+
+      if (guardrail.passed) {
+        const audit = evaluateLetterQuality(finalized, {
+          relationship: params.relationship,
+          receiverName: params.receiverName,
+        })
+        return {
+          refinedLetter: finalized,
+          provider: name,
+          audit,
+          changesSummary,
+          meaningPreserved,
+          similarityScore: guardrail.score,
+        }
+      }
+
+      console.warn(
+        `[Refine Engine] Guardrail failed for provider ${name} (score: ${guardrail.score}). Fallback to authentic draft preservation.`
+      )
     }
   }
 
-  // 3. Local Editor Fallback (Strictly preserves facts & tone)
+  // 3. Local Editor Fallback (Strictly preserves facts, tone & user voice)
   let fallbackText = localRefineFallback(params.letter, params.action, params.customInstruction, {
     relationship: params.relationship,
     receiverName: params.receiverName,
@@ -868,10 +945,14 @@ export async function refineLetterContent(
     relationship: params.relationship,
     receiverName: params.receiverName,
   })
+  const similarityScore = calculateLetterSimilarity(params.letter, fallbackText)
 
   return {
     refinedLetter: fallbackText,
     provider: 'fallback',
     audit,
+    changesSummary: 'মূল বক্তব্য ও অনুভূতি অক্ষুণ্ণ রেখে ভাষা ও ব্যাকরণ সাবলীল করা হয়েছে।',
+    meaningPreserved: true,
+    similarityScore,
   }
 }

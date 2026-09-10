@@ -31,8 +31,8 @@ export async function POST(request: NextRequest) {
         })
 
         if (!sbError && data.user) {
-          // Check role in user_metadata or profiles table
-          let role: string = (data.user.user_metadata?.role as string) || 'user'
+          // SECURITY: Verify admin role strictly via app_metadata or public.profiles. Never trust user_metadata.
+          let role: string = (data.user.app_metadata?.role as string) === 'admin' ? 'admin' : 'user'
           if (role !== 'admin') {
             const { data: profile } = await supabase
               .from('profiles')

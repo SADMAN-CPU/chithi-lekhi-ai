@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { refineLetterSchema } from '@/lib/validations'
 import { refineLetterContent } from '@/lib/refine-engine'
 import { sanitizeInput } from '@/utils/helpers'
-import { updateLetter } from '@/lib/supabase/letters'
+import { updateLetter, getLetterById } from '@/lib/supabase/letters'
+import { isSupabaseConfigured } from '@/lib/auth-server'
 import { checkRateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import {
   verifyUserQuota,
@@ -11,6 +12,7 @@ import {
   checkUserRateLimit,
   attachQuotaHeaders,
 } from '@/lib/quota-service'
+import { moderateContent } from '@/lib/content-moderation'
 import type { ApiError } from '@/types'
 
 // Vercel serverless function max execution duration (seconds)
@@ -75,6 +77,30 @@ export async function POST(request: NextRequest) {
     }
 
     const data = parseResult.data
+
+    // 3b. IDOR Guard: If modifying an existing letter, verify caller ownership
+    if (data.letterId) {
+      const existing = await getLetterById(data.letterId, true)
+      if (existing) {
+        const isProduction = process.env.NODE_ENV === 'production'
+        if ((isProduction || isSupabaseConfigured) && existing.user_id) {
+          if (!quotaVerification.userId || quotaVerification.userId !== existing.user_id) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: {
+                  code: 'FORBIDDEN',
+                  message: 'অননুমোদিত পরিবর্তন / Unauthorized: You do not have permission to modify this letter',
+                  status: 403,
+                },
+              },
+              { status: 403 }
+            )
+          }
+        }
+      }
+    }
+
     const action = data.action || data.refinementType || 'custom'
     const rawLetter = data.originalLetter || data.letter || ''
 
@@ -85,6 +111,39 @@ export async function POST(request: NextRequest) {
       : undefined
     const sanitizedReceiverName = data.receiverName ? sanitizeInput(data.receiverName) : undefined
     const sanitizedRelationship = data.relationship ? sanitizeInput(data.relationship) : undefined
+
+    // 4b. Content Moderation
+    const letterModeration = moderateContent(sanitizedLetter)
+    if (!letterModeration.safe) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'CONTENT_FLAGGED',
+            message: letterModeration.reason || 'চিঠিতে অনিরাপদ বিষয়বস্তু পাওয়া গেছে।',
+            status: 400,
+          },
+        },
+        { status: 400 }
+      )
+    }
+
+    if (sanitizedCustomInstruction) {
+      const instrModeration = moderateContent(sanitizedCustomInstruction)
+      if (!instrModeration.safe) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: 'CONTENT_FLAGGED',
+              message: instrModeration.reason || 'নির্দেশনায় অনিরাপদ বিষয়বস্তু পাওয়া গেছে।',
+              status: 400,
+            },
+          },
+          { status: 400 }
+        )
+      }
+    }
 
     // 5. Execute AI Refinement with Gemini & Fallbacks
     let refineResult: Awaited<ReturnType<typeof refineLetterContent>>
@@ -114,7 +173,7 @@ export async function POST(request: NextRequest) {
       throw refineErr
     }
 
-    const { refinedLetter, provider, audit } = refineResult
+    const { refinedLetter, provider, audit, changesSummary, meaningPreserved, similarityScore } = refineResult
 
     // Deduct quota ONLY after confirmed successful refinement
     const quotaConsumption = await consumeUserQuota({
@@ -141,7 +200,9 @@ export async function POST(request: NextRequest) {
         await updateLetter(
           data.letterId,
           {
+            original_input: sanitizedLetter,
             original_letter: sanitizedLetter,
+            enhanced_content: refinedLetter,
             enhanced_letter: refinedLetter,
             enhancement_style: action,
             letter_content: refinedLetter,
@@ -162,6 +223,9 @@ export async function POST(request: NextRequest) {
         enhancementStyle: action,
         provider,
         audit,
+        changesSummary,
+        meaningPreserved,
+        similarityScore,
       },
       {
         headers: {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createBrowserSupabase } from './supabase/client'
 import { createClient as createServerSupabase } from './supabase/server'
+import { createAdminClient, isServiceRoleConfigured } from './supabase/admin'
 import { getUserPlan } from './subscription'
 import { getServerUser } from './auth-server'
 import { getClientIp } from './rate-limit'
@@ -143,7 +144,9 @@ export async function verifyUserQuota(params: {
 
   if (isConfigured) {
     try {
-      const client = isServer ? await createServerSupabase() : createBrowserSupabase()
+      const client = isServer
+        ? (isServiceRoleConfigured() ? createAdminClient() : await createServerSupabase())
+        : createBrowserSupabase()
       const { data, error } = await client
         .from('user_usage')
         .select('*')
@@ -154,6 +157,8 @@ export async function verifyUserQuota(params: {
       if (!error && data) {
         if (actionType === 'refinement') {
           used = data.refinements_used || 0
+        } else if (actionType === 'voice') {
+          used = data.voice_letters_used || 0
         } else {
           used = data.letters_generated || 0
         }
@@ -165,7 +170,12 @@ export async function verifyUserQuota(params: {
     const key = `${identifier}:${date}`
     const record = inMemoryUsage.get(key)
     if (record) {
-      used = actionType === 'refinement' ? record.refinements_used : record.letters_generated
+      used =
+        actionType === 'refinement'
+          ? record.refinements_used
+          : actionType === 'voice'
+          ? record.voice_letters_used
+          : record.letters_generated
     }
   }
 
@@ -177,10 +187,14 @@ export async function verifyUserQuota(params: {
     const actionLabelBn =
       actionType === 'refinement'
         ? '১০টি ফ্রি পরিমার্জনের (Refinement)'
+        : actionType === 'voice'
+        ? '২টি ফ্রি ভয়েস জেনারেশনের (Voice Letter)'
         : '৫টি ফ্রি চিঠির (Letter Generation)'
     const actionLabelEn =
       actionType === 'refinement'
         ? 'daily limit of 10 free AI refinements'
+        : actionType === 'voice'
+        ? 'daily limit of 2 free voice generations'
         : 'daily limit of 5 free letter generations'
 
     response = NextResponse.json(
@@ -247,7 +261,9 @@ export async function consumeUserQuota(params: {
 
   if (isConfigured) {
     try {
-      const client = isServer ? await createServerSupabase() : createBrowserSupabase()
+      const client = isServer
+        ? (isServiceRoleConfigured() ? createAdminClient() : await createServerSupabase())
+        : createBrowserSupabase()
       // Call atomic PostgreSQL function
       const { data: rpcResult, error: rpcError } = await client.rpc('consume_ai_quota', {
         p_identifier: identifier,
@@ -279,10 +295,14 @@ export async function consumeUserQuota(params: {
 
   let currentGen = existing?.letters_generated || 0
   let currentRefine = existing?.refinements_used || 0
+  let currentVoice = existing?.voice_letters_used || 0
 
   if (actionType === 'refinement') {
     currentRefine += 1
     newUsed = currentRefine
+  } else if (actionType === 'voice') {
+    currentVoice += 1
+    newUsed = currentVoice
   } else {
     currentGen += 1
     newUsed = currentGen
@@ -294,7 +314,7 @@ export async function consumeUserQuota(params: {
     date,
     letters_generated: currentGen,
     refinements_used: currentRefine,
-    voice_letters_used: existing?.voice_letters_used || 0,
+    voice_letters_used: currentVoice,
     hd_exports_used: existing?.hd_exports_used || 0,
     created_at: existing?.created_at || now,
     updated_at: now,
@@ -323,7 +343,9 @@ export async function recordAIUsage(params: RecordAIUsageParams, isServer = true
 
   if (isConfigured) {
     try {
-      const client = isServer ? await createServerSupabase() : createBrowserSupabase()
+      const client = isServer
+        ? (isServiceRoleConfigured() ? createAdminClient() : await createServerSupabase())
+        : createBrowserSupabase()
       await client.from('ai_usage').insert({
         user_id: userId || null,
         identifier,
