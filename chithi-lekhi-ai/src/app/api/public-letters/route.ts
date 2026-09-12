@@ -3,6 +3,18 @@ import { createPublicLetter, type LetterExpiration } from '@/lib/supabase/public
 import { sanitizeInput } from '@/utils/helpers'
 import { getServerUser } from '@/lib/auth-server'
 import { checkRateLimit, createRateLimitResponse } from '@/lib/rate-limit'
+import { getLetterById } from '@/lib/supabase/letters'
+import { z } from 'zod'
+
+const publicLetterSchema = z.object({
+  receiver_name: z.string().trim().min(1).max(200),
+  letter_content: z.string().trim().min(1).max(50000),
+  title: z.string().max(300).optional(),
+  theme: z.string().max(100).default('vintage'),
+  is_public: z.boolean().default(true),
+  expiration: z.string().max(20).default('permanent'),
+  letter_id: z.string().regex(/^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|local-[a-z0-9_-]{1,100})$/i).nullish(),
+})
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,7 +29,14 @@ export async function POST(request: NextRequest) {
       return createRateLimitResponse(rateLimit)
     }
 
-    const body = await request.json()
+    const parsedBody = publicLetterSchema.safeParse(await request.json().catch(() => null))
+    if (!parsedBody.success) {
+      return NextResponse.json(
+        { success: false, error: { message: 'Invalid public letter request', status: 400 } },
+        { status: 400 }
+      )
+    }
+    const body = parsedBody.data
     const {
       receiver_name,
       letter_content,
@@ -39,6 +58,23 @@ export async function POST(request: NextRequest) {
     }
 
     const serverUser = await getServerUser()
+    let linkedLetterId: string | null = null
+    if (letter_id && !letter_id.startsWith('local-')) {
+      const existing = await getLetterById(letter_id, true)
+      if (!existing) {
+        return NextResponse.json(
+          { success: false, error: { message: 'Letter not found', status: 404 } },
+          { status: 404 }
+        )
+      }
+      if (existing.user_id && existing.user_id !== serverUser?.id) {
+        return NextResponse.json(
+          { success: false, error: { message: 'Unauthorized to share this letter', status: 403 } },
+          { status: 403 }
+        )
+      }
+      if (serverUser && existing.user_id === serverUser.id) linkedLetterId = existing.id
+    }
 
     const record = await createPublicLetter(
       {
@@ -51,7 +87,7 @@ export async function POST(request: NextRequest) {
           ? expiration
           : 'permanent') as LetterExpiration,
         user_id: serverUser?.id || null,
-        letter_id: letter_id || null,
+        letter_id: linkedLetterId,
       },
       true
     )

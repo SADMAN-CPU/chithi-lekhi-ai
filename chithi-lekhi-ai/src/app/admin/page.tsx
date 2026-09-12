@@ -90,6 +90,7 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [activeTab, setActiveTab] = useState<TabId>('overview')
+  const [logoutError, setLogoutError] = useState<string | null>(null)
 
   const fetchStats = useCallback(async () => {
     try {
@@ -131,12 +132,14 @@ export default function AdminDashboardPage() {
   }
 
   const handleLogout = async () => {
+    setLogoutError(null)
     try {
-      await fetch('/api/admin/logout', { method: 'POST' })
+      const response = await fetch('/api/admin/logout', { method: 'POST' })
+      if (!response.ok) throw new Error('Sign out failed')
       router.push('/admin/login')
       router.refresh()
     } catch {
-      router.push('/admin/login')
+      setLogoutError('Could not sign out. Please try again.')
     }
   }
 
@@ -194,6 +197,7 @@ export default function AdminDashboardPage() {
           </button>
         </div>
       </header>
+      {logoutError && <p role="alert" className="px-4 py-3 text-sm text-rose-300">{logoutError}</p>}
 
       {/* Navigation Tabs */}
       <div className="border-b border-neutral-800/80 bg-neutral-900/30 px-4 sm:px-8 py-2 flex gap-1.5 overflow-x-auto no-scrollbar">

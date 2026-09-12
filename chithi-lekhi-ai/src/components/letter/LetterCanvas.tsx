@@ -12,7 +12,7 @@
  *  - Merged: entire letter body in one auto-height continuous canvas
  */
 
-import React, { forwardRef } from 'react'
+import React, { forwardRef, memo } from 'react'
 import { Feather } from 'lucide-react'
 import { formatDate } from '@/utils/helpers'
 
@@ -156,7 +156,7 @@ export interface LetterCanvasProps {
  * // then: captureElementAsPng(canvasRef.current!, 2.5)
  * ```
  */
-export const LetterCanvas = forwardRef<HTMLDivElement, LetterCanvasProps>(function LetterCanvas(
+export const LetterCanvas = memo(forwardRef<HTMLDivElement, LetterCanvasProps>(function LetterCanvas(
   {
     pageContent,
     pageNum = 1,
@@ -331,4 +331,4 @@ export const LetterCanvas = forwardRef<HTMLDivElement, LetterCanvasProps>(functi
       </div>
     </div>
   )
-})
+}))

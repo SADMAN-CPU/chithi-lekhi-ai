@@ -1,9 +1,11 @@
 import { createClient as createBrowserSupabase } from './supabase/client'
 import { createClient as createServerSupabase } from './supabase/server'
 import { createAdminClient, isServiceRoleConfigured } from './supabase/admin'
-import { getLetterById, updateLetter, getLetterByShareId, incrementLetterViews } from './supabase/letters'
-import { generateSlug } from '@/utils/helpers'
+import { getLetterById, getLetterByShareId, incrementLetterViews } from './supabase/letters'
+import { generateSlug, isUuid, isShareIdentifier } from '@/utils/helpers'
 import type { ShareRow, ShareAnalyticsRow, LetterRow } from '@/types/database'
+import { getPublicLetter, getUserSharedLetters as getLegacyUserSharedLetters } from './supabase/public-letters'
+import type { PublicLetterRow } from '@/types/database'
 import { isSupabaseConfigured } from './supabase/config'
 
 const isConfigured = isSupabaseConfigured
@@ -33,7 +35,7 @@ const inMemoryShares: Map<string, ShareRow> = new Map()
 const inMemoryAnalytics: ShareAnalyticsRow[] = []
 
 export function getAllShares(): ShareRow[] {
-  return Array.from(inMemoryShares.values())
+  return Array.from(new Map(Array.from(inMemoryShares.values()).map(share => [share.id, share])).values())
 }
 
 /**
@@ -51,21 +53,14 @@ export function calculateShareExpiresAt(expiration: ShareExpiration): string | n
 }
 
 /**
- * Create a new public share token for a letter and synchronize letter visibility
+ * Create an independent share without changing the letter’s publication settings
  */
 export async function createShareRecord(
   params: CreateShareParams,
   isServer = false
 ): Promise<ShareRow> {
-  // Re-use existing letter share_id or share_slug if already assigned
-  let share_token = generateSlug(6)
-  if (params.letter_id) {
-    const existing = await getLetterById(params.letter_id, isServer)
-    if (existing?.share_id || existing?.share_slug) {
-      share_token = existing.share_id || existing.share_slug || share_token
-    }
-  }
-
+  // Independent tokens preserve each share's expiration and avoid duplicate inserts.
+  const share_token = generateSlug()
   const expiration = params.expiration || 'never'
   const expires_at = calculateShareExpiresAt(expiration)
   const is_public = params.is_public !== undefined ? params.is_public : true
@@ -73,6 +68,9 @@ export async function createShareRecord(
 
   let record: ShareRow | null = null
 
+  if (!isConfigured && process.env.NODE_ENV === 'production') {
+    throw new Error('Supabase is required for production sharing')
+  }
   if (isConfigured) {
     try {
       const client = isServer
@@ -98,11 +96,13 @@ export async function createShareRecord(
       if (!error && data) {
         record = data as ShareRow
       }
+      if (!data && !error) throw new Error('Share save failed: No record returned')
       if (error) {
-        console.warn('[Shares] Insert error, fallback to local store:', error.message)
+        throw new Error(`Share save failed: ${error.message}`)
       }
     } catch (err) {
-      console.warn('[Shares] Insert exception, fallback to local store:', err)
+      console.error('[Shares] Share persistence failed:', err)
+      throw err
     }
   }
 
@@ -127,21 +127,6 @@ export async function createShareRecord(
     inMemoryShares.set(record.id, record)
   }
 
-  // Synchronize letter visibility properly (Requirement 1 - Option A & B):
-  // When a share link is created with is_public = true, update letters.is_public = true
-  // and assign the share_slug so that the letter is marked public across database and cache.
-  if (is_public) {
-    try {
-      await updateLetter(
-        params.letter_id,
-        { is_public: true, share_slug: share_token, share_id: share_token },
-        isServer
-      )
-    } catch (syncErr) {
-      console.warn('[Shares] Visibility synchronization error:', syncErr)
-    }
-  }
-
   return record
 }
 
@@ -155,7 +140,13 @@ export async function getShareByToken(
   incrementViews = false,
   isServer = false
 ): Promise<ShareLookupResult> {
+  if (!isShareIdentifier(tokenOrId)) {
+    return { status: 'not_found', share: null, letter: null, isExpired: false, isPrivate: false }
+  }
   // 1. Primary: Use secure PostgreSQL RPC function (Option B: SECURITY DEFINER)
+  if (!isConfigured && process.env.NODE_ENV === 'production') {
+    throw new Error('Supabase is required for production sharing')
+  }
   if (isConfigured) {
     try {
       const client = isServer
@@ -165,6 +156,9 @@ export async function getShareByToken(
         token_param: tokenOrId,
       })
 
+      if (rpcError && rpcError.code !== 'PGRST202' && rpcError.code !== '42883') {
+        throw new Error(`Share lookup failed: ${rpcError.message}`)
+      }
       if (!rpcError && rpcData) {
         const parsed = typeof rpcData === 'string' ? JSON.parse(rpcData) : rpcData
         if (parsed.status === 'ok' && parsed.letter && parsed.share) {
@@ -216,20 +210,23 @@ export async function getShareByToken(
         }
       }
     } catch (rpcEx) {
-      console.warn('[Shares] Secure RPC lookup warning, fallback to direct lookup:', rpcEx)
+      console.error('[Shares] Secure RPC lookup failed:', rpcEx)
+      throw rpcEx
     }
   }
 
   // 2. Secondary fallback: Query shares table or in-memory cache
   let share: ShareRow | null = null
 
+  if (!isConfigured && process.env.NODE_ENV === 'production') {
+    throw new Error('Supabase is required for production sharing')
+  }
   if (isConfigured) {
     try {
       const client = isServer
         ? (isServiceRoleConfigured() ? createAdminClient() : await createServerSupabase())
         : createBrowserSupabase()
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tokenOrId)
-      const orFilter = isUuid
+      const orFilter = isUuid(tokenOrId)
         ? `share_token.eq.${tokenOrId},id.eq.${tokenOrId}`
         : `share_token.eq.${tokenOrId}`
 
@@ -239,22 +236,22 @@ export async function getShareByToken(
         .or(orFilter)
         .maybeSingle()
 
-      if (!error && data) {
-        share = data as ShareRow
-      }
+      if (error) throw new Error(`Share lookup failed: ${error.message}`)
+      share = data as ShareRow | null
     } catch (err) {
-      console.warn('[Shares] Lookup exception:', err)
+      console.error('[Shares] Lookup failed:', err)
+      throw err
     }
   }
 
-  if (!share) {
+  if (!isConfigured && !share) {
     share = inMemoryShares.get(tokenOrId) || null
   }
 
   if (!share) {
     const directLetter = await getLetterByShareId(tokenOrId, isServer)
     if (directLetter) {
-      const isPublic = directLetter.is_public !== false
+      const isPublic = directLetter.is_public === true
       if (!isPublic) {
         return {
           status: 'private',
@@ -291,6 +288,31 @@ export async function getShareByToken(
       }
     }
 
+    const legacy = await getPublicLetter(tokenOrId, incrementViews, isServer)
+    if (legacy.status !== 'not_found') {
+      const record = legacy.letter
+      return {
+        status: legacy.status, isExpired: legacy.isExpired, isPrivate: legacy.isPrivate,
+        share: record ? {
+          id: record.id, letter_id: record.letter_id || record.id, user_id: record.user_id,
+          share_token: record.short_id, is_public: record.is_public,
+          expiration: record.expiration === 'permanent' ? 'never' : record.expiration,
+          expires_at: record.expires_at, views: record.views,
+          shares_count: 0, downloads_count: 0, audio_url: null, created_at: record.created_at,
+        } : null,
+        letter: record ? {
+          id: record.letter_id || record.id, user_id: record.user_id,
+          receiver_name: record.receiver_name, recipient_name: record.receiver_name,
+          content: record.letter_content, letter_content: record.letter_content,
+          title: record.title, theme: record.theme,
+          relationship: null, emotion: null, style: null, era_style: 'vintage',
+          language: 'bengali', memory_context: null, status: 'published', favorite: false,
+          share_slug: record.short_id, share_id: record.short_id, is_public: record.is_public,
+          created_at: record.created_at, updated_at: record.created_at,
+        } : null,
+      }
+    }
+
     return {
       status: 'not_found',
       share: null,
@@ -303,7 +325,7 @@ export async function getShareByToken(
   // Check expiration
   if (share.expires_at) {
     const expTime = new Date(share.expires_at).getTime()
-    if (expTime < Date.now()) {
+    if (!Number.isFinite(expTime) || expTime <= Date.now()) {
       return {
         status: 'expired',
         share,
@@ -327,6 +349,7 @@ export async function getShareByToken(
 
   // Fetch linked letter
   const letter = await getLetterById(share.letter_id, isServer)
+  if (!letter) return { status: 'not_found', share: null, letter: null, isExpired: false, isPrivate: false }
 
   // Increment view count if requested
   if (incrementViews) {
@@ -337,7 +360,10 @@ export async function getShareByToken(
       },
       isServer
     )
-    if (isConfigured) {
+    if (!isConfigured && process.env.NODE_ENV === 'production') {
+    throw new Error('Supabase is required for production sharing')
+  }
+  if (isConfigured) {
       share.views += 1
     }
   }
@@ -367,27 +393,34 @@ export async function trackShareEvent(
   const { token, eventType, platform } = params
   const now = new Date().toISOString()
 
+  if (!isConfigured && process.env.NODE_ENV === 'production') {
+    throw new Error('Supabase is required for production sharing')
+  }
   if (isConfigured) {
     try {
       const client = isServer
         ? (isServiceRoleConfigured() ? createAdminClient() : await createServerSupabase())
         : createBrowserSupabase()
       // Call atomic RPC function
-      await client.rpc('increment_share_event', {
+      const { error: counterError } = await client.rpc('increment_share_event', {
         target_token: token,
         event_type_param: eventType,
       })
 
+      if (counterError) throw new Error(counterError.message)
+
       // Insert into analytics log
-      await client.from('share_analytics').insert({
+      const { error: logError } = await client.from('share_analytics').insert({
         share_token: token,
         event_type: eventType,
         platform: platform || null,
       })
 
+      if (logError) throw new Error(logError.message)
       return true
     } catch (err) {
-      console.warn('[Shares] Analytics tracking exception:', err)
+      console.error('[Shares] Analytics tracking failed:', err)
+      return false
     }
   }
 
@@ -427,4 +460,30 @@ export async function getShareAnalytics(
     }
   }
   return { views: 0, shares: 0, downloads: 0 }
+}
+
+/** Dashboard history includes canonical shares and legacy public-letter snapshots. */
+export async function getUserSharedLetters(userId: string, isServer = false): Promise<PublicLetterRow[]> {
+  const legacy = await getLegacyUserSharedLetters(userId, isServer)
+  let shares: (ShareRow & { letters?: LetterRow | null })[]
+  if (isConfigured) {
+    const client = isServer ? await createServerSupabase() : createBrowserSupabase()
+    const { data, error } = await client.from('shares').select('*, letters(*)')
+      .eq('user_id', userId).order('created_at', { ascending: false }).limit(100)
+    if (error) throw new Error(`Shared letter history failed: ${error.message}`)
+    shares = data || []
+  } else {
+    shares = await Promise.all(getAllShares().filter(share => share.user_id === userId).map(async share => ({
+      ...share, letters: await getLetterById(share.letter_id, isServer),
+    })))
+  }
+  const current: PublicLetterRow[] = shares.flatMap(share => share.letters ? [{
+    id: share.id, short_id: share.share_token, user_id: share.user_id,
+    letter_id: share.letter_id, title: share.letters.title || `চিঠি — ${share.letters.receiver_name}`,
+    receiver_name: share.letters.receiver_name, letter_content: share.letters.content,
+    theme: share.letters.theme || 'vintage', is_public: share.is_public,
+    expiration: share.expiration === 'never' ? 'permanent' : share.expiration,
+    expires_at: share.expires_at, views: share.views, created_at: share.created_at,
+  }] : [])
+  return [...current, ...legacy].sort((a, b) => b.created_at.localeCompare(a.created_at))
 }

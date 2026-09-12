@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createBrowserSupabase } from './supabase/client'
-import { createClient as createServerSupabase } from './supabase/server'
 import { createAdminClient, isServiceRoleConfigured } from './supabase/admin'
 import { getUserPlan } from './subscription'
 import { getServerUser } from './auth-server'
@@ -22,10 +21,13 @@ export interface QuotaVerificationResult {
   identifier: string
   userId?: string
   response?: NextResponse
+  reservationId?: string
+  date?: string
 }
 
 export interface QuotaConsumptionResult {
   consumed: boolean
+  unavailable?: boolean
   used: number
   limit: number
   remaining: number
@@ -59,6 +61,7 @@ interface InMemoryUsageItem {
 const inMemoryUsage: Map<string, InMemoryUsageItem> = new Map()
 const inMemoryAIUsageLogs: AIUsageRow[] = []
 const userRateLimitStore: Map<string, number[]> = new Map()
+const quotaReservations = new Map<string, { id: string; expiresAt: number }>()
 
 /**
  * Get current UTC date string in YYYY-MM-DD format
@@ -116,14 +119,44 @@ export function checkUserRateLimit(
   return { allowed: true, remaining: Math.max(0, limit - timestamps.length) }
 }
 
-/**
- * 1. Verify User Quota Availability
- *
- * CRITICAL ARCHITECTURE:
- * This function ONLY checks if the user has remaining quota for the requested action.
- * It DOES NOT deduct or consume quota!
- * Quota must only be consumed AFTER successful AI generation.
- */
+/** Canonical read shared by API guards and legacy usage summaries. */
+export async function getQuotaUsage(params: {
+  identifier: string
+  userId?: string
+  actionType: AIActionType
+  isServer?: boolean
+}): Promise<QuotaVerificationResult> {
+  const { identifier, userId, actionType, isServer = true } = params
+  const date = getCurrentDateString()
+  const plan = await getUserPlan(userId, isServer)
+  const limit = getActionLimit(plan.id, actionType)
+  const isUnlimited = limit === -1
+  let used = 0
+
+  if (isConfigured) {
+    if (isServer && !isServiceRoleConfigured()) throw new Error('Quota service credentials are unavailable')
+    const client = isServer ? createAdminClient() : createBrowserSupabase()
+    const { data, error } = await client.from('user_usage').select('*')
+      .eq('identifier', identifier).eq('date', date).maybeSingle()
+    if (error) throw new Error('Could not read daily quota', { cause: error })
+    if (data) {
+      used = data[actionType === 'refinement' ? 'refinements_used' : actionType === 'voice' ? 'voice_letters_used' : 'letters_generated']
+      if (!Number.isInteger(used) || used < 0) throw new Error('Invalid daily quota record')
+    }
+  } else {
+    if (process.env.NODE_ENV === 'production') throw new Error('Production quota storage is unavailable')
+    const record = inMemoryUsage.get(`${identifier}:${date}`)
+    if (record) used = actionType === 'refinement' ? record.refinements_used : actionType === 'voice' ? record.voice_letters_used : record.letters_generated
+  }
+
+  return { allowed: isUnlimited || used < limit, used, limit, remaining: isUnlimited ? -1 : Math.max(0, limit - used), isUnlimited, planId: plan.id, identifier, userId, date }
+}
+
+export function quotaUnavailableResponse(): NextResponse {
+  return NextResponse.json({ success: false, error: { code: 'QUOTA_UNAVAILABLE', message: 'Usage verification is temporarily unavailable. Please try again.', status: 503 } }, { status: 503 })
+}
+
+/** Check allowance without consuming it. */
 export async function verifyUserQuota(params: {
   request: NextRequest
   actionType: AIActionType
@@ -133,54 +166,14 @@ export async function verifyUserQuota(params: {
   const serverUser = await getServerUser()
   const clientIp = getClientIp(request)
   const identifier = serverUser?.id ? `user:${serverUser.id}` : `ip:${clientIp}`
-  const date = getCurrentDateString()
-
-  // Determine user's active plan
-  const plan = await getUserPlan(serverUser?.id, isServer)
-  const limit = getActionLimit(plan.id, actionType)
-  const isUnlimited = limit === -1
-
-  let used = 0
-
-  if (isConfigured) {
-    try {
-      const client = isServer
-        ? (isServiceRoleConfigured() ? createAdminClient() : await createServerSupabase())
-        : createBrowserSupabase()
-      const { data, error } = await client
-        .from('user_usage')
-        .select('*')
-        .eq('identifier', identifier)
-        .eq('date', date)
-        .maybeSingle()
-
-      if (!error && data) {
-        if (actionType === 'refinement') {
-          used = data.refinements_used || 0
-        } else if (actionType === 'voice') {
-          used = data.voice_letters_used || 0
-        } else {
-          used = data.letters_generated || 0
-        }
-      }
-    } catch (err) {
-      console.warn('[verifyUserQuota] Query exception, fallback to memory:', err)
-    }
-  } else {
-    const key = `${identifier}:${date}`
-    const record = inMemoryUsage.get(key)
-    if (record) {
-      used =
-        actionType === 'refinement'
-          ? record.refinements_used
-          : actionType === 'voice'
-          ? record.voice_letters_used
-          : record.letters_generated
-    }
+  let usage: QuotaVerificationResult
+  try {
+    usage = await getQuotaUsage({ identifier, userId: serverUser?.id, actionType, isServer })
+  } catch (error) {
+    console.warn('[verifyUserQuota] Quota verification failed:', error)
+    return { allowed: false, used: 0, limit: getActionLimit('free', actionType), remaining: 0, isUnlimited: false, planId: 'free', identifier, userId: serverUser?.id, response: quotaUnavailableResponse() }
   }
-
-  const allowed = isUnlimited || used < limit
-  const remaining = isUnlimited ? -1 : Math.max(0, limit - used)
+  const { allowed, used, limit, remaining, isUnlimited, planId } = usage
 
   let response: NextResponse | undefined
   if (!allowed) {
@@ -208,7 +201,7 @@ export async function verifyUserQuota(params: {
           limit,
           used,
           remaining: 0,
-          plan: plan.id,
+          plan: planId,
           resetAt: 'রাত ১২:০০ (UTC Midnight)',
         },
       },
@@ -218,7 +211,7 @@ export async function verifyUserQuota(params: {
           'X-Daily-Limit': limit.toString(),
           'X-Daily-Used': used.toString(),
           'X-Daily-Remaining': '0',
-          'X-User-Plan': plan.id,
+          'X-User-Plan': planId,
         },
       }
     )
@@ -230,106 +223,139 @@ export async function verifyUserQuota(params: {
     limit,
     remaining,
     isUnlimited,
-    planId: plan.id,
+    planId: planId,
     identifier,
     userId: serverUser?.id,
     response,
+    date: usage.date,
   }
 }
 
-/**
- * 2. Consume User Quota
- *
- * CRITICAL ARCHITECTURE:
- * Called STRICTLY AFTER successful AI completion.
- * If AI generation fails, this is NEVER invoked.
- * Employs atomic database procedures or concurrency-safe mutex to prevent race conditions.
- */
+/** Reserve one in-flight AI operation without deducting the daily allowance. */
+export async function reserveUserQuota(params: {
+  request: NextRequest
+  actionType: AIActionType
+}): Promise<QuotaVerificationResult> {
+  const quota = await verifyUserQuota(params)
+  if (!quota.allowed) return quota
+  const reservationId = crypto.randomUUID()
+  const date = quota.date || getCurrentDateString()
+  let allowed = false
+  let reason = 'busy'
+  try {
+    if (isConfigured) {
+      const { data, error } = await createAdminClient().rpc('reserve_ai_quota', {
+        p_identifier: quota.identifier, p_date: date, p_action_type: params.actionType,
+        p_limit: quota.limit, p_reservation_id: reservationId,
+      })
+      if (error) throw error
+      const result = typeof data === 'string' ? JSON.parse(data) : data
+      if (!result || typeof result.allowed !== 'boolean' || !Number.isInteger(result.used) || result.used < 0) throw new Error('Invalid quota reservation response')
+      allowed = result.allowed
+      reason = result.reason || 'busy'
+      quota.used = result.used
+      quota.remaining = quota.isUnlimited ? -1 : Math.max(0, quota.limit - result.used)
+    } else {
+      const key = `${quota.identifier}:${date}:${params.actionType}`
+      const active = quotaReservations.get(key)
+      const record = inMemoryUsage.get(`${quota.identifier}:${date}`)
+      const field = params.actionType === 'generation' ? 'letters_generated' : params.actionType === 'refinement' ? 'refinements_used' : 'voice_letters_used'
+      quota.used = record?.[field] || 0
+      quota.remaining = quota.isUnlimited ? -1 : Math.max(0, quota.limit - quota.used)
+      if (!quota.isUnlimited && quota.used >= quota.limit) {
+        reason = 'limit'
+      } else if (!active || active.expiresAt <= Date.now()) {
+        quotaReservations.set(key, { id: reservationId, expiresAt: Date.now() + 120_000 })
+        allowed = true
+      }
+    }
+  } catch (error) {
+    console.warn('[reserveUserQuota] Reservation failed:', error)
+    return { ...quota, allowed: false, response: quotaUnavailableResponse() }
+  }
+  if (!allowed) {
+    return { ...quota, allowed: false, response: NextResponse.json({ success: false, error: {
+      code: reason === 'limit' ? 'DAILY_LIMIT_REACHED' : 'AI_REQUEST_IN_PROGRESS',
+      message: reason === 'limit' ? 'Daily usage limit reached.' : 'An AI request is already in progress. Please wait.',
+    } }, { status: reason === 'limit' ? 429 : 409 }) }
+  }
+  return { ...quota, date, reservationId }
+}
+
+/** Release a failed/fallback request; matching tokens cannot clear another request's lease. */
+export async function releaseUserQuota(quota: QuotaVerificationResult, actionType: AIActionType): Promise<void> {
+  if (!quota.reservationId || !quota.date) return
+  if (isConfigured) {
+    try {
+      const { error } = await createAdminClient().rpc('release_ai_quota', {
+        p_identifier: quota.identifier, p_date: quota.date, p_action_type: actionType,
+        p_reservation_id: quota.reservationId,
+      })
+      if (error) throw error
+    } catch (error) {
+      // The short database lease expires even if cleanup cannot reach the database.
+      console.warn('[releaseUserQuota] Lease cleanup failed:', error)
+    }
+  } else {
+    const key = `${quota.identifier}:${quota.date}:${actionType}`
+    if (quotaReservations.get(key)?.id === quota.reservationId) quotaReservations.delete(key)
+  }
+}
+
+/** Consume only after a successful provider response. Never fall back when configured storage fails. */
 export async function consumeUserQuota(params: {
   identifier: string
   userId?: string
   actionType: AIActionType
   isServer?: boolean
+  reservationId?: string
+  date?: string
 }): Promise<QuotaConsumptionResult> {
-  const { identifier, userId, actionType, isServer = true } = params
-  const date = getCurrentDateString()
+  const { identifier, userId, actionType, isServer = true, reservationId } = params
+  const date = params.date || getCurrentDateString()
   const plan = await getUserPlan(userId, isServer)
   const limit = getActionLimit(plan.id, actionType)
   const isUnlimited = limit === -1
-
-  let newUsed = 1
+  const result = (consumed: boolean, used: number, unavailable = false): QuotaConsumptionResult => ({ consumed, used, limit, remaining: isUnlimited ? -1 : Math.max(0, limit - used), isUnlimited, planId: plan.id, unavailable })
 
   if (isConfigured) {
     try {
-      const client = isServer
-        ? (isServiceRoleConfigured() ? createAdminClient() : await createServerSupabase())
-        : createBrowserSupabase()
-      // Call atomic PostgreSQL function
-      const { data: rpcResult, error: rpcError } = await client.rpc('consume_ai_quota', {
-        p_identifier: identifier,
-        p_date: date,
-        p_action_type: actionType,
-        p_limit: limit,
+      if (!isServer || !isServiceRoleConfigured()) throw new Error('Quota consumption requires server credentials')
+      const { data, error } = await createAdminClient().rpc('consume_ai_quota', {
+        p_identifier: identifier, p_date: date, p_action_type: actionType, p_limit: limit,
+        ...(reservationId ? { p_reservation_id: reservationId } : {}),
       })
-
-      if (!rpcError && rpcResult) {
-        const parsed = typeof rpcResult === 'string' ? JSON.parse(rpcResult) : rpcResult
-        return {
-          consumed: Boolean(parsed.consumed),
-          used: Number(parsed.used),
-          limit,
-          remaining: isUnlimited ? -1 : Math.max(0, limit - Number(parsed.used)),
-          isUnlimited,
-          planId: plan.id,
-        }
-      }
-    } catch (rpcEx) {
-      console.warn('[consumeUserQuota] RPC exception, fallback to upsert:', rpcEx)
+      if (error) throw error
+      const parsed = typeof data === 'string' ? JSON.parse(data) : data
+      if (!parsed || typeof parsed.consumed !== 'boolean' || !Number.isInteger(parsed.used) || parsed.used < 0) throw new Error('Invalid quota consumption response')
+      return result(parsed.consumed, parsed.used)
+    } catch (error) {
+      console.warn('[consumeUserQuota] Database consumption failed:', error)
+      return result(false, 0, true)
     }
   }
+  if (process.env.NODE_ENV === 'production') return result(false, 0, true)
 
-  // Fallback / In-Memory Atomic Mutex
   const key = `${identifier}:${date}`
+  const leaseKey = `${key}:${actionType}`
+  const activeLease = quotaReservations.get(leaseKey)
   const existing = inMemoryUsage.get(key)
+  const field = actionType === 'refinement' ? 'refinements_used' : actionType === 'voice' ? 'voice_letters_used' : 'letters_generated'
+  const used = existing?.[field] || 0
+  if ((reservationId && activeLease?.id !== reservationId) ||
+      (!reservationId && activeLease && activeLease.expiresAt > Date.now()) ||
+      (!isUnlimited && used >= limit)) return result(false, used)
+
   const now = new Date().toISOString()
-
-  let currentGen = existing?.letters_generated || 0
-  let currentRefine = existing?.refinements_used || 0
-  let currentVoice = existing?.voice_letters_used || 0
-
-  if (actionType === 'refinement') {
-    currentRefine += 1
-    newUsed = currentRefine
-  } else if (actionType === 'voice') {
-    currentVoice += 1
-    newUsed = currentVoice
-  } else {
-    currentGen += 1
-    newUsed = currentGen
+  const record: InMemoryUsageItem = existing || {
+    id: `usage-${Date.now()}`, identifier, date, letters_generated: 0, refinements_used: 0,
+    voice_letters_used: 0, hd_exports_used: 0, created_at: now, updated_at: now,
   }
-
-  const record: InMemoryUsageItem = {
-    id: existing?.id || `usage-${Date.now()}`,
-    identifier,
-    date,
-    letters_generated: currentGen,
-    refinements_used: currentRefine,
-    voice_letters_used: currentVoice,
-    hd_exports_used: existing?.hd_exports_used || 0,
-    created_at: existing?.created_at || now,
-    updated_at: now,
-  }
-
+  record[field] = used + 1
+  record.updated_at = now
   inMemoryUsage.set(key, record)
-
-  return {
-    consumed: true,
-    used: newUsed,
-    limit,
-    remaining: isUnlimited ? -1 : Math.max(0, limit - newUsed),
-    isUnlimited,
-    planId: plan.id,
-  }
+  if (reservationId) quotaReservations.delete(leaseKey)
+  return result(true, used + 1)
 }
 
 /**
@@ -343,10 +369,8 @@ export async function recordAIUsage(params: RecordAIUsageParams, isServer = true
 
   if (isConfigured) {
     try {
-      const client = isServer
-        ? (isServiceRoleConfigured() ? createAdminClient() : await createServerSupabase())
-        : createBrowserSupabase()
-      await client.from('ai_usage').insert({
+      if (!isServer || !isServiceRoleConfigured()) throw new Error('AI audit writes require server credentials')
+      const { error: insertError } = await createAdminClient().from('ai_usage').insert({
         user_id: userId || null,
         identifier,
         action_type: actionType,
@@ -355,6 +379,7 @@ export async function recordAIUsage(params: RecordAIUsageParams, isServer = true
         success,
         created_at: now,
       })
+      if (insertError) throw insertError
     } catch (err) {
       console.warn('[recordAIUsage] Database insert warning:', err)
     }
@@ -372,6 +397,7 @@ export async function recordAIUsage(params: RecordAIUsageParams, isServer = true
     created_at: now,
   }
   inMemoryAIUsageLogs.push(auditRow)
+  if (inMemoryAIUsageLogs.length > 500) inMemoryAIUsageLogs.shift()
 
   if (!success && error) {
     console.warn(`[AI Cost Control] Failed AI ${actionType} attempt: ${error} (tokens: ${tokensUsed})`)
@@ -403,4 +429,5 @@ export function resetQuotaTestStore(): void {
   inMemoryUsage.clear()
   inMemoryAIUsageLogs.length = 0
   userRateLimitStore.clear()
+  quotaReservations.clear()
 }

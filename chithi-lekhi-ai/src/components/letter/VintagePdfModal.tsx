@@ -16,6 +16,8 @@ import { partitionLetterIntoPages, type FontSizeChoice } from '@/lib/letter-layo
 import { LetterCanvas, type CanvasThemeId } from './LetterCanvas'
 import { useLanguage } from '@/components/providers/LanguageProvider'
 
+const PDF_CANVAS_STYLE: React.CSSProperties = { minHeight: '842px', width: '595px' }
+
 // Map PDF theme IDs → LetterCanvas theme IDs (they share the same keys now)
 const PDF_THEME_TO_CANVAS: Record<PdfThemeId, CanvasThemeId> = {
   'old-love': 'old-love',
@@ -60,7 +62,6 @@ export function VintagePdfModal({
    */
   const batchPagesContainerRef = useRef<HTMLDivElement>(null)
 
-  const _themeConfig = PDF_THEMES[selectedTheme] || PDF_THEMES['old-love']
   const canvasThemeId = PDF_THEME_TO_CANVAS[selectedTheme]
 
   // Dynamic Pagination Engine
@@ -75,13 +76,11 @@ export function VintagePdfModal({
   // ── PDF Download ─────────────────────────────────────────────────────────
   const handleDownloadPdf = async () => {
     if (isExporting) return
-    if (!batchPagesContainerRef.current) return
-
     const pageElements = Array.from(
-      batchPagesContainerRef.current.querySelectorAll<HTMLElement>('[data-pdf-page]')
+      batchPagesContainerRef.current?.querySelectorAll<HTMLElement>('[data-pdf-page]') || []
     )
 
-    if (pageElements.length === 0) {
+    if (pageElements.length === 0 || pageElements.length !== totalPages) {
       setExportError(
         locale === 'en'
           ? 'Pages not loaded. Please close modal and try again.'
@@ -358,7 +357,7 @@ export function VintagePdfModal({
                 language={language || (locale === 'en' ? 'english' : 'bengali')}
                 themeId={canvasThemeId}
                 fontSizeClass={layout.computedFontSize.cssClass}
-                style={{ minHeight: '842px', width: '595px' }}
+                style={PDF_CANVAS_STYLE}
               />
             </div>
           ))}

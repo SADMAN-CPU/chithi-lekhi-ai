@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
+import type { User } from '@supabase/supabase-js'
 import { NextResponse, type NextRequest } from 'next/server'
 import { getSupabaseEnv } from './config'
 
@@ -33,14 +34,18 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  // Refresh auth token
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // Refresh and verify the identity. Auth outages must never grant access.
+  let user: User | null = null
+  try {
+    const { data, error } = await supabase.auth.getUser()
+    if (!error) user = data.user
+  } catch (error) {
+    console.warn('[Auth Proxy] Session verification failed:', error)
+  }
 
   let role: string = 'user'
   if (user) {
-    role = (user.user_metadata?.role as string) || 'user'
+    role = user.app_metadata?.role === 'admin' ? 'admin' : 'user'
     if (role !== 'admin') {
       try {
         const { data: profile } = await supabase

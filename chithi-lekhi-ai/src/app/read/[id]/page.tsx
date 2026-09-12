@@ -4,10 +4,8 @@ import Link from 'next/link'
 import { Navbar } from '@/components/layout/Navbar'
 import { AnonymousLetterReader } from '@/components/letter/AnonymousLetterReader'
 import { getShareByToken } from '@/lib/shares'
-import { getPublicLetter } from '@/lib/supabase/public-letters'
-import { getLetterById, getLetterByShareId } from '@/lib/supabase/letters'
+import { getLetterContent } from '@/lib/supabase/letters'
 import { FileQuestion, Feather, Lock, Clock } from 'lucide-react'
-import type { LetterRow } from '@/types/database'
 
 type Props = {
   params: Promise<{ id: string }>
@@ -20,16 +18,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   let receiverName = 'প্রিয়জন'
   if (shareLookup.letter) {
     receiverName = shareLookup.letter.recipient_name || shareLookup.letter.receiver_name || 'প্রিয়জন'
-  } else {
-    const pubLookup = await getPublicLetter(id, false, true)
-    if (pubLookup.letter) {
-      receiverName = pubLookup.letter.receiver_name || 'প্রিয়জন'
-    } else {
-      const canonicalLetter = await getLetterByShareId(id, true)
-      if (canonicalLetter) {
-        receiverName = canonicalLetter.recipient_name || canonicalLetter.receiver_name || 'প্রিয়জন'
-      }
-    }
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://chithi-lekhi-ai.vercel.app'
@@ -74,55 +62,12 @@ export default async function ReadLetterPage({ params }: Props) {
   // 1. Primary: Lookup in shares table with automatic view tracking
   const shareLookup = await getShareByToken(id, true, true)
 
-  let letter: LetterRow | null = shareLookup.letter
-  let status = shareLookup.status
+  const letter = shareLookup.letter
+  const status = shareLookup.status
   const shareToken = id
-  let views = shareLookup.share?.views || 1
-  let expiresAt = shareLookup.share?.expires_at
-  let expiration = shareLookup.share?.expiration || 'never'
-
-  // 2. Secondary fallback: public_letters table
-  if (!letter && status === 'not_found') {
-    const pubLookup = await getPublicLetter(id, true, true)
-    if (pubLookup.letter) {
-      status = pubLookup.status
-      views = pubLookup.letter.views
-      expiresAt = pubLookup.letter.expires_at
-      expiration = pubLookup.letter.expiration === 'permanent' ? 'never' : (pubLookup.letter.expiration as '24h' | '7d')
-      letter = {
-        id: pubLookup.letter.id,
-        user_id: pubLookup.letter.user_id,
-        receiver_name: pubLookup.letter.receiver_name,
-        relationship: null,
-        emotion: null,
-        style: null,
-        era_style: 'vintage',
-        language: 'bengali',
-        memory_context: null,
-        content: pubLookup.letter.letter_content,
-        letter_content: pubLookup.letter.letter_content,
-        status: 'published',
-        favorite: false,
-        share_slug: pubLookup.letter.short_id,
-        is_public: pubLookup.letter.is_public,
-        created_at: pubLookup.letter.created_at,
-        updated_at: pubLookup.letter.created_at,
-      }
-    }
-  }
-
-  // 3. Tertiary fallback: canonical letters table by share_id, share_slug, or ID
-  if (!letter && status === 'not_found') {
-    let canonical = await getLetterByShareId(id, true)
-    if (!canonical) {
-      canonical = await getLetterById(id, true)
-    }
-    if (canonical && (canonical.is_public || process.env.NODE_ENV !== 'production')) {
-      letter = canonical
-      status = 'ok'
-      views = canonical.view_count || 1
-    }
-  }
+  const views = shareLookup.share?.views || 0
+  const expiresAt = shareLookup.share?.expires_at
+  const expiration = shareLookup.share?.expiration || 'never'
 
   return (
     <div className="min-h-screen flex flex-col bg-chithi-gradient selection:bg-rose-100 selection:text-rose-800">
@@ -198,7 +143,7 @@ export default async function ReadLetterPage({ params }: Props) {
           /* OK — Render Vintage Letter Experience */
           <AnonymousLetterReader
             receiverName={letter.recipient_name || letter.receiver_name || 'প্রিয়জন'}
-            content={letter.letter_content || letter.content}
+            content={getLetterContent(letter)}
             relationship={letter.relationship}
             eraStyle={letter.era_style || letter.letter_style}
             createdAt={letter.created_at}

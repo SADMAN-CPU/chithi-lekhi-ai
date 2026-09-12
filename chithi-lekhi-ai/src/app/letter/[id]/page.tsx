@@ -3,8 +3,8 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Navbar } from '@/components/layout/Navbar'
 import { PublicLetterViewer } from '@/components/letter/PublicLetterViewer'
-import { getPublicLetter } from '@/lib/supabase/public-letters'
-import { getLetterById, getLetterBySlug } from '@/lib/supabase/letters'
+import { getShareByToken } from '@/lib/shares'
+import { getLetterContent } from '@/lib/supabase/letters'
 import { FileQuestion, Feather, Lock, Clock } from 'lucide-react'
 import type { PublicLetterRow } from '@/types/database'
 
@@ -14,7 +14,7 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params
-  const lookup = await getPublicLetter(id, false, true)
+  const lookup = await getShareByToken(id, false, true)
 
   if (lookup.letter) {
     const recipient = lookup.letter.receiver_name || 'প্রিয়জন'
@@ -46,35 +46,18 @@ export default async function PublicLetterPage({ params }: Props) {
   const { id } = await params
 
   // 1. Try public_letters table first
-  const lookup = await getPublicLetter(id, true, true)
+  const lookup = await getShareByToken(id, true, true)
 
-  let publicRecord: PublicLetterRow | null = lookup.letter
-
-  // 2. Fallback to legacy letters table for backward compatibility
-  if (!publicRecord && lookup.status === 'not_found') {
-    let legacy = await getLetterBySlug(id, true)
-    if (!legacy) {
-      legacy = await getLetterById(id, true)
-    }
-
-    if (legacy && legacy.is_public) {
-      publicRecord = {
-        id: legacy.id,
-        short_id: legacy.share_slug || legacy.id,
-        user_id: legacy.user_id,
-        letter_id: legacy.id,
-        title: `চিঠি — প্রিয় ${legacy.receiver_name}-এর জন্য`,
-        receiver_name: legacy.receiver_name,
-        letter_content: legacy.content,
-        theme: legacy.era_style === '90s-handwritten' ? '90s-post' : 'vintage',
-        is_public: true,
-        expiration: 'permanent',
-        expires_at: null,
-        views: 1,
-        created_at: legacy.created_at,
-      }
-    }
-  }
+  const letter = lookup.letter
+  const share = lookup.share
+  const publicRecord: PublicLetterRow | null = letter && share ? {
+    id: letter.id, short_id: share.share_token, user_id: letter.user_id, letter_id: letter.id,
+    title: letter.title || `চিঠি — প্রিয় ${letter.receiver_name}-এর জন্য`,
+    receiver_name: letter.receiver_name, letter_content: getLetterContent(letter),
+    theme: letter.theme || (letter.era_style === '90s-handwritten' ? '90s-post' : 'vintage'),
+    is_public: share.is_public, expiration: share.expiration === 'never' ? 'permanent' : share.expiration,
+    expires_at: share.expires_at, views: share.views, created_at: letter.created_at,
+  } : null
 
   return (
     <div className="min-h-screen flex flex-col bg-chithi-gradient selection:bg-rose-100 selection:text-rose-800">

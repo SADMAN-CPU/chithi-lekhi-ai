@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { synthesizeVoiceLetter, VOICE_STYLES, type VoiceStyle } from '@/lib/voice-engine'
+import { executeVoiceRequest, VOICE_STYLES, type VoiceStyle } from '@/lib/voice-engine'
 import { checkRateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { sanitizeInput } from '@/utils/helpers'
+import { attachQuotaHeaders } from '@/lib/quota-service'
 
 // Vercel serverless function max execution duration (seconds)
 export const maxDuration = 60
@@ -18,7 +19,8 @@ export async function POST(request: NextRequest) {
       return createRateLimitResponse(rateLimit)
     }
 
-    const body = await request.json()
+    const body = await request.json().catch(() => null)
+    if (!body || typeof body !== 'object') return NextResponse.json({ success: false, error: { message: 'Invalid request body', status: 400 } }, { status: 400 })
     const { text, voiceStyle = 'warm', receiverName } = body
 
     if (!text || typeof text !== 'string' || !text.trim()) {
@@ -33,16 +35,18 @@ export async function POST(request: NextRequest) {
     const sanitizedText = sanitizeInput(text)
 
     // 2. Synthesize with cost-optimized hash caching
-    const result = await synthesizeVoiceLetter({
+    const execution = await executeVoiceRequest({
+      request,
       text: sanitizedText,
       voiceStyle: selectedStyle,
-      isServer: true,
     })
+    if (!execution.ok) return execution.response
+    const { result, usage } = execution
 
     const hasAudioData = Boolean(result.audioBase64)
     const audioDataUri = hasAudioData ? `data:audio/${result.format};base64,${result.audioBase64}` : null
 
-    return NextResponse.json(
+    const response = NextResponse.json(
       {
         success: true,
         mode: hasAudioData ? 'server-tts' : 'browser-speech',
@@ -54,16 +58,17 @@ export async function POST(request: NextRequest) {
         contentHash: result.contentHash,
         voiceStyle: result.voiceStyle,
         styleInfo: VOICE_STYLES[selectedStyle],
-        receiverName: receiverName ? sanitizeInput(receiverName) : undefined,
+        receiverName: typeof receiverName === 'string' ? sanitizeInput(receiverName) : undefined,
       },
       {
         headers: {
-          'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800',
+          'Cache-Control': 'private, no-store',
           'X-RateLimit-Limit': rateLimit.limit.toString(),
           'X-RateLimit-Remaining': rateLimit.remaining.toString(),
         },
       }
     )
+    return usage ? attachQuotaHeaders(response, usage) : response
   } catch (err) {
     console.error('[POST /api/voice-letter] Voice synthesis error:', err)
     return NextResponse.json(

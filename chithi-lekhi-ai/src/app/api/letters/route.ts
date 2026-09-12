@@ -1,15 +1,12 @@
+import { PATCH as updateLetterResponse, DELETE as deleteLetterResponse } from '@/lib/letter-api'
 import { NextRequest, NextResponse } from 'next/server'
 import {
   createLetter,
   getUserLetters,
-  getLetterById,
-  toggleLetterFavorite,
-  deleteLetter,
-  updateLetter,
 } from '@/lib/supabase/letters'
-import { sanitizeInput } from '@/utils/helpers'
+import { sanitizeInput, isShareIdentifier } from '@/utils/helpers'
 import { checkRateLimit, createRateLimitResponse } from '@/lib/rate-limit'
-import { getServerUser, isSupabaseConfigured } from '@/lib/auth-server'
+import { getServerUser } from '@/lib/auth-server'
 import { moderateContent } from '@/lib/content-moderation'
 import type { ApiError } from '@/types'
 
@@ -30,24 +27,13 @@ export async function GET(request: NextRequest) {
     const serverUser = await getServerUser()
     const requestedUserId = searchParams.get('userId')
 
-    // Prevent IDOR in production: strictly enforce server session user ID.
-    // In local demo fallback mode, allow requestedUserId so offline testing is seamless.
-    const isProduction = process.env.NODE_ENV === 'production'
-    let effectiveUserId: string
-    if (serverUser) {
-      effectiveUserId = serverUser.id
-    } else if (isProduction || isSupabaseConfigured) {
-      if (requestedUserId === 'guest-user') {
-        effectiveUserId = 'guest-user'
-      } else {
-        return NextResponse.json(
-          { success: false, error: { message: 'Authentication required to view letters', status: 401 } },
-          { status: 401 }
-        )
+    if (!serverUser) {
+      if (requestedUserId && requestedUserId !== 'guest-user') {
+        return NextResponse.json({ success: false, error: { message: 'Authentication required', status: 401 } }, { status: 401 })
       }
-    } else {
-      effectiveUserId = requestedUserId || 'guest-user'
+      return NextResponse.json({ success: true, letters: [], count: 0 })
     }
+    const effectiveUserId = serverUser.id
 
     const favoritesOnly = searchParams.get('favoritesOnly') === 'true'
     const status = (searchParams.get('status') as 'published' | 'draft' | 'all') || undefined
@@ -55,8 +41,8 @@ export async function GET(request: NextRequest) {
     const relationship = searchParams.get('relationship') || undefined
     const timeframe = (searchParams.get('timeframe') as 'today' | 'week' | 'month' | 'all') || undefined
     const searchQuery = searchParams.get('searchQuery') || undefined
-    const limit = Math.min(Math.max(1, parseInt(searchParams.get('limit') || '50', 10)), 100)
-    const offset = Math.max(0, parseInt(searchParams.get('offset') || '0', 10))
+    const limit = Math.min(Math.max(1, (parseInt(searchParams.get('limit') || '50', 10) || 50)), 100)
+    const offset = Math.max(0, (parseInt(searchParams.get('offset') || '0', 10) || 0))
 
     const letters = await getUserLetters(
       effectiveUserId,
@@ -132,15 +118,17 @@ export async function POST(request: NextRequest) {
     }
 
     const serverUser = await getServerUser()
-    const isProduction = process.env.NODE_ENV === 'production'
-    // SECURITY: In production, unauthenticated clients cannot claim an arbitrary user_id
-    const resolvedUserId = serverUser?.id || (!isProduction && body.user_id ? sanitizeInput(body.user_id) : null)
+    const resolvedUserId = serverUser?.id || null
 
     const sanitizedRecipient = sanitizeInput(rawRecipient)
     const sanitizedContent = sanitizeInput(rawContent)
     const sanitizedOriginal = body.original_input ? sanitizeInput(body.original_input) : (body.original_letter ? sanitizeInput(body.original_letter) : sanitizedContent)
     const sanitizedEnhanced = body.enhanced_content ? sanitizeInput(body.enhanced_content) : (body.enhanced_letter ? sanitizeInput(body.enhanced_letter) : undefined)
     const shareSlug = body.share_id ? sanitizeInput(body.share_id) : (body.share_slug ? sanitizeInput(body.share_slug) : undefined)
+
+    if (shareSlug && !isShareIdentifier(shareSlug)) {
+      return NextResponse.json({ success: false, error: { message: 'Invalid share ID', status: 400 } }, { status: 400 })
+    }
 
     const saved = await createLetter(
       {
@@ -194,126 +182,19 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// ── PATCH /api/letters — Toggle favorite or update ────────────────────────────
+// Legacy collection mutations delegate to the same authorization and persistence.
 export async function PATCH(request: NextRequest) {
-  try {
-    const rateLimit = checkRateLimit(request, {
-      limit: 30,
-      windowSeconds: 60,
-      prefix: 'letters-patch',
-    })
-    if (!rateLimit.allowed) {
-      return createRateLimitResponse(rateLimit)
-    }
-
-    const body = await request.json()
-    const { id, action, currentFavorite, content } = body
-
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: { message: 'Letter id is required', status: 400 } },
-        { status: 400 }
-      )
-    }
-
-    // Ownership verification
-    const existing = await getLetterById(id, true)
-    if (!existing) {
-      return NextResponse.json(
-        { success: false, error: { message: 'Letter not found', status: 404 } },
-        { status: 404 }
-      )
-    }
-
-    const serverUser = await getServerUser()
-    const isProduction = process.env.NODE_ENV === 'production'
-    if ((isProduction || isSupabaseConfigured) && existing.user_id && (!serverUser || existing.user_id !== serverUser.id)) {
-      return NextResponse.json(
-        { success: false, error: { message: 'Unauthorized modification', status: 403 } },
-        { status: 403 }
-      )
-    }
-
-    if (action === 'toggle-favorite') {
-      const newFavorite = await toggleLetterFavorite(id, Boolean(currentFavorite), true)
-      return NextResponse.json({
-        success: true,
-        id,
-        favorite: newFavorite,
-      })
-    }
-
-    if (action === 'update-content' && content) {
-      const updated = await updateLetter(id, { content: sanitizeInput(content) }, true)
-      return NextResponse.json({
-        success: true,
-        letter: updated,
-      })
-    }
-
-    return NextResponse.json(
-      { success: false, error: { message: 'Invalid action', status: 400 } },
-      { status: 400 }
-    )
-  } catch (err) {
-    console.error('[PATCH /api/letters] Update error:', err)
-    return NextResponse.json(
-      { success: false, error: { message: 'Failed to update letter', status: 500 } },
-      { status: 500 }
-    )
+  const body = await request.json().catch(() => null)
+  if (!body || typeof body.id !== 'string' || !['toggle-favorite', 'update-content'].includes(body.action)) {
+    return NextResponse.json({ success: false, error: { message: 'Invalid action or letter ID', status: 400 } }, { status: 400 })
   }
+  const adapted = new NextRequest(request.url, {
+    method: 'PATCH', headers: request.headers,
+    body: JSON.stringify(body),
+  })
+  return updateLetterResponse(adapted, { params: Promise.resolve({ id: body.id }) })
 }
 
-// ── DELETE /api/letters — Delete letter ────────────────────────────────────────
-export async function DELETE(request: NextRequest) {
-  try {
-    const rateLimit = checkRateLimit(request, {
-      limit: 30,
-      windowSeconds: 60,
-      prefix: 'letters-delete',
-    })
-    if (!rateLimit.allowed) {
-      return createRateLimitResponse(rateLimit)
-    }
-
-    const { searchParams } = new URL(request.url)
-    const id = searchParams.get('id')
-
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: { message: 'id is required', status: 400 } },
-        { status: 400 }
-      )
-    }
-
-    // Check ownership before deletion
-    const existing = await getLetterById(id, true)
-    if (!existing) {
-      return NextResponse.json(
-        { success: false, error: { message: 'Letter not found', status: 404 } },
-        { status: 404 }
-      )
-    }
-
-    const serverUser = await getServerUser()
-    const isProduction = process.env.NODE_ENV === 'production'
-    if ((isProduction || isSupabaseConfigured) && existing.user_id && (!serverUser || existing.user_id !== serverUser.id)) {
-      return NextResponse.json(
-        { success: false, error: { message: 'Unauthorized deletion', status: 403 } },
-        { status: 403 }
-      )
-    }
-
-    const deleted = await deleteLetter(id, true)
-    return NextResponse.json({
-      success: true,
-      deleted,
-    })
-  } catch (err) {
-    console.error('[DELETE /api/letters] Delete error:', err)
-    return NextResponse.json(
-      { success: false, error: { message: 'Failed to delete letter', status: 500 } },
-      { status: 500 }
-    )
-  }
+export function DELETE(request: NextRequest) {
+  return deleteLetterResponse(request, { params: Promise.resolve({ id: request.nextUrl.searchParams.get('id') || '' }) })
 }

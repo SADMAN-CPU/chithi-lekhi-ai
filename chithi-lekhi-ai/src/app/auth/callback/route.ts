@@ -5,21 +5,22 @@ export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
   const next = searchParams.get('next') ?? '/dashboard'
+  const redirectUrl = new URL('/dashboard', origin)
+  if (next.startsWith('/') && !next.startsWith('//') && !next.includes('\\')) {
+    const candidate = new URL(next, origin)
+    if (candidate.origin === origin) {
+      redirectUrl.pathname = candidate.pathname
+      redirectUrl.search = candidate.search
+      redirectUrl.hash = candidate.hash
+    }
+  }
 
   if (code) {
     try {
       const supabase = await createClient()
       const { error } = await supabase.auth.exchangeCodeForSession(code)
       if (!error) {
-        const forwardedHost = request.headers.get('x-forwarded-host')
-        const isLocalEnv = process.env.NODE_ENV === 'development'
-        if (isLocalEnv) {
-          return NextResponse.redirect(`${origin}${next}`)
-        } else if (forwardedHost) {
-          return NextResponse.redirect(`https://${forwardedHost}${next}`)
-        } else {
-          return NextResponse.redirect(`${origin}${next}`)
-        }
+        return NextResponse.redirect(redirectUrl)
       } else {
         console.error('[auth/callback] Exchange code error:', error.message)
       }

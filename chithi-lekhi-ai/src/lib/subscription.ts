@@ -79,10 +79,13 @@ export async function getUserPlan(userId?: string, isServer = false): Promise<Pl
           return PLANS[planId] || PLANS.free
         }
       }
+      if (error) console.warn('[Subscription] Plan lookup failed:', error)
     } catch (err) {
       console.warn('[Subscription] Query exception:', err)
     }
+    return PLANS.free
   }
+  if (process.env.NODE_ENV === 'production') return PLANS.free
 
   // Check in-memory store
   const localSub = inMemorySubscriptions.get(userId)

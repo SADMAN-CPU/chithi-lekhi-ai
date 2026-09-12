@@ -22,12 +22,14 @@ import {
 } from '@/lib/letter-layout-engine'
 import {
   captureElementAsPng,
-  exportMergedLetterPng,
-  getSafePixelRatio,
+  downloadDataUrl,
+  exportElementToPng,
 } from '@/lib/export-utils'
 import { shareLetter } from '@/lib/share-engine'
 import { useLanguage } from '@/components/providers/LanguageProvider'
 import { LetterCanvas, type CanvasThemeId } from './LetterCanvas'
+
+const BATCH_CANVAS_STYLE: React.CSSProperties = { width: '460px' }
 
 export type VintageCardStyle =
   | '90s-paper'
@@ -120,11 +122,11 @@ export function VintageLetterVisualStudio({
   }, [])
 
   // ── Status helpers ───────────────────────────────────────────────────────
-  const showStatus = (msg: string, durationMs = 2800) => {
+  const showStatus = useCallback((msg: string, durationMs = 2800) => {
     setStatusMessage(msg)
     if (statusTimeoutRef.current) clearTimeout(statusTimeoutRef.current)
     statusTimeoutRef.current = setTimeout(() => setStatusMessage(null), durationMs)
-  }
+  }, [])
 
   // ── Download: Single page (or merged canvas) ─────────────────────────────
   const handleDownloadCurrentPage = useCallback(async () => {
@@ -132,23 +134,16 @@ export function VintageLetterVisualStudio({
     setDownloading(true)
     setStatusMessage(`${qualitySetting.labelBn} এ রেন্ডার হচ্ছে...`)
     try {
-      const safePR = getSafePixelRatio(qualitySetting.pixelRatio)
-
-      if (isMergedMode && mergedCanvasRef.current) {
-        // Export full continuous letter as single PNG
-        await exportMergedLetterPng(
-          mergedCanvasRef.current,
-          `chithi-${(receiverName || 'letter').replace(/\s+/g, '-').toLowerCase()}-full`,
-          (msg) => setStatusMessage(msg)
-        )
-      } else if (cardRef.current) {
-        const dataUrl = await captureElementAsPng(cardRef.current, safePR, qualitySetting.quality)
-        const pageSuffix = totalPages > 1 ? `-page-${activePageIndex + 1}` : ''
-        const link = document.createElement('a')
-        link.download = `chithi-${(receiverName || 'letter').replace(/\s+/g, '-').toLowerCase()}-${cardStyle}${pageSuffix}.png`
-        link.href = dataUrl
-        link.click()
-      }
+      const source = isMergedMode ? mergedCanvasRef.current : cardRef.current
+      if (!source) throw new Error('Letter canvas is not ready')
+      const pageSuffix = totalPages > 1 ? `-page-${activePageIndex + 1}` : ''
+      const suffix = isMergedMode ? 'full' : `${cardStyle}${pageSuffix}`
+      await exportElementToPng(
+        source,
+        `chithi-${(receiverName || 'letter').replace(/\s+/g, '-').toLowerCase()}-${suffix}.png`,
+        setStatusMessage,
+        qualitySetting
+      )
       showStatus('ইমেজ ডাউনলোড সম্পন্ন! ✓')
     } catch (err) {
       console.error('[VintageLetterVisualStudio] download failed:', err)
@@ -164,18 +159,13 @@ export function VintageLetterVisualStudio({
     cardStyle,
     totalPages,
     activePageIndex,
+    showStatus,
   ])
 
   // ── Download: All pages (batch, no state mutation mid-loop) ─────────────
   const handleDownloadAllPages = useCallback(async () => {
     if (downloading) return
-    if (totalPages <= 1) {
-      await handleDownloadCurrentPage()
-      return
-    }
-
-    if (isMergedMode && mergedCanvasRef.current) {
-      // In merged mode, all text is already in one element
+    if (totalPages <= 1 || isMergedMode) {
       await handleDownloadCurrentPage()
       return
     }
@@ -184,8 +174,6 @@ export function VintageLetterVisualStudio({
     setStatusMessage(`সবগুলো ${totalPages}টি পৃষ্ঠা রেন্ডার হচ্ছে...`)
 
     try {
-      const safePR = getSafePixelRatio(qualitySetting.pixelRatio)
-
       // Capture all page elements from the hidden batch container
       // These are rendered simultaneously (no React state mutation per page)
       const batchEls = batchContainerRef.current
@@ -194,35 +182,18 @@ export function VintageLetterVisualStudio({
           )
         : []
 
-      if (batchEls.length === 0) {
-        // Fallback: sequential current-page switching (slower but safe)
-        for (let i = 0; i < totalPages; i++) {
-          setCurrentPageIndex(i)
-          setStatusMessage(`পৃষ্ঠা ${i + 1}/${totalPages} রেন্ডার হচ্ছে...`)
-          await new Promise((r) => setTimeout(r, 400))
-          if (cardRef.current) {
-            const dataUrl = await captureElementAsPng(cardRef.current, safePR, qualitySetting.quality)
-            const link = document.createElement('a')
-            link.download = `chithi-${(receiverName || 'letter').replace(/\s+/g, '-').toLowerCase()}-page-${i + 1}.png`
-            link.href = dataUrl
-            document.body.appendChild(link)
-            link.click()
-            document.body.removeChild(link)
-          }
-        }
-      } else {
-        // Fast path: all pages pre-rendered in batch container, no state mutation
-        for (let i = 0; i < batchEls.length; i++) {
-          setStatusMessage(`পৃষ্ঠা ${i + 1}/${batchEls.length} ডাউনলোড হচ্ছে...`)
-          await new Promise((r) => setTimeout(r, 400))
-          const dataUrl = await captureElementAsPng(batchEls[i], safePR, qualitySetting.quality)
-          const link = document.createElement('a')
-          link.download = `chithi-${(receiverName || 'letter').replace(/\s+/g, '-').toLowerCase()}-page-${i + 1}.png`
-          link.href = dataUrl
-          document.body.appendChild(link)
-          link.click()
-          document.body.removeChild(link)
-        }
+      if (batchEls.length !== totalPages) {
+        throw new Error('Letter pages are not ready')
+      }
+      for (let i = 0; i < batchEls.length; i++) {
+        setStatusMessage(`পৃষ্ঠা ${i + 1}/${batchEls.length} ডাউনলোড হচ্ছে...`)
+        await new Promise((r) => setTimeout(r, 400))
+        await exportElementToPng(
+          batchEls[i],
+          `chithi-${(receiverName || 'letter').replace(/\s+/g, '-').toLowerCase()}-page-${i + 1}.png`,
+          undefined,
+          qualitySetting
+        )
       }
 
       showStatus(`${totalPages}টি পৃষ্ঠা সফলভাবে ডাউনলোড হয়েছে! ✓`, 3500)
@@ -239,18 +210,19 @@ export function VintageLetterVisualStudio({
     qualitySetting,
     receiverName,
     handleDownloadCurrentPage,
+    showStatus,
   ])
 
   // ── Social / Native Share ────────────────────────────────────────────────
   const handleShareImage = useCallback(async () => {
+    if (sharing) return
     setSharing(true)
     setStatusMessage('শেয়ারের জন্য প্রস্তুত হচ্ছে...')
     try {
-      const safePR = getSafePixelRatio(qualitySetting.pixelRatio)
       const sourceEl = isMergedMode ? mergedCanvasRef.current : cardRef.current
-      if (!sourceEl) return
+      if (!sourceEl) throw new Error('Letter canvas is not ready')
 
-      const dataUrl = await captureElementAsPng(sourceEl, safePR, qualitySetting.quality)
+      const dataUrl = await captureElementAsPng(sourceEl, qualitySetting.pixelRatio, qualitySetting.quality)
       const blob = await (await fetch(dataUrl)).blob()
       const file = new File(
         [blob],
@@ -268,10 +240,7 @@ export function VintageLetterVisualStudio({
         showStatus('শেয়ার সম্পন্ন! ✓')
       } else {
         // Fallback: download the image + copy link
-        const link = document.createElement('a')
-        link.download = file.name
-        link.href = dataUrl
-        link.click()
+        downloadDataUrl(dataUrl, file.name)
         if (shareUrl) {
           const result = await shareLetter({
             platform: 'copy',
@@ -294,7 +263,7 @@ export function VintageLetterVisualStudio({
     } finally {
       setSharing(false)
     }
-  }, [isMergedMode, qualitySetting, receiverName, shareUrl, letter])
+  }, [sharing, isMergedMode, qualitySetting, receiverName, shareUrl, letter, showStatus])
 
   // ── Container style per ratio ────────────────────────────────────────────
   const ratioContainerStyles: Record<TargetAspectRatio, string> = {
@@ -574,7 +543,7 @@ export function VintageLetterVisualStudio({
                 language={language || (locale === 'en' ? 'english' : 'bengali')}
                 themeId={themeId}
                 fontSizeClass={layout.computedFontSize.cssClass}
-                style={{ width: '460px' }}
+                style={BATCH_CANVAS_STYLE}
               />
             </div>
           ))}

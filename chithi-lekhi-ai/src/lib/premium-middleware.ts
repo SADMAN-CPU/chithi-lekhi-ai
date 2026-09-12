@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getClientIp } from './rate-limit'
 import {
-  verifyUserQuota,
+  reserveUserQuota,
   type QuotaVerificationResult,
   type QuotaConsumptionResult,
 } from './quota-service'
@@ -20,7 +20,7 @@ export interface PremiumGuardResult {
  * Quota must strictly be consumed AFTER successful AI generation.
  */
 export async function guardLetterGeneration(request: NextRequest): Promise<PremiumGuardResult> {
-  const verification = await verifyUserQuota({ request, actionType: 'generation' })
+  const verification = await reserveUserQuota({ request, actionType: 'generation' })
   return {
     allowed: verification.allowed,
     usage: verification,

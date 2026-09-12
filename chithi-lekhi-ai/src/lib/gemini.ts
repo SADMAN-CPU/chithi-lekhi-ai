@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai'
 import type { GenerateLetterRequest } from '@/types'
 import { buildLetterPrompt, SYSTEM_PERSONA } from './prompts'
-import { generateLetter as generateWithOpenAiFallback } from './openai'
+import { generateLetterResult as generateWithOpenAiFallback } from './openai'
 
 const geminiApiKey = process.env.GEMINI_API_KEY
 const geminiModelName = process.env.GEMINI_MODEL || 'gemini-1.5-flash'
@@ -79,11 +79,7 @@ export async function generateGeminiLetter(
 
   // Fallback ladder: OpenAI or Offline Emotional Storyteller Engine
   try {
-    const fallbackText = await generateWithOpenAiFallback(params)
-    return {
-      letter: fallbackText,
-      provider: process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY.startsWith('sk-') ? 'openai' : 'fallback',
-    }
+    return await generateWithOpenAiFallback(params)
   } catch (err) {
     console.error('[AI Pipeline] All AI engines failed:', err)
     throw new Error('চিঠি তৈরি করতে সাময়িক সমস্যা হচ্ছে। অনুগ্রহ করে কিছুক্ষণ পর আবার চেষ্টা করুন।')

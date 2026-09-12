@@ -19,10 +19,8 @@ export function getAdminConfig() {
   const sessionSecret =
     process.env.ADMIN_SESSION_SECRET ||
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
     passwordHash ||
-    password ||
-    'chithi-admin-secret-2026'
+    password
   return { email, password, passwordHash, sessionSecret }
 }
 
@@ -104,13 +102,17 @@ function hexToBuffer(hex: string): ArrayBuffer {
  * Token format: base64(payload).signatureHex
  */
 export async function createAdminToken(email: string): Promise<string> {
-  const { sessionSecret } = getAdminConfig()
-  if (!sessionSecret) {
-    throw new Error('ADMIN_PASSWORD or ADMIN_SESSION_SECRET is not configured in environment variables.')
+  const { email: adminEmail, password, passwordHash, sessionSecret } = getAdminConfig()
+  if (!sessionSecret || !adminEmail || (!password && !passwordHash)) {
+    throw new Error('Environment admin credentials and a private signing secret must be configured.')
+  }
+  if (email.trim().toLowerCase() !== adminEmail) {
+    throw new Error('Environment admin identity does not match.')
   }
   const payload = {
-    email: email.toLowerCase(),
+    email: adminEmail,
     role: 'admin',
+    source: 'environment',
     exp: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
   }
   const payloadStr = JSON.stringify(payload)
@@ -134,17 +136,17 @@ export async function createAdminToken(email: string): Promise<string> {
 export async function verifyAdminToken(
   token: string
 ): Promise<{ valid: boolean; email?: string }> {
-  if (!token || !token.includes('.')) {
+  if (!token || token.length > 4096) {
     return { valid: false }
   }
 
-  const [encodedPayload, signatureHex] = token.split('.')
-  if (!encodedPayload || !signatureHex) {
+  const [encodedPayload, signatureHex, extra] = token.split('.')
+  if (!encodedPayload || !/^[a-f0-9]{64}$/.test(signatureHex || '') || extra !== undefined) {
     return { valid: false }
   }
 
-  const { sessionSecret } = getAdminConfig()
-  if (!sessionSecret) {
+  const { email: adminEmail, password, passwordHash, sessionSecret } = getAdminConfig()
+  if (!sessionSecret || !adminEmail || (!password && !passwordHash)) {
     return { valid: false }
   }
 
@@ -167,11 +169,11 @@ export async function verifyAdminToken(
     const payloadStr = atob(encodedPayload)
     const payload = JSON.parse(payloadStr)
 
-    if (!payload.exp || Date.now() > payload.exp) {
+    if (typeof payload.exp !== 'number' || !Number.isFinite(payload.exp) || Date.now() >= payload.exp) {
       return { valid: false } // Expired
     }
 
-    if (payload.role !== 'admin') {
+    if (payload.role !== 'admin' || payload.source !== 'environment' || payload.email !== adminEmail) {
       return { valid: false }
     }
 

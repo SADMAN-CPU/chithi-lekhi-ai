@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getLetterById, updateLetter } from '@/lib/supabase/letters'
 import { checkRateLimit, createRateLimitResponse } from '@/lib/rate-limit'
-import { getServerUser, isSupabaseConfigured } from '@/lib/auth-server'
+import { getServerUser } from '@/lib/auth-server'
 import { generateSlug } from '@/utils/helpers'
 
 type Props = {
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest, { params }: Props) {
     }
 
     const { id } = await params
-    if (!id) {
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
       return NextResponse.json(
         { success: false, error: { message: 'Letter ID is required', status: 400 } },
         { status: 400 }
@@ -42,15 +42,12 @@ export async function POST(request: NextRequest, { params }: Props) {
     }
 
     // Permission check
-    const isProduction = process.env.NODE_ENV === 'production'
-    if ((isProduction || isSupabaseConfigured) && letter.user_id) {
-      const serverUser = await getServerUser()
-      if (!serverUser || serverUser.id !== letter.user_id) {
-        return NextResponse.json(
-          { success: false, error: { message: 'Unauthorized publication', status: 403 } },
-          { status: 403 }
-        )
-      }
+    const serverUser = await getServerUser()
+    if (!serverUser || serverUser.id !== letter.user_id) {
+      return NextResponse.json(
+        { success: false, error: { message: 'Unauthorized publication', status: 403 } },
+        { status: 403 }
+      )
     }
 
     // Ensure share_id slug exists
@@ -67,6 +64,13 @@ export async function POST(request: NextRequest, { params }: Props) {
       },
       true
     )
+
+    if (!updated) {
+      return NextResponse.json(
+        { success: false, error: { message: 'Letter not found', status: 404 } },
+        { status: 404 }
+      )
+    }
 
     // Build public URL
     const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || 'localhost:3000'

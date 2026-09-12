@@ -255,7 +255,7 @@ export function calculateOptimalTokens(
 
 // ─── Main Letter Generator ───────────────────────────────────────────────────
 
-export async function generateLetter(params: GenerateLetterRequest): Promise<string> {
+export async function generateLetterResult(params: GenerateLetterRequest): Promise<{ letter: string; provider: 'openai' | 'fallback' }> {
   const prompt = buildLetterPrompt(params)
 
   if (openaiClient) {
@@ -282,7 +282,7 @@ export async function generateLetter(params: GenerateLetterRequest): Promise<str
 
       const generated = completion.choices[0]?.message?.content?.trim()
       if (generated && generated.length > 50) {
-        return generated
+        return { letter: generated, provider: 'openai' }
       }
     } catch (err) {
       console.warn('[OpenAI] API call failed or timed out, using fallback storytelling generator:', err)
@@ -290,5 +290,9 @@ export async function generateLetter(params: GenerateLetterRequest): Promise<str
   }
 
   // Graceful fallback to guaranteed storytelling output
-  return generatePersonalizedFallback(params)
+  return { letter: generatePersonalizedFallback(params), provider: 'fallback' }
+}
+
+export async function generateLetter(params: GenerateLetterRequest): Promise<string> {
+  return (await generateLetterResult(params)).letter
 }

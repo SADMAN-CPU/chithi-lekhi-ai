@@ -67,7 +67,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     const supabase = createClient()
     const { data: { user }, error } = await supabase.auth.getUser()
     if (!error && user) {
-      let role: 'user' | 'admin' = (user.user_metadata?.role as 'user' | 'admin') || 'user'
+      let role: 'user' | 'admin' = user.app_metadata?.role === 'admin' ? 'admin' : 'user'
       try {
         const { data: profile } = await supabase
           .from('profiles')
@@ -116,7 +116,6 @@ export async function ensureUserProfile(user: {
       .maybeSingle()
 
     const userName = user.name || user.email?.split('@')[0] || 'ব্যবহারকারী'
-    const userRole = user.role || 'user'
 
     if (!existing) {
       await supabase.from('profiles').insert({
@@ -124,7 +123,7 @@ export async function ensureUserProfile(user: {
         email: user.email || null,
         name: userName,
         full_name: userName,
-        role: userRole,
+        role: 'user',
         avatar: user.avatar || null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -171,7 +170,7 @@ export async function signInWithEmail(
     }
 
     if (data.user) {
-      let role: 'user' | 'admin' = (data.user.user_metadata?.role as 'user' | 'admin') || 'user'
+      let role: 'user' | 'admin' = data.user.app_metadata?.role === 'admin' ? 'admin' : 'user'
       try {
         const { data: profile } = await supabase
           .from('profiles')
@@ -227,7 +226,6 @@ export async function signUpWithEmail(
       options: {
         data: {
           name: trimmedName,
-          role: 'user',
         },
       },
     })
@@ -313,7 +311,7 @@ export async function verifyOtp(
     }
 
     if (data.user) {
-      let role: 'user' | 'admin' = (data.user.user_metadata?.role as 'user' | 'admin') || 'user'
+      let role: 'user' | 'admin' = data.user.app_metadata?.role === 'admin' ? 'admin' : 'user'
       try {
         const { data: profile } = await supabase
           .from('profiles')

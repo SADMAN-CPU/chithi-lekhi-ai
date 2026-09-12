@@ -6,13 +6,22 @@ import {
 } from '@/lib/admin-auth'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
 import { createClient } from '@/lib/supabase/server'
+import { checkRateLimit } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
+  const rateLimit = checkRateLimit(request, { limit: 5, windowSeconds: 60, prefix: 'admin-login' })
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { success: false, error: 'Too many login attempts. Please try again shortly.' },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.resetInSeconds) } }
+    )
+  }
   try {
-    const body = await request.json()
-    const { email, password } = body
+    const body = await request.json().catch(() => null)
+    const { email, password } = body || {}
 
-    if (!email || !password) {
+    if (typeof email !== 'string' || typeof password !== 'string' ||
+        !email.trim() || !password || email.length > 320 || password.length > 1024) {
       return NextResponse.json(
         { success: false, error: 'Email and password are required' },
         { status: 400 }
@@ -45,18 +54,18 @@ export async function POST(request: NextRequest) {
           }
 
           if (role === 'admin') {
-            const token = await createAdminToken(trimmedEmail)
             const response = NextResponse.json({
               success: true,
               message: 'Admin authenticated via Supabase Auth',
             })
 
-            response.cookies.set(ADMIN_COOKIE_NAME, token, {
+            // Supabase sessions re-check the current role; only environment login needs a fallback token.
+            response.cookies.set(ADMIN_COOKIE_NAME, '', {
               httpOnly: true,
               secure: process.env.NODE_ENV === 'production',
               sameSite: 'lax',
               path: '/',
-              maxAge: 24 * 60 * 60,
+              maxAge: 0,
             })
 
             return response

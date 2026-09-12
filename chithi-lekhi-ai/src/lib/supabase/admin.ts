@@ -1,7 +1,7 @@
-import { createClient as createSupabaseJsClient } from '@supabase/supabase-js'
+import { createClient as createSupabaseJsClient, type SupabaseClient } from '@supabase/supabase-js'
 import { getSupabaseEnv } from './config'
 
-let cachedAdminClient: ReturnType<typeof createSupabaseJsClient> | null = null
+let cachedAdminClient: SupabaseClient | null = null
 
 /**
  * Privileged administrative Supabase client using SUPABASE_SERVICE_ROLE_KEY.

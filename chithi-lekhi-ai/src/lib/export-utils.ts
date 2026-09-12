@@ -130,13 +130,24 @@ export function downloadFormattedTxt(params: {
 
   const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
   const url = URL.createObjectURL(blob)
+  try {
+    downloadDataUrl(url, filename)
+  } finally {
+    URL.revokeObjectURL(url)
+  }
+}
+
+/** Download an already-rendered image or local blob without capturing it again. */
+export function downloadDataUrl(url: string, filename: string): void {
   const link = document.createElement('a')
   link.href = url
   link.download = filename
   document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  URL.revokeObjectURL(url)
+  try {
+    link.click()
+  } finally {
+    document.body.removeChild(link)
+  }
 }
 
 /**
@@ -164,14 +175,17 @@ export function getSafePixelRatio(targetRatio = 2.5): number {
 export async function captureElementAsPng(
   element: HTMLElement,
   pixelRatio = 2.5,
-  quality = 0.98
+  quality = 0.98,
+  fontEmbedCSS?: string
 ): Promise<string> {
+  await document.fonts?.ready
   const { toPng } = await import('html-to-image')
   const safeRatio = getSafePixelRatio(pixelRatio)
   return toPng(element, {
-    cacheBust: true,
+    cacheBust: false,
     pixelRatio: safeRatio,
     quality,
+    fontEmbedCSS,
   })
 }
 
@@ -184,34 +198,7 @@ export async function exportElementToA4Pdf(
   filename: string,
   onProgress?: (msg: string) => void
 ): Promise<void> {
-  onProgress?.('উচ্চ রেজোলিউশন ডকুমেন্ট রেন্ডার হচ্ছে...')
-
-  // Dynamically import heavy libraries
-  const [, { default: jsPDF }] = await Promise.all([
-    import('html-to-image'),
-    import('jspdf'),
-  ])
-
-  const pixelRatio = getSafePixelRatio(2.5)
-  const dataUrl = await captureElementAsPng(element, pixelRatio, 0.98)
-
-  onProgress?.('এ৪ (A4) প্রিন্ট-রেডি পিডিএফ সংকলন চলছে...')
-
-  // A4 dimensions in mm: 210mm x 297mm
-  const pdf = new jsPDF({
-    orientation: 'portrait',
-    unit: 'mm',
-    format: 'a4',
-  })
-
-  const pdfWidth = pdf.internal.pageSize.getWidth() // 210mm
-  const pdfHeight = pdf.internal.pageSize.getHeight() // 297mm
-
-  // Insert image scaled to exact full A4 page
-  pdf.addImage(dataUrl, 'PNG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST')
-
-  onProgress?.('ডাউনলোড সম্পন্ন হচ্ছে...')
-  pdf.save(filename.endsWith('.pdf') ? filename : `${filename}.pdf`)
+  return exportMultiPageA4Pdf([element], filename, onProgress)
 }
 
 /**
@@ -233,7 +220,13 @@ export async function exportMultiPageA4Pdf(
 
   onProgress?.('আপনার চিঠির PDF তৈরি হচ্ছে...')
 
-  const { default: jsPDF } = await import('jspdf')
+  const [{ default: jsPDF }, { getFontEmbedCSS }] = await Promise.all([
+    import('jspdf'),
+    import('html-to-image'),
+  ])
+  await document.fonts?.ready
+  // Every page uses the same letter fonts; embed them once per PDF export.
+  const fontEmbedCSS = await getFontEmbedCSS(elements[0], { cacheBust: false })
   const pixelRatio = getSafePixelRatio(2.5)
 
   const pdf = new jsPDF({
@@ -251,7 +244,7 @@ export async function exportMultiPageA4Pdf(
     // Small delay to let browser paint the element before capture
     await new Promise((r) => setTimeout(r, 80))
 
-    const dataUrl = await captureElementAsPng(elements[i], pixelRatio, 0.98)
+    const dataUrl = await captureElementAsPng(elements[i], pixelRatio, 0.98, fontEmbedCSS)
 
     if (i > 0) {
       pdf.addPage('a4', 'portrait')
@@ -268,18 +261,18 @@ export async function exportMultiPageA4Pdf(
  * Export a single element as a merged/continuous PNG (for long letters).
  * The element should have dynamic height (height: auto) to capture the full content.
  */
-export async function exportMergedLetterPng(
+export async function exportElementToPng(
   element: HTMLElement,
   filename: string,
-  onProgress?: (msg: string) => void
+  onProgress?: (msg: string) => void,
+  options: { pixelRatio?: number; quality?: number } = {}
 ): Promise<void> {
   onProgress?.('সম্পূর্ণ চিঠি একটানা ছবিতে রূপান্তর হচ্ছে...')
-  const pixelRatio = getSafePixelRatio(2.5)
-  const dataUrl = await captureElementAsPng(element, pixelRatio, 0.98)
+  const dataUrl = await captureElementAsPng(element, options.pixelRatio ?? 2.5, options.quality ?? 0.98)
 
   onProgress?.('ডাউনলোড শুরু হচ্ছে...')
-  const link = document.createElement('a')
-  link.download = filename.endsWith('.png') ? filename : `${filename}.png`
-  link.href = dataUrl
-  link.click()
+  downloadDataUrl(dataUrl, filename.endsWith('.png') ? filename : `${filename}.png`)
 }
+
+// Retain the existing merged-export API while sharing the same capture/download path.
+export const exportMergedLetterPng = exportElementToPng

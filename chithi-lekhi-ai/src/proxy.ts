@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { updateSession } from '@/lib/supabase/middleware'
 import { isSupabaseConfigured } from '@/lib/supabase/config'
+import { ADMIN_COOKIE_NAME, verifyAdminToken } from '@/lib/admin-auth'
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -9,7 +10,6 @@ export async function proxy(request: NextRequest) {
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/auth') ||
-    pathname.includes('.') ||
     pathname === '/favicon.ico' ||
     pathname === '/robots.txt' ||
     pathname === '/sitemap.xml'
@@ -20,24 +20,26 @@ export async function proxy(request: NextRequest) {
   // Refresh auth cookies via Supabase SSR
   const { supabaseResponse, user, role } = await updateSession(request)
 
-  // 1. Admin route protection: /admin (except /admin/login)
-  if (pathname.startsWith('/admin') && pathname !== '/admin/login') {
-    if (!user) {
-      // If Supabase is configured and no user, check if admin cookie exists as fallback
-      const adminCookie = request.cookies.get('chithi_admin_token')
-      if (!adminCookie) {
-        const loginUrl = request.nextUrl.clone()
-        loginUrl.pathname = '/admin/login'
-        loginUrl.searchParams.set('redirectedFrom', pathname)
-        return NextResponse.redirect(loginUrl)
-      }
-      return supabaseResponse
-    }
+  // Preserve refreshed/cleared Supabase cookies when redirecting or rejecting a request.
+  const withSessionCookies = (response: NextResponse) => {
+    supabaseResponse.cookies.getAll().forEach((cookie) => response.cookies.set(cookie))
+    return response
+  }
+  const isAdminPage = pathname === '/admin' || pathname.startsWith('/admin/')
+  const isAdminApi = pathname === '/api/admin' || pathname.startsWith('/api/admin/')
+  let isAdmin = user?.id != null && role === 'admin'
+  if ((isAdminPage || isAdminApi) && !isAdmin) {
+    const adminToken = request.cookies.get(ADMIN_COOKIE_NAME)?.value
+    isAdmin = Boolean(adminToken && (await verifyAdminToken(adminToken)).valid)
+  }
 
-    if (role !== 'admin') {
-      const dashboardUrl = request.nextUrl.clone()
-      dashboardUrl.pathname = '/dashboard'
-      return NextResponse.redirect(dashboardUrl)
+  // 1. Admin route protection: /admin (except /admin/login)
+  if (isAdminPage && pathname !== '/admin/login') {
+    if (!isAdmin) {
+      const loginUrl = request.nextUrl.clone()
+      loginUrl.pathname = '/admin/login'
+      loginUrl.searchParams.set('redirectedFrom', pathname)
+      return withSessionCookies(NextResponse.redirect(loginUrl))
     }
 
     return supabaseResponse
@@ -45,16 +47,15 @@ export async function proxy(request: NextRequest) {
 
   // 2. Protect /api/admin/* routes (except /api/admin/login and /api/admin/logout)
   if (
-    pathname.startsWith('/api/admin') &&
+    isAdminApi &&
     pathname !== '/api/admin/login' &&
     pathname !== '/api/admin/logout'
   ) {
-    const adminCookie = request.cookies.get('chithi_admin_token')
-    if (!adminCookie && (!user || role !== 'admin')) {
-      return NextResponse.json(
+    if (!isAdmin) {
+      return withSessionCookies(NextResponse.json(
         { success: false, error: 'Unauthorized: Admin privileges required' },
         { status: 401 }
-      )
+      ))
     }
     return supabaseResponse
   }
@@ -70,7 +71,7 @@ export async function proxy(request: NextRequest) {
       const loginUrl = request.nextUrl.clone()
       loginUrl.pathname = '/login'
       loginUrl.searchParams.set('redirectedFrom', pathname)
-      return NextResponse.redirect(loginUrl)
+      return withSessionCookies(NextResponse.redirect(loginUrl))
     }
 
     return supabaseResponse
@@ -80,7 +81,7 @@ export async function proxy(request: NextRequest) {
   if ((pathname === '/login' || pathname === '/signup') && user) {
     const targetUrl = request.nextUrl.clone()
     targetUrl.pathname = role === 'admin' ? '/admin' : '/dashboard'
-    return NextResponse.redirect(targetUrl)
+    return withSessionCookies(NextResponse.redirect(targetUrl))
   }
 
   return supabaseResponse

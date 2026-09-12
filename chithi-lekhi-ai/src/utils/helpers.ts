@@ -6,10 +6,26 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-/** Generate a random alphanumeric slug for public letter sharing */
-export function generateSlug(length = 8): string {
+/** Validate identifiers before building PostgREST filters. */
+export function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
+}
+
+export function isShareIdentifier(value: string): boolean {
+  return /^[a-z0-9_-]{1,100}$/i.test(value)
+}
+
+/** Generate an unguessable token while retaining legacy alphanumeric URLs. */
+export function generateSlug(length = 16): string {
   const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
-  return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
+  const result: string[] = []
+  while (result.length < length) {
+    const bytes = crypto.getRandomValues(new Uint8Array(length - result.length))
+    for (const byte of bytes) {
+      if (byte < 252) result.push(chars[byte % chars.length])
+    }
+  }
+  return result.join('')
 }
 
 /** Format a date in a human-readable way (Bengali or English) */

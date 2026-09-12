@@ -29,8 +29,11 @@ export function useAuth() {
 
   useEffect(() => {
     let isMounted = true
+    let authVersion = 0
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined
 
     async function initialize() {
+      const version = authVersion
       try {
         if (!isSupabaseConfigured) {
           if (isMounted) setLoading(false)
@@ -38,13 +41,13 @@ export function useAuth() {
         }
 
         const currentUser = await getCurrentUser()
-        if (isMounted) {
+        if (isMounted && version === authVersion) {
           setUser(currentUser)
         }
       } catch (err) {
         console.error('[useAuth] initialization error:', err)
       } finally {
-        if (isMounted) {
+        if (isMounted && version === authVersion) {
           setLoading(false)
         }
       }
@@ -57,27 +60,29 @@ export function useAuth() {
         const supabase = createClient()
         const {
           data: { subscription },
-        } = supabase.auth.onAuthStateChange(async (_event: AuthChangeEvent, session: Session | null) => {
+        } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
           if (!isMounted) return
-          if (session?.user) {
-            const currentUser = await getCurrentUser()
-            if (isMounted) {
-              setUser(currentUser || {
-                id: session.user.id,
-                email: session.user.email || '',
-                name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'ব্যবহারকারী',
-                avatar: session.user.user_metadata?.avatar_url,
-                role: (session.user.user_metadata?.role as 'user' | 'admin') || 'user',
-              })
-            }
-          } else {
+          const version = ++authVersion
+          clearTimeout(refreshTimer)
+          if (!session?.user) {
             setUser(null)
+            setLoading(false)
+            return
           }
-          if (isMounted) setLoading(false)
+
+          // Supabase holds its auth lock during this callback. Query after it returns.
+          refreshTimer = setTimeout(async () => {
+            const currentUser = await getCurrentUser()
+            if (isMounted && version === authVersion) {
+              setUser(currentUser)
+              setLoading(false)
+            }
+          }, 0)
         })
 
         return () => {
           isMounted = false
+          clearTimeout(refreshTimer)
           subscription.unsubscribe()
         }
       } catch (err) {

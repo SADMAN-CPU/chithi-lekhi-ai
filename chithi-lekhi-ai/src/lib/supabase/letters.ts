@@ -2,7 +2,7 @@ import { createClient as createBrowserSupabase } from './client'
 import { createClient as createServerSupabase } from './server'
 import { createAdminClient, isServiceRoleConfigured } from './admin'
 import type { LetterRow, LetterInsert, LetterUpdate, DownloadHistoryRow } from '@/types/database'
-import { generateSlug } from '@/utils/helpers'
+import { generateSlug, isUuid, isShareIdentifier } from '@/utils/helpers'
 import { isSupabaseConfigured } from './config'
 
 const isConfigured = isSupabaseConfigured
@@ -12,6 +12,12 @@ const isConfigured = isSupabaseConfigured
 const inMemoryStore: Map<string, LetterRow> = new Map()
 const inMemoryDownloads: Map<string, DownloadHistoryRow> = new Map()
 
+/** Current editable text; generated_content remains the original AI version. */
+export function getLetterContent(letter: Partial<LetterRow>): string {
+  return letter.content ?? letter.letter_content ?? letter.enhanced_content ??
+    letter.enhanced_letter ?? letter.generated_content ?? ''
+}
+
 // ── 1. Create Letter ─────────────────────────────────────────────────────────
 export async function createLetter(
   data: Omit<LetterInsert, 'id' | 'created_at' | 'updated_at'>,
@@ -19,9 +25,10 @@ export async function createLetter(
 ): Promise<LetterRow> {
   const newId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `letter-${Date.now()}`
   const now = new Date().toISOString()
-  const slug = data.share_id || data.share_slug || generateSlug(6)
+  const slug = data.share_id || data.share_slug || generateSlug()
   const status = data.status || 'published'
-  const letterBody = data.generated_content || data.letter_content || data.content || ''
+  const letterBody = getLetterContent(data)
+  const generatedContent = data.generated_content ?? letterBody
   const recipientName = data.recipient_name || data.receiver_name
   const letterStyle = data.letter_style || data.era_style || data.style || 'vintage'
   const originalInput = data.original_input || data.original_letter || letterBody
@@ -30,6 +37,9 @@ export async function createLetter(
   const enhancedBody = data.enhanced_letter || enhancedContent
   const enhancementStyle = data.enhancement_style || null
 
+  if (!isConfigured && process.env.NODE_ENV === 'production') {
+    throw new Error('Supabase is required for production persistence')
+  }
   if (isConfigured) {
     try {
       // Use service role admin client on server if available to guarantee persistence
@@ -47,7 +57,7 @@ export async function createLetter(
           letter_content: letterBody,
           original_input: originalInput,
           original_letter: originalBody,
-          generated_content: letterBody,
+          generated_content: generatedContent,
           enhanced_content: enhancedContent,
           enhanced_letter: enhancedBody,
           era_style: letterStyle,
@@ -70,9 +80,6 @@ export async function createLetter(
         throw new Error(`Database save failed: ${error.message}`)
       } else if (inserted) {
         const record = inserted as LetterRow
-        inMemoryStore.set(record.id, record)
-        if (record.share_id) inMemoryStore.set(record.share_id, record)
-        if (record.share_slug) inMemoryStore.set(record.share_slug, record)
         return record
       }
       throw new Error('Database save failed: No record returned from database')
@@ -101,7 +108,7 @@ export async function createLetter(
     letter_content: letterBody,
     original_input: originalInput,
     original_letter: originalBody,
-    generated_content: letterBody,
+    generated_content: generatedContent,
     enhanced_content: enhancedContent,
     enhanced_letter: enhancedBody,
     enhancement_style: enhancementStyle,
@@ -130,6 +137,10 @@ export const toggleFavorite = toggleLetterFavorite
 
 // ── 2. Get Letter by ID ───────────────────────────────────────────────────────
 export async function getLetterById(id: string, isServer = false): Promise<LetterRow | null> {
+  if (isConfigured && !isUuid(id)) return null
+  if (!isConfigured && process.env.NODE_ENV === 'production') {
+    throw new Error('Supabase is required for production persistence')
+  }
   if (isConfigured) {
     try {
       const client = isServer
@@ -142,11 +153,11 @@ export async function getLetterById(id: string, isServer = false): Promise<Lette
         .eq('id', id)
         .maybeSingle()
 
-      if (!error && data) {
-        return data as LetterRow
-      }
+      if (error) throw new Error(`Letter lookup failed: ${error.message}`)
+      return data as LetterRow | null
     } catch (err) {
-      console.warn('[Supabase letters] getLetterById error:', err)
+      console.error('[Supabase letters] getLetterById error:', err)
+      throw err
     }
   }
 
@@ -160,14 +171,17 @@ export async function getLetterBySlug(slug: string, isServer = false): Promise<L
 
 // ── 3b. Unified Get Letter by Share ID or Slug ──────────────────────────────
 export async function getLetterByShareId(shareId: string, isServer = false): Promise<LetterRow | null> {
+  if (!isShareIdentifier(shareId)) return null
+  if (!isConfigured && process.env.NODE_ENV === 'production') {
+    throw new Error('Supabase is required for production persistence')
+  }
   if (isConfigured) {
     try {
       const client = isServer
         ? (isServiceRoleConfigured() ? createAdminClient() : await createServerSupabase())
         : createBrowserSupabase()
 
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(shareId)
-      const orFilter = isUuid
+      const orFilter = isUuid(shareId)
         ? `share_id.eq.${shareId},share_slug.eq.${shareId},id.eq.${shareId}`
         : `share_id.eq.${shareId},share_slug.eq.${shareId}`
 
@@ -177,11 +191,11 @@ export async function getLetterByShareId(shareId: string, isServer = false): Pro
         .or(orFilter)
         .maybeSingle()
 
-      if (!error && data) {
-        return data as LetterRow
-      }
+      if (error) throw new Error(`Letter lookup failed: ${error.message}`)
+      return data as LetterRow | null
     } catch (err) {
-      console.warn('[Supabase letters] getLetterByShareId error:', err)
+      console.error('[Supabase letters] getLetterByShareId error:', err)
+      throw err
     }
   }
 
@@ -199,6 +213,9 @@ export async function getLetterByShareId(shareId: string, isServer = false): Pro
 
 // ── 3c. Safely Increment View Count ─────────────────────────────────────────
 export async function incrementLetterViews(shareIdOrId: string, isServer = false): Promise<number> {
+  if (!isConfigured && process.env.NODE_ENV === 'production') {
+    throw new Error('Supabase is required for production persistence')
+  }
   if (isConfigured) {
     try {
       const client = isServer
@@ -258,6 +275,9 @@ export async function getUserLetters(
   const limit = options?.limit ?? 100
   const offset = options?.offset ?? 0
 
+  if (!isConfigured && process.env.NODE_ENV === 'production') {
+    throw new Error('Supabase is required for production persistence')
+  }
   if (isConfigured) {
     try {
       const client = isServer ? await createServerSupabase() : createBrowserSupabase()
@@ -303,16 +323,16 @@ export async function getUserLetters(
 
       const { data, error } = await query
 
-      if (!error && data) {
-        return data as LetterRow[]
-      }
+      if (error) throw new Error(`Letter list failed: ${error.message}`)
+      return (data || []) as LetterRow[]
     } catch (err) {
-      console.warn('[Supabase letters] getUserLetters error:', err)
+      console.error('[Supabase letters] getUserLetters error:', err)
+      throw err
     }
   }
 
   // Fallback filter
-  const results = Array.from(inMemoryStore.values())
+  const results = Array.from(new Map(Array.from(inMemoryStore.values()).map(letter => [letter.id, letter])).values())
     .filter((l) => l.user_id === userId)
     .filter((l) => (options?.favoritesOnly ? l.favorite : true))
     .filter((l) => (!options?.status || options.status === 'all' ? true : (l.status || 'published') === options.status))
@@ -356,35 +376,9 @@ export async function toggleLetterFavorite(
   currentFavorite: boolean,
   isServer = false
 ): Promise<boolean> {
-  const newFavorite = !currentFavorite
-
-  if (isConfigured) {
-    try {
-      const client = isServer
-        ? (isServiceRoleConfigured() ? createAdminClient() : await createServerSupabase())
-        : createBrowserSupabase()
-      const { error } = await client
-        .from('letters')
-        .update({ favorite: newFavorite, updated_at: new Date().toISOString() })
-        .eq('id', letterId)
-
-      if (!error) {
-        return newFavorite
-      }
-    } catch (err) {
-      console.warn('[Supabase letters] toggleFavorite error:', err)
-    }
-  }
-
-  const existing = inMemoryStore.get(letterId)
-  if (existing) {
-    existing.favorite = newFavorite
-    existing.updated_at = new Date().toISOString()
-    inMemoryStore.set(letterId, existing)
-    return newFavorite
-  }
-
-  return newFavorite
+  const updated = await updateLetter(letterId, { favorite: !currentFavorite, is_favorite: !currentFavorite }, isServer)
+  if (!updated) throw new Error('Letter not found or not owned by the current user')
+  return updated.favorite
 }
 
 // ── 6. Update Letter Content ──────────────────────────────────────────────────
@@ -393,15 +387,35 @@ export async function updateLetter(
   updates: LetterUpdate,
   isServer = false
 ): Promise<LetterRow | null> {
+  if (isConfigured && !isUuid(letterId)) throw new Error('Invalid letter ID')
+  const normalized: LetterUpdate = { ...updates }
+  const body = updates.content ?? updates.letter_content ?? updates.generated_content ?? undefined
+  if (body !== undefined) {
+    normalized.content = body
+    normalized.letter_content = body
+  }
+  for (const [canonical, legacy] of [
+    ['recipient_name', 'receiver_name'],
+    ['original_input', 'original_letter'],
+    ['enhanced_content', 'enhanced_letter'],
+    ['share_id', 'share_slug'],
+    ['favorite', 'is_favorite'],
+  ] as const) {
+    const value = updates[canonical] !== undefined ? updates[canonical] : updates[legacy]
+    if (value !== undefined) Object.assign(normalized, { [canonical]: value, [legacy]: value })
+  }
   const now = new Date().toISOString()
+  if (!isConfigured && process.env.NODE_ENV === 'production') {
+    throw new Error('Supabase is required for production persistence')
+  }
   if (isConfigured) {
     try {
       const client = isServer
-        ? (isServiceRoleConfigured() ? createAdminClient() : await createServerSupabase())
+        ? await createServerSupabase()
         : createBrowserSupabase()
       const { data, error } = await client
         .from('letters')
-        .update({ ...updates, updated_at: now })
+        .update({ ...normalized, updated_at: now })
         .eq('id', letterId)
         .select()
         .maybeSingle()
@@ -413,9 +427,6 @@ export async function updateLetter(
 
       if (data) {
         const record = data as LetterRow
-        inMemoryStore.set(record.id, record)
-        if (record.share_id) inMemoryStore.set(record.share_id, record)
-        if (record.share_slug) inMemoryStore.set(record.share_slug, record)
         return record
       }
       return null
@@ -426,80 +437,49 @@ export async function updateLetter(
   }
 
   const existing = inMemoryStore.get(letterId)
-  if (existing) {
-    const syncedBody =
-      updates.enhanced_content ||
-      updates.enhanced_letter ||
-      updates.content ||
-      updates.letter_content ||
-      existing.content
-    const syncedOriginal =
-      updates.original_input ||
-      updates.original_letter ||
-      existing.original_input ||
-      existing.original_letter ||
-      existing.content
-    const syncedEnhanced =
-      updates.enhanced_content ||
-      updates.enhanced_letter ||
-      existing.enhanced_content ||
-      existing.enhanced_letter ||
-      null
-    const syncedRecipient =
-      updates.recipient_name ||
-      updates.receiver_name ||
-      existing.recipient_name ||
-      existing.receiver_name
-    const syncedShareId =
-      updates.share_id ||
-      updates.share_slug ||
-      existing.share_id ||
-      existing.share_slug
-
-    const updated = {
-      ...existing,
-      ...updates,
-      content: syncedBody,
-      letter_content: syncedBody,
-      original_input: syncedOriginal,
-      original_letter: syncedOriginal,
-      enhanced_content: syncedEnhanced,
-      enhanced_letter: syncedEnhanced,
-      recipient_name: syncedRecipient,
-      receiver_name: syncedRecipient,
-      share_id: syncedShareId,
-      share_slug: syncedShareId,
-      updated_at: now,
-    } as LetterRow
-    inMemoryStore.set(letterId, updated)
-    if (syncedShareId) inMemoryStore.set(syncedShareId, updated)
-    return updated
+  if (!existing) return null
+  const updated = { ...existing, ...normalized, updated_at: now }
+  for (const [key, letter] of inMemoryStore) {
+    if (letter.id === letterId) inMemoryStore.delete(key)
   }
-
-  return null
+  inMemoryStore.set(letterId, updated)
+  if (updated.share_id) inMemoryStore.set(updated.share_id, updated)
+  if (updated.share_slug) inMemoryStore.set(updated.share_slug, updated)
+  return updated
 }
 
 // ── 7. Delete Letter ──────────────────────────────────────────────────────────
 export async function deleteLetter(letterId: string, isServer = false): Promise<boolean> {
+  if (!isConfigured && process.env.NODE_ENV === 'production') {
+    throw new Error('Supabase is required for production persistence')
+  }
   if (isConfigured) {
     try {
       const client = isServer
-        ? (isServiceRoleConfigured() ? createAdminClient() : await createServerSupabase())
+        ? await createServerSupabase()
         : createBrowserSupabase()
-      const { error } = await client
+      if (!isUuid(letterId)) return false
+      const { data, error } = await client
         .from('letters')
         .delete()
         .eq('id', letterId)
-
-      if (!error) {
-        return true
-      }
+        .select('id')
+      if (error) throw new Error(`Letter delete failed: ${error.message}`)
+      return Boolean(data?.length)
     } catch (err) {
-      console.warn('[Supabase letters] deleteLetter error:', err)
+      console.error('[Supabase letters] deleteLetter error:', err)
+      throw err
     }
   }
 
-  return inMemoryStore.delete(letterId)
+  let deleted = false
+  for (const [key, letter] of inMemoryStore) {
+    if (letter.id === letterId) {
+      inMemoryStore.delete(key)
+      deleted = true
+    }
+  }
+  return deleted
 }
 
 // ── 8. Download History ───────────────────────────────────────────────────────
@@ -511,6 +491,9 @@ export async function recordDownload(
 ): Promise<DownloadHistoryRow> {
   const now = new Date().toISOString()
 
+  if (!isConfigured && process.env.NODE_ENV === 'production') {
+    throw new Error('Supabase is required for production persistence')
+  }
   if (isConfigured) {
     try {
       const client = isServer
@@ -526,11 +509,11 @@ export async function recordDownload(
         .select()
         .single()
 
-      if (!error && data) {
-        return data as DownloadHistoryRow
-      }
+      if (error || !data) throw new Error(`Download history save failed: ${error?.message || 'No record returned'}`)
+      return data as DownloadHistoryRow
     } catch (err) {
-      console.warn('[Supabase letters] recordDownload error:', err)
+      console.error('[Supabase letters] recordDownload error:', err)
+      throw err
     }
   }
 
@@ -555,6 +538,9 @@ export async function getUserDownloads(
   userId: string,
   isServer = false
 ): Promise<DownloadHistoryRow[]> {
+  if (!isConfigured && process.env.NODE_ENV === 'production') {
+    throw new Error('Supabase is required for production persistence')
+  }
   if (isConfigured) {
     try {
       const client = isServer
@@ -567,11 +553,11 @@ export async function getUserDownloads(
         .order('created_at', { ascending: false })
         .limit(50)
 
-      if (!error && data) {
-        return data as DownloadHistoryRow[]
-      }
+      if (error) throw new Error(`Download history lookup failed: ${error.message}`)
+      return (data || []) as DownloadHistoryRow[]
     } catch (err) {
-      console.warn('[Supabase letters] getUserDownloads error:', err)
+      console.error('[Supabase letters] getUserDownloads error:', err)
+      throw err
     }
   }
 

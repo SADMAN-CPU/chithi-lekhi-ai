@@ -8,6 +8,8 @@ import { checkRateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { guardLetterGeneration, attachUsageHeaders } from '@/lib/premium-middleware'
 import {
   consumeUserQuota,
+  releaseUserQuota,
+  type QuotaVerificationResult,
   recordAIUsage,
   checkUserRateLimit,
 } from '@/lib/quota-service'
@@ -19,9 +21,11 @@ import type { ApiError, GenerateLetterRequest, GenerateLetterResponse } from '@/
 export const maxDuration = 60
 
 export async function POST(request: NextRequest) {
+  let reservation: QuotaVerificationResult | undefined
   try {
     // 1. Enforce Premium & Daily Quota Guard (5 letters/day for Free users, Unlimited for Premium)
     const premiumGuard = await guardLetterGeneration(request)
+    reservation = premiumGuard.usage
     if (!premiumGuard.allowed && premiumGuard.response) {
       return premiumGuard.response
     }
@@ -55,7 +59,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const body = await request.json()
+    const body = await request.json().catch(() => null)
 
     // Validate request payload with Zod
     const parseResult = generateLetterSchema.safeParse(body)
@@ -140,30 +144,12 @@ export async function POST(request: NextRequest) {
 
     const { letter, provider } = generatedResult
 
-    // Deduct quota ONLY after confirmed successful AI letter generation
-    const quotaConsumption = await consumeUserQuota({
-      identifier: premiumGuard.usage.identifier,
-      userId: premiumGuard.userId,
-      actionType: 'generation',
-    })
-
-    // Record successful AI usage audit trail for billing and analytics
-    const wordCount = letter.trim().split(/\s+/).length
-    const estimatedTokens = Math.ceil((wordCount + 150) * 1.5)
-    await recordAIUsage({
-      userId: premiumGuard.userId,
-      identifier: premiumGuard.usage.identifier,
-      actionType: 'generation',
-      model: 'gemini-1.5-flash',
-      tokensUsed: estimatedTokens,
-      success: true,
-    })
-
     // Save generated letter in Supabase database (Phase 05)
     let letterId: string | undefined
-    try {
+    {
       const saved = await createLetter(
         {
+          user_id: premiumGuard.userId || null,
           recipient_name: sanitizedParams.receiverName,
           receiver_name: sanitizedParams.receiverName,
           relationship: sanitizedParams.relationship,
@@ -182,9 +168,22 @@ export async function POST(request: NextRequest) {
         },
         true
       )
-      letterId = saved.id
-    } catch (saveErr) {
-      console.warn('[generate-letter] Database save note:', saveErr)
+      letterId = premiumGuard.userId ? saved.id : undefined
+    }
+
+    const wordCount = letter.trim().split(/\s+/).length
+    let quotaConsumption = premiumGuard.usage as QuotaVerificationResult | Awaited<ReturnType<typeof consumeUserQuota>>
+    if (provider !== 'fallback') {
+      quotaConsumption = await consumeUserQuota({
+        identifier: premiumGuard.usage.identifier, userId: premiumGuard.userId,
+        actionType: 'generation', reservationId: premiumGuard.usage.reservationId, date: premiumGuard.usage.date,
+      })
+      if (!quotaConsumption.consumed) throw new Error('Generation quota could not be recorded')
+      await recordAIUsage({
+        userId: premiumGuard.userId, identifier: premiumGuard.usage.identifier, actionType: 'generation',
+        model: provider === 'gemini' ? (process.env.GEMINI_MODEL || 'gemini-1.5-flash') : 'openai/gpt-4o-mini',
+        tokensUsed: Math.ceil((wordCount + 150) * 1.5), success: true,
+      })
     }
 
     // 5. Track privacy-friendly product analytics
@@ -231,5 +230,7 @@ export async function POST(request: NextRequest) {
       status: 500,
     }
     return NextResponse.json({ success: false, error }, { status: 500 })
+  } finally {
+    if (reservation) await releaseUserQuota(reservation, 'generation')
   }
 }

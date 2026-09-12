@@ -9,25 +9,7 @@ export interface ServerUser {
   role?: 'user' | 'admin'
 }
 
-/**
- * Server-side authentication session verifier.
- *
- * ============================================================================
- * CRITICAL SECURITY ARCHITECTURE NOTICE:
- * ============================================================================
- * - In PRODUCTION (`NODE_ENV === 'production'`):
- *   Authentication MUST strictly and exclusively verify cryptographic JWT tokens
- *   via Supabase Auth (`supabase.auth.getUser()`).
- *   Under NO circumstances is an unverified, client-supplied cookie (such as
- *   `chithi_session`) trusted in production. Trusting unsigned client cookies in
- *   production allows arbitrary UUID impersonation, IDOR, and account takeover.
- *
- * - In DEVELOPMENT (`NODE_ENV !== 'production'`):
- *   A local fallback cookie (`chithi_session`) is permitted ONLY for local offline
- *   UI previewing and mock end-to-end testing when live Supabase credentials or
- *   local SMTP are not configured.
- * ============================================================================
- */
+/** Verify Supabase identity before resolving the server-controlled admin role. */
 export async function getServerUser(): Promise<ServerUser | null> {
   // Primary & Production Auth: Cryptographically verified Supabase Auth session
   if (isSupabaseConfigured) {

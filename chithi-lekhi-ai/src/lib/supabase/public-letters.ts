@@ -1,7 +1,7 @@
 import { createClient as createBrowserSupabase } from './client'
 import { createClient as createServerSupabase } from './server'
 import { createAdminClient, isServiceRoleConfigured } from './admin'
-import { generateSlug } from '@/utils/helpers'
+import { generateSlug, isUuid, isShareIdentifier } from '@/utils/helpers'
 import type { PublicLetterRow } from '@/types/database'
 import { isSupabaseConfigured } from './config'
 
@@ -53,7 +53,7 @@ export async function createPublicLetter(
   params: CreatePublicLetterParams,
   isServer = false
 ): Promise<PublicLetterRow> {
-  const short_id = generateSlug(8)
+  const short_id = generateSlug()
   const expiration = params.expiration || 'permanent'
   const expires_at = calculateExpirationTimestamp(expiration)
   const title = params.title || `চিঠি — প্রিয় ${params.receiver_name}-এর জন্য`
@@ -61,6 +61,9 @@ export async function createPublicLetter(
   const is_public = params.is_public !== undefined ? params.is_public : true
   const theme = params.theme || 'vintage'
 
+  if (!isConfigured && process.env.NODE_ENV === 'production') {
+    throw new Error('Supabase is required for production sharing')
+  }
   if (isConfigured) {
     try {
       const client = isServer
@@ -87,11 +90,10 @@ export async function createPublicLetter(
       if (!error && data) {
         return data as PublicLetterRow
       }
-      if (error) {
-        console.warn('[PublicLetters] Insert error, fallback to local store:', error.message)
-      }
+      throw new Error(`Public letter save failed: ${error?.message || 'No record returned'}`)
     } catch (err) {
-      console.warn('[PublicLetters] Insert exception, fallback to local store:', err)
+      console.error('[PublicLetters] Persistence failed:', err)
+      throw err
     }
   }
 
@@ -125,16 +127,21 @@ export async function getPublicLetter(
   incrementViews = false,
   isServer = false
 ): Promise<PublicLetterLookupResult> {
+  if (!isShareIdentifier(shortIdOrId)) {
+    return { status: 'not_found', letter: null, isExpired: false, isPrivate: false }
+  }
   let record: PublicLetterRow | null = null
 
+  if (!isConfigured && process.env.NODE_ENV === 'production') {
+    throw new Error('Supabase is required for production sharing')
+  }
   if (isConfigured) {
     try {
       const client = isServer
         ? (isServiceRoleConfigured() ? createAdminClient() : await createServerSupabase())
         : createBrowserSupabase()
       // Try by short_id first, then id (if valid UUID)
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(shortIdOrId)
-      const orFilter = isUuid
+      const orFilter = isUuid(shortIdOrId)
         ? `short_id.eq.${shortIdOrId},id.eq.${shortIdOrId}`
         : `short_id.eq.${shortIdOrId}`
 
@@ -144,15 +151,15 @@ export async function getPublicLetter(
         .or(orFilter)
         .maybeSingle()
 
-      if (!error && data) {
-        record = data as PublicLetterRow
-      }
+      if (error) throw new Error(`Public letter lookup failed: ${error.message}`)
+      record = data as PublicLetterRow | null
     } catch (err) {
-      console.warn('[PublicLetters] Lookup exception:', err)
+      console.error('[PublicLetters] Lookup failed:', err)
+      throw err
     }
   }
 
-  if (!record) {
+  if (!isConfigured && !record) {
     record = inMemoryPublicLetters.get(shortIdOrId) || null
   }
 
@@ -168,10 +175,10 @@ export async function getPublicLetter(
   // Check Expiration
   if (record.expires_at) {
     const expiresAt = new Date(record.expires_at).getTime()
-    if (expiresAt < Date.now()) {
+    if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()) {
       return {
         status: 'expired',
-        letter: record,
+        letter: null,
         isExpired: true,
         isPrivate: !record.is_public,
       }
@@ -182,7 +189,7 @@ export async function getPublicLetter(
   if (!record.is_public) {
     return {
       status: 'private',
-      letter: record,
+      letter: null,
       isExpired: false,
       isPrivate: true,
     }
@@ -209,6 +216,9 @@ export async function incrementPublicLetterViews(
   shortId: string,
   isServer = false
 ): Promise<number> {
+  if (!isConfigured && process.env.NODE_ENV === 'production') {
+    throw new Error('Supabase is required for production sharing')
+  }
   if (isConfigured) {
     try {
       const client = isServer
@@ -235,6 +245,9 @@ export async function getUserSharedLetters(
   userId: string,
   isServer = false
 ): Promise<PublicLetterRow[]> {
+  if (!isConfigured && process.env.NODE_ENV === 'production') {
+    throw new Error('Supabase is required for production sharing')
+  }
   if (isConfigured) {
     try {
       const client = isServer
@@ -246,11 +259,11 @@ export async function getUserSharedLetters(
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
 
-      if (!error && data) {
-        return data as PublicLetterRow[]
-      }
+      if (error) throw new Error(`Shared letters lookup failed: ${error.message}`)
+      return (data || []) as PublicLetterRow[]
     } catch (err) {
-      console.warn('[PublicLetters] getUserSharedLetters exception:', err)
+      console.error('[PublicLetters] getUserSharedLetters failed:', err)
+      throw err
     }
   }
 
