@@ -213,6 +213,7 @@ export async function getLetterByShareId(shareId: string, isServer = false): Pro
 
 // ── 3c. Safely Increment View Count ─────────────────────────────────────────
 export async function incrementLetterViews(shareIdOrId: string, isServer = false): Promise<number> {
+  if (!isShareIdentifier(shareIdOrId)) return 0
   if (!isConfigured && process.env.NODE_ENV === 'production') {
     throw new Error('Supabase is required for production persistence')
   }
@@ -222,27 +223,18 @@ export async function incrementLetterViews(shareIdOrId: string, isServer = false
         ? (isServiceRoleConfigured() ? createAdminClient() : await createServerSupabase())
         : createBrowserSupabase()
 
-      // Try atomic RPC procedure first
       const { data: rpcViews, error: rpcErr } = await client.rpc('increment_letter_view_count', {
         target_share_id: shareIdOrId,
       })
 
-      if (!rpcErr && typeof rpcViews === 'number') {
-        return rpcViews
+      if (rpcErr) throw new Error(`Letter view count failed: ${rpcErr.message}`)
+      if (typeof rpcViews !== 'number' || !Number.isFinite(rpcViews)) {
+        throw new Error('Letter view count failed: No count returned')
       }
-
-      // Fallback: direct update
-      const existing = await getLetterByShareId(shareIdOrId, isServer)
-      if (existing) {
-        const nextViews = (existing.view_count || 0) + 1
-        await client
-          .from('letters')
-          .update({ view_count: nextViews })
-          .eq('id', existing.id)
-        return nextViews
-      }
+      return rpcViews
     } catch (err) {
-      console.warn('[Supabase letters] incrementLetterViews error:', err)
+      console.error('[Supabase letters] incrementLetterViews error:', err)
+      throw err
     }
   }
 
@@ -252,7 +244,7 @@ export async function incrementLetterViews(shareIdOrId: string, isServer = false
     return inMem.view_count
   }
 
-  return 1
+  return 0
 }
 
 export interface GetUserLettersOptions {
@@ -398,6 +390,7 @@ export async function updateLetter(
     ['recipient_name', 'receiver_name'],
     ['original_input', 'original_letter'],
     ['enhanced_content', 'enhanced_letter'],
+    ['letter_style', 'era_style'],
     ['share_id', 'share_slug'],
     ['favorite', 'is_favorite'],
   ] as const) {
@@ -439,6 +432,16 @@ export async function updateLetter(
   const existing = inMemoryStore.get(letterId)
   if (!existing) return null
   const updated = { ...existing, ...normalized, updated_at: now }
+  const contentChanged = updated.content !== existing.content || updated.letter_content !== existing.letter_content
+  const enhancedChanged = updated.enhanced_content !== existing.enhanced_content || updated.enhanced_letter !== existing.enhanced_letter
+  // Mirror the database compatibility trigger for local development records.
+  if (contentChanged && !enhancedChanged) {
+    updated.enhanced_content = null
+    updated.enhanced_letter = null
+  } else if (!contentChanged && enhancedChanged && updated.enhanced_content != null) {
+    updated.content = updated.enhanced_content
+    updated.letter_content = updated.enhanced_content
+  }
   for (const [key, letter] of inMemoryStore) {
     if (letter.id === letterId) inMemoryStore.delete(key)
   }

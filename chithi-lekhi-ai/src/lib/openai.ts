@@ -12,7 +12,7 @@ const isRealApiKey = Boolean(
 )
 
 export const openaiClient = isRealApiKey
-  ? new OpenAI({ apiKey })
+  ? new OpenAI({ apiKey, timeout: 20_000, maxRetries: 0 })
   : null
 
 export { openaiClient as openai }

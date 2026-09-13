@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient as createBrowserSupabase } from './supabase/client'
 import { createAdminClient, isServiceRoleConfigured } from './supabase/admin'
 import { getUserPlan } from './subscription'
-import { getServerUser } from './auth-server'
+import { getServerUser, type ServerUser } from './auth-server'
 import { getClientIp } from './rate-limit'
 import type { AIUsageRow } from '@/types/database'
 import { isSupabaseConfigured } from './supabase/config'
@@ -43,6 +43,8 @@ export interface RecordAIUsageParams {
   tokensUsed?: number
   success: boolean
   error?: string | null
+  /** The successful audit row was saved in the same database transaction as its result. */
+  alreadyPersisted?: boolean
 }
 
 // ── In-Memory fallback stores for offline/testing ────────────────────────────
@@ -161,9 +163,10 @@ export async function verifyUserQuota(params: {
   request: NextRequest
   actionType: AIActionType
   isServer?: boolean
+  authenticatedUser?: ServerUser | null
 }): Promise<QuotaVerificationResult> {
   const { request, actionType, isServer = true } = params
-  const serverUser = await getServerUser()
+  const serverUser = params.authenticatedUser === undefined ? await getServerUser() : params.authenticatedUser
   const clientIp = getClientIp(request)
   const identifier = serverUser?.id ? `user:${serverUser.id}` : `ip:${clientIp}`
   let usage: QuotaVerificationResult
@@ -235,6 +238,7 @@ export async function verifyUserQuota(params: {
 export async function reserveUserQuota(params: {
   request: NextRequest
   actionType: AIActionType
+  authenticatedUser?: ServerUser | null
 }): Promise<QuotaVerificationResult> {
   const quota = await verifyUserQuota(params)
   if (!quota.allowed) return quota
@@ -310,6 +314,13 @@ export async function consumeUserQuota(params: {
   isServer?: boolean
   reservationId?: string
   date?: string
+  usageLog?: { model: string; tokensUsed: number }
+  voiceCache?: {
+    contentHash: string
+    voiceStyle: string
+    audioBase64: string
+    format: 'mp3' | 'wav'
+  }
 }): Promise<QuotaConsumptionResult> {
   const { identifier, userId, actionType, isServer = true, reservationId } = params
   const date = params.date || getCurrentDateString()
@@ -321,10 +332,26 @@ export async function consumeUserQuota(params: {
   if (isConfigured) {
     try {
       if (!isServer || !isServiceRoleConfigured()) throw new Error('Quota consumption requires server credentials')
-      const { data, error } = await createAdminClient().rpc('consume_ai_quota', {
-        p_identifier: identifier, p_date: date, p_action_type: actionType, p_limit: limit,
-        ...(reservationId ? { p_reservation_id: reservationId } : {}),
-      })
+      if (params.voiceCache && (actionType !== 'voice' || !reservationId)) throw new Error('Voice persistence requires a matching voice reservation')
+      if (params.usageLog && (!reservationId || actionType === 'voice')) throw new Error('AI audit requires a matching text generation reservation')
+      const common = { p_identifier: identifier, p_date: date, p_limit: limit }
+      // The voice transaction saves audio before consumption and rolls back both on failure.
+      const { data, error } = params.voiceCache
+        ? await createAdminClient().rpc('finalize_voice_generation', {
+            ...common, p_reservation_id: reservationId,
+            p_content_hash: params.voiceCache.contentHash, p_voice_style: params.voiceCache.voiceStyle,
+            p_audio_base64: params.voiceCache.audioBase64, p_audio_format: params.voiceCache.format,
+            p_file_size_bytes: Buffer.byteLength(params.voiceCache.audioBase64, 'base64'),
+          })
+        : params.usageLog
+        ? await createAdminClient().rpc('finalize_ai_usage', {
+            ...common, p_action_type: actionType, p_reservation_id: reservationId,
+            p_model: params.usageLog.model, p_tokens_used: params.usageLog.tokensUsed,
+          })
+        : await createAdminClient().rpc('consume_ai_quota', {
+            ...common, p_action_type: actionType,
+            ...(reservationId ? { p_reservation_id: reservationId } : {}),
+          })
       if (error) throw error
       const parsed = typeof data === 'string' ? JSON.parse(data) : data
       if (!parsed || typeof parsed.consumed !== 'boolean' || !Number.isInteger(parsed.used) || parsed.used < 0) throw new Error('Invalid quota consumption response')
@@ -367,7 +394,7 @@ export async function recordAIUsage(params: RecordAIUsageParams, isServer = true
   const { userId, identifier, actionType, model, tokensUsed = 0, success, error } = params
   const now = new Date().toISOString()
 
-  if (isConfigured) {
+  if (isConfigured && !params.alreadyPersisted) {
     try {
       if (!isServer || !isServiceRoleConfigured()) throw new Error('AI audit writes require server credentials')
       const { error: insertError } = await createAdminClient().from('ai_usage').insert({

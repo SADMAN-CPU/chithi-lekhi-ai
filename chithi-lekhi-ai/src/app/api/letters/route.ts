@@ -87,12 +87,12 @@ export async function POST(request: NextRequest) {
       return createRateLimitResponse(rateLimit)
     }
 
-    const body = await request.json()
+    const body = await request.json().catch(() => null)
 
-    const rawRecipient = body.recipient_name || body.receiver_name
-    const rawContent = body.generated_content || body.content || body.letter_content
+    const rawRecipient = body?.recipient_name ?? body?.receiver_name
+    const rawContent = body?.content ?? body?.letter_content ?? body?.generated_content
 
-    if (!rawRecipient || !rawContent) {
+    if (typeof rawRecipient !== 'string' || typeof rawContent !== 'string' || !rawRecipient.trim() || !rawContent.trim() || rawRecipient.length > 200 || rawContent.length > 50000) {
       const error: ApiError = {
         message: 'recipient_name (or receiver_name) and content are required',
         code: 'VALIDATION_ERROR',
@@ -122,6 +122,9 @@ export async function POST(request: NextRequest) {
 
     const sanitizedRecipient = sanitizeInput(rawRecipient)
     const sanitizedContent = sanitizeInput(rawContent)
+    if (!sanitizedRecipient || !sanitizedContent) {
+      return NextResponse.json({ success: false, error: { message: 'Recipient and letter content must contain text', status: 400 } }, { status: 400 })
+    }
     const sanitizedOriginal = body.original_input ? sanitizeInput(body.original_input) : (body.original_letter ? sanitizeInput(body.original_letter) : sanitizedContent)
     const sanitizedEnhanced = body.enhanced_content ? sanitizeInput(body.enhanced_content) : (body.enhanced_letter ? sanitizeInput(body.enhanced_letter) : undefined)
     const shareSlug = body.share_id ? sanitizeInput(body.share_id) : (body.share_slug ? sanitizeInput(body.share_slug) : undefined)
@@ -145,7 +148,7 @@ export async function POST(request: NextRequest) {
         letter_content: sanitizedContent,
         original_input: sanitizedOriginal,
         original_letter: sanitizedOriginal,
-        generated_content: sanitizedContent,
+        generated_content: typeof body.generated_content === 'string' ? sanitizeInput(body.generated_content) : sanitizedContent,
         enhanced_content: sanitizedEnhanced,
         enhanced_letter: sanitizedEnhanced,
         enhancement_style: body.enhancement_style ? sanitizeInput(body.enhancement_style) : undefined,

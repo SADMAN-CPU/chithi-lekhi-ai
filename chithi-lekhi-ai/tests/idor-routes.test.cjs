@@ -11,13 +11,14 @@ const request = (body, method = 'POST') => new NextRequest('http://localhost/api
   ...(body === undefined ? {} : { body: JSON.stringify(body), headers: { 'content-type': 'application/json' } }),
 })
 
-function setup(file, { user = null, owner = ownerId, isPublic = false } = {}) {
+function setup(file, { user = null, owner = ownerId, isPublic = false, updateFails = false } = {}) {
   const calls = []
-  const existing = { id: letterId, user_id: owner, content: 'Private original', receiver_name: 'Recipient', is_public: isPublic }
+  const existing = { id: letterId, user_id: owner, content: 'Private original', receiver_name: 'Recipient', is_public: isPublic, favorite: true, is_favorite: true }
   const letters = {
+    getLetterContent: letter => letter.content,
     getLetterById: async (...args) => { calls.push(['get', ...args]); return existing },
     getLetterBySlug: async (...args) => { calls.push(['slug', ...args]); return existing },
-    updateLetter: async (id, updates) => { calls.push(['update', id, updates]); return { ...existing, ...updates } },
+    updateLetter: async (id, updates) => { calls.push(['update', id, updates]); if (updateFails) throw new Error('Database unavailable'); return { ...existing, ...updates } },
     deleteLetter: async (...args) => { calls.push(['delete', ...args]); return true },
     createLetter: async (data) => { calls.push(['create', data]); return { ...data, id: 'new-letter' } },
     getUserDownloads: async (...args) => { calls.push(['history', ...args]); return [] },
@@ -108,4 +109,71 @@ test('legacy public-letter creation cannot attach another user’s private lette
   const { route, calls } = setup('src/app/api/public-letters/route.ts')
   assert.equal((await route.POST(request({ letter_id: letterId, receiver_name: 'Recipient', letter_content: 'Submitted' }))).status, 403)
   assert.equal(calls.some(([name]) => name === 'public'), false)
+})
+
+for (const file of ['src/app/api/shares/route.ts', 'src/app/api/letters/share/route.ts']) {
+  test(`${file} saves the owner's current edits before sharing`, async () => {
+    const { route, calls } = setup(file, { user: { id: ownerId } })
+    const response = await route.POST(request({ letter_id: letterId, letter_content: 'Unsaved edited text', receiver_name: 'Recipient' }))
+    assert.ok(response.ok)
+    const update = calls.find(([action]) => action === 'update')
+    assert.equal(update[2].content, 'Unsaved edited text')
+    assert.equal(update[2].generated_content, undefined)
+    assert.ok(calls.findIndex(([action]) => action === 'update') < calls.findIndex(([action]) => action === 'share'))
+  })
+}
+
+for (const file of ['src/app/api/shares/route.ts', 'src/app/api/letters/share/route.ts']) {
+  test(`${file} saves supplied metadata with unchanged text and preserves snapshots`, async () => {
+    const { route, calls } = setup(file, { user: { id: ownerId } })
+    const metadata = {
+      title: 'Edited title', relationship: null, emotion: 'Joy', personality: 'gentle',
+      language: 'english', era_style: 'modern', theme: 'vintage',
+      enhanced_letter: null, enhancement_style: null,
+    }
+    const response = await route.POST(request({
+      letter_id: letterId, content: 'Private original', receiver_name: 'Edited recipient',
+      original_letter: 'Must not replace the original snapshot', ...metadata,
+    }))
+    assert.ok(response.ok)
+    const updates = calls.find(([action]) => action === 'update')[2]
+    for (const [key, value] of Object.entries(metadata)) assert.equal(updates[key], value)
+    assert.equal(updates.receiver_name, 'Edited recipient')
+    for (const key of ['content', 'original_letter', 'generated_content', 'favorite', 'is_favorite', 'is_public', 'user_id']) {
+      assert.equal(Object.hasOwn(updates, key), false, key)
+    }
+    assert.equal(calls.some(([action]) => action === 'create'), false)
+  })
+
+  test(`${file} sharing an ID alone does not mutate its letter`, async () => {
+    const { route, calls } = setup(file, { user: { id: ownerId } })
+    assert.ok((await route.POST(request({ letter_id: letterId }))).ok)
+    assert.equal(calls.some(([action]) => action === 'update' || action === 'create'), false)
+  })
+
+  test(`${file} does not create a share or report success when metadata persistence fails`, async () => {
+    const { route, calls } = setup(file, { user: { id: ownerId }, updateFails: true })
+    const response = await route.POST(request({ letter_id: letterId, title: 'Edited title' }))
+    assert.equal(response.status, 500)
+    assert.equal((await response.json()).success, false)
+    assert.equal(calls.some(([action]) => action === 'share'), false)
+  })
+}
+
+test('private PATCH retains favorites and editable metadata without replacing the AI snapshot', async () => {
+  const { route, calls } = setup('src/app/api/letters/[id]/route.ts', { user: { id: ownerId } })
+  const response = await route.PATCH(request({
+    content: 'Saved edit', era_style: 'modern', language: 'english', personality: 'gentle',
+    enhanced_letter: null, enhancement_style: null, original_letter: 'Ignored replacement',
+  }, 'PATCH'), params)
+  assert.equal(response.status, 200)
+  const saved = (await response.json()).letter
+  assert.equal(saved.favorite, true)
+  assert.equal(saved.is_favorite, true)
+  assert.equal(saved.personality, 'gentle')
+  assert.equal(saved.era_style, 'modern')
+  assert.equal(saved.language, 'english')
+  assert.equal(saved.enhanced_letter, null)
+  const updates = calls.find(([action]) => action === 'update')[2]
+  for (const key of ['original_letter', 'favorite', 'is_favorite']) assert.equal(Object.hasOwn(updates, key), false)
 })

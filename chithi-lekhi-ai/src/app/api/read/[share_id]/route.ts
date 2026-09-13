@@ -50,7 +50,7 @@ export async function GET(request: NextRequest, { params }: Props) {
         success: true,
         letter: {
           id: letter.id,
-          share_id: letter.share_id || letter.share_slug || share_id,
+          share_id: lookup.share?.share_token || letter.share_id || letter.share_slug || share_id,
           recipient_name: letter.recipient_name || letter.receiver_name,
           receiver_name: letter.receiver_name || letter.recipient_name,
           original_input: letter.original_input || letter.original_letter || letter.content,

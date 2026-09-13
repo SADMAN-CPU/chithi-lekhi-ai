@@ -7,12 +7,17 @@ import { z } from 'zod'
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const updateSchema = z.object({
   action: z.enum(['toggle-favorite', 'update-content']).optional(),
+  era_style: z.string().max(100).optional(),
+  language: z.enum(['bengali', 'english', 'banglish']).optional(),
+  enhanced_letter: z.string().max(50000).nullable().optional(),
+  enhancement_style: z.string().max(100).nullable().optional(),
   content: z.string().max(50000).optional(),
   letter_content: z.string().max(50000).optional(),
   title: z.string().max(300).nullable().optional(),
   receiver_name: z.string().trim().min(1).max(200).optional(),
   relationship: z.string().max(200).nullable().optional(),
   emotion: z.string().max(300).nullable().optional(),
+  personality: z.string().max(100).nullable().optional(),
   theme: z.string().min(1).max(100).optional(),
   is_public: z.boolean().optional(),
   favorite: z.boolean().optional(),

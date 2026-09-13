@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createShareRecord, type ShareExpiration } from '@/lib/shares'
-import { getLetterById, createLetter } from '@/lib/supabase/letters'
+import { getLetterById, createLetter, updateLetter, getLetterContent } from '@/lib/supabase/letters'
 import { checkRateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { getServerUser } from '@/lib/auth-server'
 import { z } from 'zod'
+import type { LetterUpdate } from '@/types/database'
 
 const letterIdSchema = z.string().regex(/^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|local-[a-z0-9_-]{1,100})$/i).nullish()
 const shareSchema = z.object({
@@ -18,6 +19,13 @@ const shareSchema = z.object({
   recipient_name: z.string().trim().max(200).optional(),
   receiver_name: z.string().trim().max(200).optional(),
   relationship: z.string().max(200).nullish(),
+  title: z.string().max(300).optional(),
+  emotion: z.string().max(300).optional(),
+  personality: z.string().max(100).optional(),
+  original_letter: z.string().max(50000).optional(),
+  enhanced_letter: z.string().max(50000).nullish(),
+  enhancement_style: z.string().max(100).nullish(),
+  theme: z.string().max(100).optional(),
   era_style: z.string().max(100).optional(),
   letter_style: z.string().max(100).optional(),
   language: z.string().max(30).optional(),
@@ -66,6 +74,22 @@ export async function createShareResponse(request: NextRequest, legacy = false) 
       existingLetter = null
     }
 
+    if (existingLetter) {
+      const updates: LetterUpdate = {}
+      if (letterBody !== undefined && letterBody !== getLetterContent(existingLetter)) updates.content = letterBody
+      if (recipientName) updates.receiver_name = recipientName
+      for (const field of ['title', 'relationship', 'emotion', 'personality', 'language', 'theme', 'enhanced_letter', 'enhancement_style'] as const) {
+        if (body[field] !== undefined) Object.assign(updates, { [field]: body[field] })
+      }
+      const letterStyle = body.letter_style ?? body.era_style
+      if (letterStyle !== undefined) updates.era_style = letterStyle
+      if (Object.keys(updates).length > 0) {
+        const updated = await updateLetter(existingLetter.id, updates, true)
+        if (!updated) throw new Error('Could not save the edited letter before sharing')
+        existingLetter = updated
+      }
+    }
+
     // If letter not found in database or local ephemeral, persist permanently
     if (!existingLetter) {
       if (letterBody && recipientName) {
@@ -76,6 +100,13 @@ export async function createShareResponse(request: NextRequest, legacy = false) 
             content: letterBody,
             letter_content: letterBody,
             relationship: body.relationship || null,
+            title: body.title,
+            emotion: body.emotion,
+            personality: body.personality,
+            original_letter: body.original_letter,
+            enhanced_letter: body.enhanced_letter,
+            enhancement_style: body.enhancement_style,
+            theme: body.theme,
             era_style: body.era_style || body.letter_style || 'vintage',
             letter_style: body.letter_style || body.era_style || 'vintage',
             language: body.language || 'bengali',

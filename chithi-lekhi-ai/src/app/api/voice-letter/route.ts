@@ -3,12 +3,14 @@ import { executeVoiceRequest, VOICE_STYLES, type VoiceStyle } from '@/lib/voice-
 import { checkRateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import { sanitizeInput } from '@/utils/helpers'
 import { attachQuotaHeaders } from '@/lib/quota-service'
+import { getServerUser } from '@/lib/auth-server'
 
 // Vercel serverless function max execution duration (seconds)
 export const maxDuration = 60
 
 export async function POST(request: NextRequest) {
   try {
+    const serverUser = await getServerUser()
     // 1. Rate Limiting (20 voice generations per minute per IP)
     const rateLimit = checkRateLimit(request, {
       limit: 20,
@@ -39,6 +41,7 @@ export async function POST(request: NextRequest) {
       request,
       text: sanitizedText,
       voiceStyle: selectedStyle,
+      authenticatedUser: serverUser,
     })
     if (!execution.ok) return execution.response
     const { result, usage } = execution

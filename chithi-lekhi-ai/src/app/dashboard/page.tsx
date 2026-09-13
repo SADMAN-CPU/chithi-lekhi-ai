@@ -265,6 +265,7 @@ export default function DashboardPage() {
   const [sharedLetters, setSharedLetters] = useState<PublicLetterRow[]>([])
   const [downloads, setDownloads] = useState<DownloadHistoryRow[]>([])
   const [dataLoading, setDataLoading] = useState(true)
+  const [dataError, setDataError] = useState(false)
 
   // Filters State & Debounced Search
   const [searchQuery, setSearchQuery] = useState('')
@@ -312,44 +313,45 @@ export default function DashboardPage() {
   useEffect(() => {
     if (authLoading) return
 
+    const controller = new AbortController()
     const loadDashboardData = async () => {
       setDataLoading(true)
+      setDataError(false)
+      setLetters([])
+      setSharedLetters([])
+      setDownloads([])
       try {
-        // 1. Fetch user's letters (published & drafts)
-        const res = await fetch(
-          `/api/letters?userId=${encodeURIComponent(effectiveUserId)}&status=all`
-        )
-        const data = await res.json()
-        if (data.success && Array.isArray(data.letters)) {
-          setLetters(data.letters)
+        const userQuery = encodeURIComponent(effectiveUserId)
+        const results = await Promise.all([
+          `/api/letters?userId=${userQuery}&status=all`,
+          `/api/user/shared-letters?userId=${userQuery}`,
+          `/api/downloads?userId=${userQuery}`,
+        ].map(async (url) => {
+          const response = await fetch(url, { signal: controller.signal })
+          const data = await response.json()
+          if (!response.ok || !data.success) throw new Error('Dashboard request failed')
+          return data
+        }))
+        if (controller.signal.aborted) return
+        if (!Array.isArray(results[0].letters) || !Array.isArray(results[1].sharedLetters) || !Array.isArray(results[2].downloads)) {
+          throw new Error('Invalid dashboard response')
         }
-
-        // 2. Fetch shared letters
-        const sharedRes = await fetch(
-          `/api/user/shared-letters?userId=${encodeURIComponent(effectiveUserId)}`
-        )
-        const sharedData = await sharedRes.json()
-        if (sharedData.success && Array.isArray(sharedData.sharedLetters)) {
-          setSharedLetters(sharedData.sharedLetters)
-        }
-
-        // 3. Fetch download history
-        const dlRes = await fetch(
-          `/api/downloads?userId=${encodeURIComponent(effectiveUserId)}`
-        )
-        const dlData = await dlRes.json()
-        if (dlData.success && Array.isArray(dlData.downloads)) {
-          setDownloads(dlData.downloads)
-        }
+        setLetters(results[0].letters)
+        setSharedLetters(results[1].sharedLetters)
+        setDownloads(results[2].downloads)
       } catch (err) {
-        console.error('Failed to load dashboard data:', err)
+        if (!controller.signal.aborted) {
+          console.error('Failed to load dashboard data:', err)
+          setDataError(true)
+        }
       } finally {
-        setDataLoading(false)
+        if (!controller.signal.aborted) setDataLoading(false)
       }
     }
 
-    loadDashboardData()
-  }, [user, authLoading, effectiveUserId])
+    void loadDashboardData()
+    return () => controller.abort()
+  }, [authLoading, effectiveUserId])
 
   // Handle Toggle Favorite (with rollback on failure)
   const handleToggleFavorite = useCallback(async (letterId: string, currentFavorite: boolean) => {
@@ -701,6 +703,14 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+
+        {dataError && (
+          <div role="alert" className="mb-4 rounded-2xl border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/40 p-4 font-bengali text-sm text-rose-700 dark:text-rose-300">
+            {locale === 'en'
+              ? 'Your letters could not be loaded. Please refresh the page to try again.'
+              : 'চিঠিগুলো লোড করা যায়নি। আবার চেষ্টা করতে পৃষ্ঠাটি রিফ্রেশ করুন।'}
+          </div>
+        )}
 
         {/* 5 Tab Navigation Strip */}
         <div className="flex border-b border-neutral-200/80 dark:border-neutral-800 gap-1 sm:gap-2 overflow-x-auto no-scrollbar">

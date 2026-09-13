@@ -35,7 +35,7 @@ function createLoader({ mocks = {}, env = {}, globals = {} } = {}) {
       return nativeRequire(specifier)
     }
     const code = ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
-      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
+      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true, jsx: ts.JsxEmit.React },
       fileName: filename,
     }).outputText
     const run = vm.runInContext(`(function(require, module, exports) { ${code}\n})`, context, { filename })

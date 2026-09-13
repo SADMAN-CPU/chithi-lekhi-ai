@@ -12,6 +12,7 @@ import {
   Sparkles,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
+import { isUuid } from '@/utils/helpers'
 import { useLanguage } from '@/components/providers/LanguageProvider'
 
 interface SaveLetterModalProps {
@@ -72,12 +73,13 @@ export function SaveLetterModal({
     try {
       const isPublic = saveMode === 'share'
 
-      // 1. Save or update letter in database
-      const res = await fetch('/api/letters', {
-        method: 'POST',
+      const updateExisting = Boolean(user && letterId && isUuid(letterId))
+      const endpoint = isPublic ? '/api/shares' : updateExisting ? `/api/letters/${letterId}` : '/api/letters'
+      const res = await fetch(endpoint, {
+        method: !isPublic && updateExisting ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          id: letterId,
+          letter_id: letterId,
           user_id: user?.id || null,
           title: `চিঠি — প্রিয় ${receiverName}-এর জন্য`,
           receiver_name: receiverName,
@@ -93,7 +95,6 @@ export function SaveLetterModal({
           enhancement_style: enhancementStyle || null,
           theme: 'vintage',
           is_public: isPublic,
-          is_favorite: false,
           status: 'published',
         }),
       })
@@ -105,25 +106,13 @@ export function SaveLetterModal({
 
       const activeLetterId = data.letter?.id || letterId
 
-      // 2. If Save & Share mode, also generate public share link
-      if (isPublic && activeLetterId) {
-        const shareRes = await fetch('/api/shares', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            letter_id: activeLetterId,
-            is_public: true,
-            expiration: 'never',
-          }),
-        })
-        const shareData = await shareRes.json()
-        if (shareData.success && shareData.shareUrl) {
-          setShareUrl(shareData.shareUrl)
-        }
+      if (isPublic) {
+        if (!data.shareUrl) throw new Error(locale === 'en' ? 'Share link could not be created' : 'শেয়ার লিংক তৈরি করা যায়নি')
+        setShareUrl(data.shareUrl)
       }
 
       setSavedSuccess(true)
-      if (onSaved && activeLetterId) {
+      if (onSaved && activeLetterId && user) {
         onSaved(activeLetterId, isPublic)
       }
     } catch (err: unknown) {

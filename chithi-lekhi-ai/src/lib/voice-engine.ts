@@ -4,6 +4,7 @@ import { createAdminClient, isServiceRoleConfigured } from './supabase/admin'
 import type { NextRequest, NextResponse } from 'next/server'
 import { reserveUserQuota, releaseUserQuota, consumeUserQuota, recordAIUsage, quotaUnavailableResponse, type QuotaVerificationResult, type QuotaConsumptionResult } from './quota-service'
 import type { VoiceCacheRow } from '@/types/database'
+import type { ServerUser } from './auth-server'
 import { VOICE_STYLES, type VoiceStyle, type VoiceStyleConfig } from '@/constants/voice'
 
 export { VOICE_STYLES, type VoiceStyle, type VoiceStyleConfig }
@@ -165,6 +166,7 @@ export async function executeVoiceRequest(params: {
   request: NextRequest
   text: string
   voiceStyle: VoiceStyle
+  authenticatedUser?: ServerUser | null
 }): Promise<{ ok: true; result: SynthesizeVoiceResult; usage?: QuotaConsumptionResult } | { ok: false; response: NextResponse }> {
   let quota: QuotaVerificationResult | undefined
   let denied: NextResponse | undefined
@@ -173,7 +175,7 @@ export async function executeVoiceRequest(params: {
       text: params.text,
       voiceStyle: params.voiceStyle,
       beforeGenerate: async () => {
-        quota = await reserveUserQuota({ request: params.request, actionType: 'voice' })
+        quota = await reserveUserQuota({ request: params.request, actionType: 'voice', authenticatedUser: params.authenticatedUser })
         if (!quota.allowed) {
           denied = quota.response || quotaUnavailableResponse()
           throw new Error('Voice quota unavailable')
@@ -184,23 +186,18 @@ export async function executeVoiceRequest(params: {
       if (quota && result.providerAttempted) await recordAIUsage({ userId: quota.userId, identifier: quota.identifier, actionType: 'voice', model: 'openai/tts-1', success: false, error: 'TTS provider failed; using browser speech' })
       return { ok: true, result }
     }
-    const usage = await consumeUserQuota({ identifier: quota.identifier, userId: quota.userId, actionType: 'voice', reservationId: quota.reservationId, date: quota.date })
-    await recordAIUsage({ userId: quota.userId, identifier: quota.identifier, actionType: 'voice', model: 'openai/tts-1', tokensUsed: 0, success: true })
+    const usage = await consumeUserQuota({
+      identifier: quota.identifier, userId: quota.userId, actionType: 'voice', reservationId: quota.reservationId, date: quota.date,
+      voiceCache: { contentHash: result.contentHash, voiceStyle: result.voiceStyle, audioBase64: result.audioBase64, format: result.format },
+    })
+    await recordAIUsage({
+      userId: quota.userId, identifier: quota.identifier, actionType: 'voice', model: 'openai/tts-1', tokensUsed: 0,
+      success: usage.consumed, alreadyPersisted: isConfigured && usage.consumed,
+      error: usage.consumed ? undefined : 'Voice persistence or quota finalization failed',
+    })
     if (!usage.consumed) return { ok: false, response: quotaUnavailableResponse() }
     // Publish generated audio to caches only after accounting commits successfully.
     cacheVoice(result.contentHash, { audioBase64: result.audioBase64, format: result.format, style: result.voiceStyle })
-    if (isConfigured && isServiceRoleConfigured()) {
-      try {
-        const { error } = await createAdminClient().from('voice_cache').upsert({
-          content_hash: result.contentHash, voice_style: result.voiceStyle,
-          audio_url: result.audioBase64, audio_format: result.format,
-          file_size_bytes: Buffer.byteLength(result.audioBase64, 'base64'),
-        }, { onConflict: 'content_hash' })
-        if (error) throw error
-      } catch (error) {
-        console.warn('[VoiceEngine] Failed to save persistent cache:', error)
-      }
-    }
     return { ok: true, result, usage }
   } catch (error) {
     if (denied) return { ok: false, response: denied }

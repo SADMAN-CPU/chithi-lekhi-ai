@@ -216,6 +216,7 @@ export async function incrementPublicLetterViews(
   shortId: string,
   isServer = false
 ): Promise<number> {
+  if (!isShareIdentifier(shortId)) return 0
   if (!isConfigured && process.env.NODE_ENV === 'production') {
     throw new Error('Supabase is required for production sharing')
   }
@@ -224,9 +225,20 @@ export async function incrementPublicLetterViews(
       const client = isServer
         ? (isServiceRoleConfigured() ? createAdminClient() : await createServerSupabase())
         : createBrowserSupabase()
-      await client.rpc('increment_public_letter_views', { target_short_id: shortId })
+      const { error } = await client.rpc('increment_public_letter_views', { target_short_id: shortId })
+      if (error) throw new Error(`Public letter view count failed: ${error.message}`)
+      // The legacy RPC returns void; read the persisted count after success.
+      const { data, error: lookupError } = await client.from('public_letters')
+        .select('views').eq('short_id', shortId).maybeSingle()
+      if (lookupError) throw new Error(`Public letter view count failed: ${lookupError.message}`)
+      if (!data) return 0
+      if (typeof data.views !== 'number' || !Number.isFinite(data.views)) {
+        throw new Error('Public letter view count failed: No count returned')
+      }
+      return data.views
     } catch (err) {
-      console.warn('[PublicLetters] incrementViews exception:', err)
+      console.error('[PublicLetters] incrementViews exception:', err)
+      throw err
     }
   }
 
@@ -235,7 +247,7 @@ export async function incrementPublicLetterViews(
     local.views += 1
     return local.views
   }
-  return 1
+  return 0
 }
 
 /**

@@ -166,14 +166,8 @@ export async function getShareByToken(
           const letterObj = parsed.letter as LetterRow
 
           if (incrementViews) {
-            await trackShareEvent(
-              {
-                token: shareObj.share_token,
-                eventType: 'view',
-              },
-              isServer
-            )
-            shareObj.views = (shareObj.views || 0) + 1
+            const tracked = await trackShareEvent({ token: shareObj.share_token, eventType: 'view' }, isServer)
+            if (tracked) shareObj.views = (shareObj.views || 0) + 1
           }
 
           return {
@@ -261,10 +255,9 @@ export async function getShareByToken(
           isPrivate: true,
         }
       }
-      if (incrementViews) {
-        await incrementLetterViews(tokenOrId, isServer)
-      }
-      const initialViews = (directLetter.view_count || 0) + (incrementViews ? 1 : 0)
+      const initialViews = incrementViews
+        ? await incrementLetterViews(tokenOrId, isServer)
+        : directLetter.view_count || 0
       const synthesizedShare: ShareRow = {
         id: `share-auto-${directLetter.id}`,
         letter_id: directLetter.id,
@@ -273,7 +266,7 @@ export async function getShareByToken(
         is_public: true,
         expiration: 'never',
         expires_at: null,
-        views: initialViews > 0 ? initialViews : 1,
+        views: initialViews,
         shares_count: 0,
         downloads_count: 0,
         audio_url: null,
@@ -351,21 +344,10 @@ export async function getShareByToken(
   const letter = await getLetterById(share.letter_id, isServer)
   if (!letter) return { status: 'not_found', share: null, letter: null, isExpired: false, isPrivate: false }
 
-  // Increment view count if requested
+  // Local tracking mutates the stored record; configured tracking updates the RPC counter.
   if (incrementViews) {
-    await trackShareEvent(
-      {
-        token: share.share_token,
-        eventType: 'view',
-      },
-      isServer
-    )
-    if (!isConfigured && process.env.NODE_ENV === 'production') {
-    throw new Error('Supabase is required for production sharing')
-  }
-  if (isConfigured) {
-      share.views += 1
-    }
+    const tracked = await trackShareEvent({ token: share.share_token, eventType: 'view' }, isServer)
+    if (tracked && isConfigured) share.views = (share.views || 0) + 1
   }
 
   return {
@@ -454,9 +436,9 @@ export async function getShareAnalytics(
   const lookup = await getShareByToken(token, false, isServer)
   if (lookup.share) {
     return {
-      views: lookup.share.views,
-      shares: lookup.share.shares_count,
-      downloads: lookup.share.downloads_count,
+      views: lookup.share.views ?? 0,
+      shares: lookup.share.shares_count ?? 0,
+      downloads: lookup.share.downloads_count ?? 0,
     }
   }
   return { views: 0, shares: 0, downloads: 0 }

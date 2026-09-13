@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getLetterById } from '@/lib/supabase/letters'
+import { getLetterById, getLetterContent } from '@/lib/supabase/letters'
 import { executeVoiceRequest, VOICE_STYLES, type VoiceStyle } from '@/lib/voice-engine'
 import { createAdminClient, isServiceRoleConfigured } from '@/lib/supabase/admin'
 import { checkRateLimit, createRateLimitResponse } from '@/lib/rate-limit'
@@ -22,6 +22,7 @@ type Props = {
  */
 export async function POST(request: NextRequest, { params }: Props) {
   try {
+    const serverUser = await getServerUser()
     const rateLimit = checkRateLimit(request, {
       limit: 15,
       windowSeconds: 60,
@@ -48,7 +49,6 @@ export async function POST(request: NextRequest, { params }: Props) {
     }
 
     // Ownership check: If the letter is not public, caller must be the owner
-    const serverUser = await getServerUser()
     if (!letter.is_public) {
       if (!serverUser || serverUser.id !== letter.user_id) {
         return NextResponse.json(
@@ -65,15 +65,12 @@ export async function POST(request: NextRequest, { params }: Props) {
     }
 
     const body = await request.json().catch(() => ({}))
+    if (!body || typeof body !== 'object') return NextResponse.json({ success: false, error: { message: 'Invalid request body', status: 400 } }, { status: 400 })
     const validStyles: VoiceStyle[] = ['warm-mother', 'warm', 'emotional', 'storytelling', 'professional', 'vintage-radio']
     const voiceStyle: VoiceStyle = validStyles.includes(body.voiceStyle) ? body.voiceStyle : 'warm'
 
     // Letter content to voice
-    const letterText =
-      letter.enhanced_content ||
-      letter.enhanced_letter ||
-      letter.letter_content ||
-      letter.content
+    const letterText = getLetterContent(letter)
 
     if (!letterText || !letterText.trim()) {
       return NextResponse.json(
@@ -82,7 +79,7 @@ export async function POST(request: NextRequest, { params }: Props) {
       )
     }
 
-    const execution = await executeVoiceRequest({ request, text: letterText, voiceStyle })
+    const execution = await executeVoiceRequest({ request, text: letterText, voiceStyle, authenticatedUser: serverUser })
     if (!execution.ok) return execution.response
     const { result, usage } = execution
     const wordCount = letterText.trim().split(/\s+/).length

@@ -89,6 +89,7 @@ test('security migration closes cumulative RLS bypasses and preserves authorized
     ($3, $4, 'token-5', false, NULL)`, [letterId(3), letterId(4), letterId(5), owner])
   // Simulate an old share that was made private after the trigger published it.
   await db.query('UPDATE public.letters SET is_public = true WHERE id = $1', [letterId(5)])
+  await db.query("UPDATE public.shares SET audio_url = 'PRIVATE_RECORDING'")
   await db.query(`INSERT INTO public.user_usage (identifier, date, letters_generated)
     VALUES ($1, CURRENT_DATE, 1), ($2, CURRENT_DATE, 2)`, [`user:${owner}`, `user:${other}`])
   await db.query(`INSERT INTO public.ai_usage (user_id, identifier, action_type, model)
@@ -163,6 +164,12 @@ test('security migration closes cumulative RLS bypasses and preserves authorized
         const result = await value('SELECT public.get_shared_letter_by_token($1)', [token])
         assert.equal(result.status, status)
         assert.equal(Boolean(result.letter), status === 'ok')
+        if (status === 'expired' || status === 'private') {
+          assert.equal('audio_url' in result.share, false)
+          assert.equal('user_id' in result.share, false)
+          assert.equal('letter_id' in result.share, false)
+          assert.equal(JSON.stringify(result).includes('PRIVATE_RECORDING'), false)
+        }
       }
       await assert.rejects(db.query('SELECT * FROM public.shares'), { code: '42501' })
     })
@@ -197,6 +204,8 @@ test('security migration closes cumulative RLS bypasses and preserves authorized
         'SELECT * FROM public.voice_cache',
         "INSERT INTO public.ai_usage (identifier, action_type, model) VALUES ('forged', 'voice', 'test')",
         'TRUNCATE public.letters CASCADE',
+        'TRUNCATE public.admin_audit_logs',
+        'TRUNCATE public.user_subscriptions',
       ]) {
         await asRole(role, role === 'authenticated' ? other : null, async () => {
           await assert.rejects(db.query(sql), { code: '42501' })
@@ -327,5 +336,108 @@ test('security migration closes cumulative RLS bypasses and preserves authorized
     await asRole('service_role', null, async () => {
       await assert.rejects(consume('test:invalid', 'invalid-action', -1, null), { code: '22023' })
     })
+  })
+
+  const finalizeVoice = (identifier, token, hash, audio) => value(`SELECT public.finalize_voice_generation(
+    $1, CURRENT_DATE, 5, $2, $3, 'warm', $4, 'mp3', 4)`, [identifier, token, hash, audio])
+  await t.test('voice cache, quota and successful audit finalize together exactly once', async () => {
+    await asRole('service_role', null, async () => {
+      const identifier = `user:${owner}`
+      const hash = 'a'.repeat(64)
+      assert.equal((await reserve(identifier, 'voice', 5, reservationA)).allowed, true)
+      assert.equal((await finalizeVoice(identifier, reservationB, hash, 'WRONG_TOKEN')).consumed, false)
+      assert.equal(await value('SELECT count(*)::int FROM public.voice_cache WHERE content_hash = $1', [hash]), 0)
+      assert.equal((await finalizeVoice(identifier, reservationA, hash, 'AUDIO')).used, 1)
+      assert.equal(await value('SELECT audio_url FROM public.voice_cache WHERE content_hash = $1', [hash]), 'AUDIO')
+      assert.equal(await value("SELECT count(*)::int FROM public.ai_usage WHERE identifier = $1 AND action_type = 'voice' AND user_id = $2", [identifier, owner]), 1)
+      assert.equal((await finalizeVoice(identifier, reservationA, hash, 'STALE_OVERWRITE')).consumed, false)
+      assert.equal(await value('SELECT audio_url FROM public.voice_cache WHERE content_hash = $1', [hash]), 'AUDIO')
+      assert.equal(await value("SELECT count(*)::int FROM public.ai_usage WHERE identifier = $1 AND action_type = 'voice'", [identifier]), 1)
+    })
+  })
+  await t.test('voice cache write failure leaves quota uncharged', async () => {
+    await db.query("INSERT INTO public.user_usage (identifier, date) VALUES ('test:save-fail', CURRENT_DATE)")
+    await db.exec("ALTER TABLE public.voice_cache ADD CONSTRAINT sql_test_cache_failure CHECK (audio_url <> 'FAIL')")
+    try {
+      await asRole('service_role', null, async () => {
+        assert.equal((await reserve('test:save-fail', 'voice', 5, reservationA)).allowed, true)
+        await assert.rejects(finalizeVoice('test:save-fail', reservationA, 'b'.repeat(64), 'FAIL'), { code: '23514' })
+      })
+      assert.equal(await value("SELECT voice_letters_used FROM public.user_usage WHERE identifier = 'test:save-fail'"), 0)
+      assert.equal(await value('SELECT count(*)::int FROM public.voice_cache WHERE content_hash = $1', ['b'.repeat(64)]), 0)
+    } finally {
+      await db.exec('ALTER TABLE public.voice_cache DROP CONSTRAINT sql_test_cache_failure')
+    }
+  })
+  await t.test('voice audit failure rolls back both cache and consumption', async () => {
+    await db.query("INSERT INTO public.user_usage (identifier, date) VALUES ('test:audit-fail', CURRENT_DATE)")
+    await db.exec("ALTER TABLE public.ai_usage ADD CONSTRAINT sql_test_audit_failure CHECK (identifier <> 'test:audit-fail') NOT VALID")
+    try {
+      await asRole('service_role', null, async () => {
+        assert.equal((await reserve('test:audit-fail', 'voice', 5, reservationA)).allowed, true)
+        await assert.rejects(finalizeVoice('test:audit-fail', reservationA, 'c'.repeat(64), 'AUDIO'), { code: '23514' })
+      })
+      assert.equal(await value("SELECT voice_letters_used FROM public.user_usage WHERE identifier = 'test:audit-fail'"), 0)
+      assert.equal(await value('SELECT count(*)::int FROM public.voice_cache WHERE content_hash = $1', ['c'.repeat(64)]), 0)
+    } finally {
+      await db.exec('ALTER TABLE public.ai_usage DROP CONSTRAINT sql_test_audit_failure')
+    }
+  })
+  await t.test('voice finalization is unavailable to public clients', async () => {
+    for (const role of ['anon', 'authenticated']) {
+      await asRole(role, role === 'authenticated' ? owner : null, async () => {
+        await assert.rejects(finalizeVoice(`user:${owner}`, reservationA, 'd'.repeat(64), 'AUDIO'), { code: '42501' })
+      })
+    }
+  })
+
+  const finalizeAI = (identifier, action, token) => value(`SELECT public.finalize_ai_usage(
+    $1, CURRENT_DATE, $2, 5, $3, 'gemini-test', 123)`, [identifier, action, token])
+  await t.test('generation/refinement audit and consumption finalize exactly once', async () => {
+    for (const action of ['generation', 'refinement']) {
+      await asRole('service_role', null, async () => {
+        const identifier = `user:${owner}`
+        const initialAuditCount = await value('SELECT count(*)::int FROM public.ai_usage WHERE identifier = $1 AND action_type = $2', [identifier, action])
+        assert.equal((await reserve(identifier, action, 5, reservationA)).allowed, true)
+        assert.equal((await finalizeAI(identifier, action, reservationB)).consumed, false)
+        assert.equal(await value('SELECT count(*)::int FROM public.ai_usage WHERE identifier = $1 AND action_type = $2', [identifier, action]), initialAuditCount)
+        assert.equal((await finalizeAI(identifier, action, reservationA)).consumed, true)
+        assert.equal(await value('SELECT count(*)::int FROM public.ai_usage WHERE identifier = $1 AND action_type = $2', [identifier, action]), initialAuditCount + 1)
+        assert.deepEqual((await db.query(`SELECT user_id, model, tokens_used, success FROM public.ai_usage
+          WHERE identifier = $1 AND action_type = $2 AND model = 'gemini-test'`, [identifier, action])).rows[0], {
+          user_id: owner, model: 'gemini-test', tokens_used: 123, success: true,
+        })
+        assert.equal((await finalizeAI(identifier, action, reservationA)).consumed, false)
+        assert.equal(await value('SELECT count(*)::int FROM public.ai_usage WHERE identifier = $1 AND action_type = $2', [identifier, action]), initialAuditCount + 1)
+      })
+    }
+  })
+  await t.test('failed generation/refinement audit rolls back only finalization and preserves the reservation', async () => {
+    await db.exec("ALTER TABLE public.ai_usage ADD CONSTRAINT sql_test_finalization_failure CHECK (identifier NOT LIKE 'test:finalize-audit:%') NOT VALID")
+    try {
+      for (const action of ['generation', 'refinement']) {
+        await asRole('service_role', null, async () => {
+          const identifier = `test:finalize-audit:${action}`
+          assert.equal((await reserve(identifier, action, 5, reservationA)).allowed, true)
+          await db.exec('SAVEPOINT before_finalization')
+          await assert.rejects(finalizeAI(identifier, action, reservationA), { code: '23514' })
+          await db.exec('ROLLBACK TO SAVEPOINT before_finalization')
+          const row = (await db.query('SELECT letters_generated, refinements_used, quota_reservations FROM public.user_usage WHERE identifier = $1', [identifier])).rows[0]
+          assert.equal(row.letters_generated, 0)
+          assert.equal(row.refinements_used, 0)
+          assert.equal(row.quota_reservations[action].id, reservationA)
+          assert.equal(await value('SELECT count(*)::int FROM public.ai_usage WHERE identifier = $1', [identifier]), 0)
+        })
+      }
+    } finally {
+      await db.exec('ALTER TABLE public.ai_usage DROP CONSTRAINT sql_test_finalization_failure')
+    }
+  })
+  await t.test('AI usage finalization is unavailable to public clients', async () => {
+    for (const role of ['anon', 'authenticated']) {
+      await asRole(role, role === 'authenticated' ? owner : null, async () => {
+        await assert.rejects(finalizeAI(`user:${owner}`, 'generation', reservationA), { code: '42501' })
+      })
+    }
   })
 })

@@ -6,7 +6,7 @@ import {
   type QuotaConsumptionResult,
 } from './quota-service'
 import { getDailyUsage, type UsageSummary } from './usage-tracking'
-import { getServerUser } from './auth-server'
+import { getServerUser, type ServerUser } from './auth-server'
 
 export interface PremiumGuardResult {
   allowed: boolean
@@ -19,8 +19,8 @@ export interface PremiumGuardResult {
  * Check daily allowance without deducting quota prematurely.
  * Quota must strictly be consumed AFTER successful AI generation.
  */
-export async function guardLetterGeneration(request: NextRequest): Promise<PremiumGuardResult> {
-  const verification = await reserveUserQuota({ request, actionType: 'generation' })
+export async function guardLetterGeneration(request: NextRequest, authenticatedUser?: ServerUser | null): Promise<PremiumGuardResult> {
+  const verification = await reserveUserQuota({ request, actionType: 'generation', authenticatedUser })
   return {
     allowed: verification.allowed,
     usage: verification,

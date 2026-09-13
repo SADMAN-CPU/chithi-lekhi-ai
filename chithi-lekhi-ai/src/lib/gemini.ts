@@ -65,7 +65,7 @@ export async function generateGeminiLetter(
         },
       })
 
-      const result = await model.generateContent(fullPrompt)
+      const result = await model.generateContent(fullPrompt, { timeout: 20_000 })
       const response = await result.response
       const letterText = response.text()?.trim()
 

@@ -6,6 +6,7 @@ import { updateLetter, getLetterById, getLetterContent } from '@/lib/supabase/le
 import { checkRateLimit, createRateLimitResponse } from '@/lib/rate-limit'
 import {
   reserveUserQuota,
+  quotaUnavailableResponse,
   releaseUserQuota,
   type QuotaVerificationResult,
   consumeUserQuota,
@@ -13,6 +14,7 @@ import {
   checkUserRateLimit,
   attachQuotaHeaders,
 } from '@/lib/quota-service'
+import { getServerUser } from '@/lib/auth-server'
 import { moderateContent } from '@/lib/content-moderation'
 import type { ApiError } from '@/types'
 
@@ -21,16 +23,7 @@ import type { ApiError } from '@/types'
 export async function createRefinementResponse(request: NextRequest, pathLetterId?: string) {
   let quotaVerification: QuotaVerificationResult | undefined
   try {
-    // 1. Quota Verification (10 refinements/day for Free users, Unlimited for Premium)
-    // NOTE: Does NOT deduct quota prior to execution.
-    quotaVerification = await reserveUserQuota({
-      request,
-      actionType: 'refinement',
-    })
-
-    if (!quotaVerification.allowed && quotaVerification.response) {
-      return quotaVerification.response
-    }
+    const serverUser = await getServerUser()
 
     // 2. IP Burst Rate Limiting (10 requests per 60s per IP)
     const rateLimit = checkRateLimit(request, {
@@ -44,8 +37,8 @@ export async function createRefinementResponse(request: NextRequest, pathLetterI
     }
 
     // 2b. User Rate Limiting for authenticated users (15 req/min)
-    if (quotaVerification.userId) {
-      const userLimit = checkUserRateLimit(quotaVerification.userId, 'refine-letter', 15, 60)
+    if (serverUser?.id) {
+      const userLimit = checkUserRateLimit(serverUser.id, 'refine-letter', 15, 60)
       if (!userLimit.allowed) {
         return NextResponse.json(
           {
@@ -68,7 +61,7 @@ export async function createRefinementResponse(request: NextRequest, pathLetterI
       }
       const letter = await getLetterById(pathLetterId, true)
       if (!letter) return NextResponse.json({ success: false, error: { message: 'Letter not found', status: 404 } }, { status: 404 })
-      if (!quotaVerification.userId || letter.user_id !== quotaVerification.userId) {
+      if (!serverUser || letter.user_id !== serverUser.id) {
         return NextResponse.json({ success: false, error: { message: 'Unauthorized enhancement', status: 403 } }, { status: 403 })
       }
       if (body === null || typeof body !== 'object' || Array.isArray(body)) {
@@ -111,7 +104,7 @@ export async function createRefinementResponse(request: NextRequest, pathLetterI
           { status: 404 }
         )
       }
-      if (!quotaVerification.userId || existing.user_id !== quotaVerification.userId) {
+      if (!serverUser || existing.user_id !== serverUser.id) {
         return NextResponse.json(
           { success: false, error: { code: 'FORBIDDEN', message: 'Unauthorized modification', status: 403 } },
           { status: 403 }
@@ -129,6 +122,10 @@ export async function createRefinementResponse(request: NextRequest, pathLetterI
       : undefined
     const sanitizedReceiverName = data.receiverName ? sanitizeInput(data.receiverName) : undefined
     const sanitizedRelationship = data.relationship ? sanitizeInput(data.relationship) : undefined
+
+    if (sanitizedLetter.length < 2) {
+      return NextResponse.json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'চিঠির বিষয়বস্তু লিখুন / Letter content is empty', status: 400 } }, { status: 400 })
+    }
 
     // 4b. Content Moderation
     const letterModeration = moderateContent(sanitizedLetter)
@@ -163,6 +160,9 @@ export async function createRefinementResponse(request: NextRequest, pathLetterI
       }
     }
 
+    quotaVerification = await reserveUserQuota({ request, actionType: 'refinement', authenticatedUser: serverUser })
+    if (!quotaVerification.allowed) return quotaVerification.response || quotaUnavailableResponse()
+
     // 5. Execute AI Refinement with Gemini & Fallbacks
     let refineResult: Awaited<ReturnType<typeof refineLetterContent>>
 
@@ -192,6 +192,7 @@ export async function createRefinementResponse(request: NextRequest, pathLetterI
     }
 
     const { refinedLetter, provider, audit, changesSummary, meaningPreserved, similarityScore } = refineResult
+    if (!refinedLetter.trim()) throw new Error('AI returned an empty refinement')
 
     // A failed save must be visible and must not deduct the user's allowance.
     if (data.letterId) {
@@ -204,15 +205,18 @@ export async function createRefinementResponse(request: NextRequest, pathLetterI
 
     let quotaConsumption = quotaVerification as QuotaVerificationResult | Awaited<ReturnType<typeof consumeUserQuota>>
     if (provider !== 'fallback') {
+      const usageLog = {
+        model: provider === 'gemini' ? (process.env.GEMINI_MODEL || 'gemini-1.5-flash') : 'openai/gpt-4o-mini',
+        tokensUsed: Math.ceil((refinedLetter.trim().split(/\s+/).length + 100) * 1.5),
+      }
       quotaConsumption = await consumeUserQuota({
         identifier: quotaVerification.identifier, userId: quotaVerification.userId,
-        actionType: 'refinement', reservationId: quotaVerification.reservationId, date: quotaVerification.date,
+        actionType: 'refinement', reservationId: quotaVerification.reservationId, date: quotaVerification.date, usageLog,
       })
       if (!quotaConsumption.consumed) throw new Error('Refinement quota could not be recorded')
       await recordAIUsage({
         userId: quotaVerification.userId, identifier: quotaVerification.identifier, actionType: 'refinement',
-        model: provider === 'gemini' ? (process.env.GEMINI_MODEL || 'gemini-1.5-flash') : 'openai/gpt-4o-mini',
-        tokensUsed: Math.ceil((refinedLetter.trim().split(/\s+/).length + 100) * 1.5), success: true,
+        ...usageLog, success: true, alreadyPersisted: true,
       })
     }
 

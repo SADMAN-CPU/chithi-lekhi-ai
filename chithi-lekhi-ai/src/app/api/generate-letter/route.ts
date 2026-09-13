@@ -5,9 +5,12 @@ import { analyzeEmotionalContext } from '@/lib/emotion-engine'
 import { createLetter } from '@/lib/supabase/letters'
 import { sanitizeInput } from '@/utils/helpers'
 import { checkRateLimit, createRateLimitResponse } from '@/lib/rate-limit'
-import { guardLetterGeneration, attachUsageHeaders } from '@/lib/premium-middleware'
+import { getServerUser } from '@/lib/auth-server'
 import {
   consumeUserQuota,
+  reserveUserQuota,
+  attachQuotaHeaders,
+  quotaUnavailableResponse,
   releaseUserQuota,
   type QuotaVerificationResult,
   recordAIUsage,
@@ -23,12 +26,7 @@ export const maxDuration = 60
 export async function POST(request: NextRequest) {
   let reservation: QuotaVerificationResult | undefined
   try {
-    // 1. Enforce Premium & Daily Quota Guard (5 letters/day for Free users, Unlimited for Premium)
-    const premiumGuard = await guardLetterGeneration(request)
-    reservation = premiumGuard.usage
-    if (!premiumGuard.allowed && premiumGuard.response) {
-      return premiumGuard.response
-    }
+    const serverUser = await getServerUser()
 
     // 2. Enforce Burst Rate Limiting (5 requests per 60s per IP to protect OpenAI/Gemini API limits)
     const rateLimit = checkRateLimit(request, {
@@ -42,8 +40,8 @@ export async function POST(request: NextRequest) {
     }
 
     // 2b. Enforce per-user rate limit for authenticated users
-    if (premiumGuard.userId) {
-      const userLimit = checkUserRateLimit(premiumGuard.userId, 'generate-letter', 10, 60)
+    if (serverUser?.id) {
+      const userLimit = checkUserRateLimit(serverUser.id, 'generate-letter', 10, 60)
       if (!userLimit.allowed) {
         return NextResponse.json(
           {
@@ -91,6 +89,10 @@ export async function POST(request: NextRequest) {
       emotion: data.emotion ? sanitizeInput(data.emotion) : undefined,
     }
 
+    if (!sanitizedParams.receiverName || !sanitizedParams.relationship || !sanitizedParams.feeling) {
+      return NextResponse.json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'প্রয়োজনীয় তথ্য লিখুন / Required text is empty', status: 400 } }, { status: 400 })
+    }
+
     // Content Moderation Screening (§11)
     const inputsToScreen = [
       sanitizedParams.receiverName,
@@ -118,6 +120,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const quota = await reserveUserQuota({ request, actionType: 'generation', authenticatedUser: serverUser })
+    reservation = quota
+    if (!quota.allowed) return quota.response || quotaUnavailableResponse()
+
     // Phase 02: Perform deep emotional & psychological context analysis
     const emotionalAnalysis = analyzeEmotionalContext(sanitizedParams)
 
@@ -131,8 +137,8 @@ export async function POST(request: NextRequest) {
     } catch (aiErr) {
       // Quota is NOT consumed if AI generation fails.
       await recordAIUsage({
-        userId: premiumGuard.userId,
-        identifier: premiumGuard.usage.identifier,
+        userId: quota.userId,
+        identifier: quota.identifier,
         actionType: 'generation',
         model: 'gemini-1.5-flash',
         tokensUsed: 0,
@@ -143,13 +149,14 @@ export async function POST(request: NextRequest) {
     }
 
     const { letter, provider } = generatedResult
+    if (!letter.trim()) throw new Error('AI returned an empty letter')
 
     // Save generated letter in Supabase database (Phase 05)
     let letterId: string | undefined
     {
       const saved = await createLetter(
         {
-          user_id: premiumGuard.userId || null,
+          user_id: quota.userId || null,
           recipient_name: sanitizedParams.receiverName,
           receiver_name: sanitizedParams.receiverName,
           relationship: sanitizedParams.relationship,
@@ -168,21 +175,24 @@ export async function POST(request: NextRequest) {
         },
         true
       )
-      letterId = premiumGuard.userId ? saved.id : undefined
+      letterId = quota.userId ? saved.id : undefined
     }
 
     const wordCount = letter.trim().split(/\s+/).length
-    let quotaConsumption = premiumGuard.usage as QuotaVerificationResult | Awaited<ReturnType<typeof consumeUserQuota>>
+    let quotaConsumption = quota as QuotaVerificationResult | Awaited<ReturnType<typeof consumeUserQuota>>
     if (provider !== 'fallback') {
+      const usageLog = {
+        model: provider === 'gemini' ? (process.env.GEMINI_MODEL || 'gemini-1.5-flash') : 'openai/gpt-4o-mini',
+        tokensUsed: Math.ceil((wordCount + 150) * 1.5),
+      }
       quotaConsumption = await consumeUserQuota({
-        identifier: premiumGuard.usage.identifier, userId: premiumGuard.userId,
-        actionType: 'generation', reservationId: premiumGuard.usage.reservationId, date: premiumGuard.usage.date,
+        identifier: quota.identifier, userId: quota.userId,
+        actionType: 'generation', reservationId: quota.reservationId, date: quota.date, usageLog,
       })
       if (!quotaConsumption.consumed) throw new Error('Generation quota could not be recorded')
       await recordAIUsage({
-        userId: premiumGuard.userId, identifier: premiumGuard.usage.identifier, actionType: 'generation',
-        model: provider === 'gemini' ? (process.env.GEMINI_MODEL || 'gemini-1.5-flash') : 'openai/gpt-4o-mini',
-        tokensUsed: Math.ceil((wordCount + 150) * 1.5), success: true,
+        userId: quota.userId, identifier: quota.identifier, actionType: 'generation',
+        ...usageLog, success: true, alreadyPersisted: true,
       })
     }
 
@@ -221,7 +231,7 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    return attachUsageHeaders(jsonResponse, quotaConsumption)
+    return attachQuotaHeaders(jsonResponse, quotaConsumption)
   } catch (err) {
     console.error('[POST /api/generate-letter] Generation error:', err)
     const error: ApiError = {

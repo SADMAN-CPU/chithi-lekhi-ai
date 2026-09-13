@@ -835,32 +835,27 @@ export async function refineLetterContent(
   // 1. Try Gemini with low temperature (0.25 - 0.30) and strict editor persona
   const tryGemini = async (): Promise<string | null> => {
     if (!genAI) return null
-    for (let attempt = 0; attempt <= 2; attempt++) {
-      try {
-        const model = genAI.getGenerativeModel({
-          model: geminiModelName,
-          systemInstruction: ENHANCEMENT_EDITOR_SYSTEM_PROMPT,
-          safetySettings,
-          generationConfig: {
-            temperature: editorTemperature,
-            topP: 0.85,
-            topK: 20,
-            maxOutputTokens: optimalTokens,
-          },
-        })
-        const result = await model.generateContent(prompt)
-        const response = await result.response
-        const text = response.text()?.trim()
-        if (text && text.length > 20) {
-          const validated = validateAndCleanResponse(text, params.language || 'bengali')
-          return validated.cleanedText
-        }
-      } catch (err) {
-        console.warn(`[Refine Engine] Gemini attempt ${attempt + 1} error:`, err)
-        if (attempt < 2) {
-          await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)))
-        }
+    try {
+      const model = genAI.getGenerativeModel({
+        model: geminiModelName,
+        systemInstruction: ENHANCEMENT_EDITOR_SYSTEM_PROMPT,
+        safetySettings,
+        generationConfig: {
+          temperature: editorTemperature,
+          topP: 0.85,
+          topK: 20,
+          maxOutputTokens: optimalTokens,
+        },
+      })
+      const result = await model.generateContent(prompt, { timeout: 20_000 })
+      const response = await result.response
+      const text = response.text()?.trim()
+      if (text && text.length > 20) {
+        const validated = validateAndCleanResponse(text, params.language || 'bengali')
+        return validated.cleanedText
       }
+    } catch (err) {
+      console.warn('[Refine Engine] Gemini request failed; trying the fallback provider:', err)
     }
     return null
   }
