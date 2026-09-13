@@ -1,4 +1,6 @@
 import type { NextConfig } from 'next'
+import { PHASE_PRODUCTION_SERVER } from 'next/constants'
+import { assertProductionEnvironment } from './src/lib/supabase/config'
 
 const isDev = process.env.NODE_ENV === 'development'
 
@@ -79,4 +81,7 @@ const nextConfig: NextConfig = {
   },
 }
 
-export default nextConfig
+export default function configureNext(phase: string): NextConfig {
+  if (phase === PHASE_PRODUCTION_SERVER) assertProductionEnvironment()
+  return nextConfig
+}

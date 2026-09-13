@@ -72,6 +72,22 @@ export function getSupabaseEnv(): SupabaseEnvConfig {
 
 export const isSupabaseConfigured = getSupabaseEnv().isConfigured
 
+/** Validate production startup without printing credential values or affecting offline development/builds. */
+export function assertProductionEnvironment(): void {
+  const missing: string[] = []
+  if (!isValidHttpUrl(process.env.NEXT_PUBLIC_SUPABASE_URL)) missing.push('NEXT_PUBLIC_SUPABASE_URL')
+  if (isPlaceholder(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)) missing.push('NEXT_PUBLIC_SUPABASE_ANON_KEY')
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (isPlaceholder(serviceRoleKey) || (serviceRoleKey?.trim().length || 0) < 20) missing.push('SUPABASE_SERVICE_ROLE_KEY')
+  if (isPlaceholder(process.env.GEMINI_API_KEY)) missing.push('GEMINI_API_KEY')
+  if (isPlaceholder(process.env.OPENAI_API_KEY)) missing.push('OPENAI_API_KEY')
+  const model = process.env.GEMINI_MODEL?.trim()
+  if (isPlaceholder(model) || /^gemini-1\.5(?:-|$)/.test(model || '')) missing.push('GEMINI_MODEL (a supported model)')
+  if (missing.length) {
+    throw new Error(`Service configuration required. Set valid values for: ${missing.join(', ')}. Configure the environment and rebuild before running npm run start.`)
+  }
+}
+
 let hasLoggedDiagnostic = false
 
 export function logSupabaseConfigDiagnostics(): void {

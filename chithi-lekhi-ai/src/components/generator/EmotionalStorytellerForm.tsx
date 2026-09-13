@@ -207,8 +207,11 @@ export function EmotionalStorytellerForm({
       const data: GenerateLetterResponse = await res.json()
 
       if (!res.ok || !data.success) {
+        const localizedMessage = data.error && typeof data.error === 'object'
+          ? (locale === 'en' ? data.error.messageEn : data.error.messageBn)
+          : undefined
         const message = getErrorMessage(
-          data.error,
+          localizedMessage?.trim() || data.error,
           locale === 'en'
             ? 'Unable to create letter. Please try again.'
             : 'চিঠি তৈরি করতে সমস্যা হয়েছে। অনুগ্রহ করে পুনরায় চেষ্টা করুন।'

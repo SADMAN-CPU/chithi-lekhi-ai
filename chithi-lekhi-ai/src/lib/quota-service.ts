@@ -9,6 +9,8 @@ import { isSupabaseConfigured } from './supabase/config'
 
 const isConfigured = isSupabaseConfigured
 
+class QuotaConfigurationError extends Error {}
+
 export type AIActionType = 'generation' | 'refinement' | 'voice'
 
 export interface QuotaVerificationResult {
@@ -136,7 +138,7 @@ export async function getQuotaUsage(params: {
   let used = 0
 
   if (isConfigured) {
-    if (isServer && !isServiceRoleConfigured()) throw new Error('Quota service credentials are unavailable')
+    if (isServer && !isServiceRoleConfigured()) throw new QuotaConfigurationError('SUPABASE_SERVICE_ROLE_KEY is required for persistent quota verification')
     const client = isServer ? createAdminClient() : createBrowserSupabase()
     const { data, error } = await client.from('user_usage').select('*')
       .eq('identifier', identifier).eq('date', date).maybeSingle()
@@ -146,7 +148,7 @@ export async function getQuotaUsage(params: {
       if (!Number.isInteger(used) || used < 0) throw new Error('Invalid daily quota record')
     }
   } else {
-    if (process.env.NODE_ENV === 'production') throw new Error('Production quota storage is unavailable')
+    if (process.env.NODE_ENV === 'production') throw new QuotaConfigurationError('NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are required for production quota storage')
     const record = inMemoryUsage.get(`${identifier}:${date}`)
     if (record) used = actionType === 'refinement' ? record.refinements_used : actionType === 'voice' ? record.voice_letters_used : record.letters_generated
   }
@@ -154,8 +156,22 @@ export async function getQuotaUsage(params: {
   return { allowed: isUnlimited || used < limit, used, limit, remaining: isUnlimited ? -1 : Math.max(0, limit - used), isUnlimited, planId: plan.id, identifier, userId, date }
 }
 
-export function quotaUnavailableResponse(): NextResponse {
-  return NextResponse.json({ success: false, error: { code: 'QUOTA_UNAVAILABLE', message: 'Usage verification is temporarily unavailable. Please try again.', status: 503 } }, { status: 503 })
+/** Public errors describe the action to take without returning database details or secrets. */
+export function quotaUnavailableResponse(error?: unknown): NextResponse {
+  const cause = error instanceof Error && error.cause ? error.cause : error
+  const databaseCode = cause && typeof cause === 'object' && 'code' in cause ? String(cause.code) : ''
+  const setupRequired = ['42P01', '42703', '42883', '42501', 'PGRST202', 'PGRST205', 'PGRST301', 'PGRST302'].includes(databaseCode)
+  const configurationRequired = error instanceof QuotaConfigurationError || setupRequired
+  const message = configurationRequired ? 'Service configuration required.' : 'Temporary service issue. Please try again.'
+  return NextResponse.json({ success: false, error: {
+    code: configurationRequired ? (setupRequired ? 'QUOTA_SETUP_REQUIRED' : 'QUOTA_NOT_CONFIGURED') : 'QUOTA_UNAVAILABLE',
+    message,
+    messageEn: message,
+    messageBn: configurationRequired
+      ? 'সেবাটি চালু করতে কনফিগারেশন প্রয়োজন। অনুগ্রহ করে সাইটের প্রশাসকের সঙ্গে যোগাযোগ করুন।'
+      : 'সেবায় সাময়িক সমস্যা হয়েছে। অনুগ্রহ করে আবার চেষ্টা করুন।',
+    status: 503,
+  } }, { status: 503, headers: { 'Cache-Control': 'no-store' } })
 }
 
 /** Check allowance without consuming it. */
@@ -174,32 +190,20 @@ export async function verifyUserQuota(params: {
     usage = await getQuotaUsage({ identifier, userId: serverUser?.id, actionType, isServer })
   } catch (error) {
     console.warn('[verifyUserQuota] Quota verification failed:', error)
-    return { allowed: false, used: 0, limit: getActionLimit('free', actionType), remaining: 0, isUnlimited: false, planId: 'free', identifier, userId: serverUser?.id, response: quotaUnavailableResponse() }
+    return { allowed: false, used: 0, limit: getActionLimit('free', actionType), remaining: 0, isUnlimited: false, planId: 'free', identifier, userId: serverUser?.id, response: quotaUnavailableResponse(error) }
   }
   const { allowed, used, limit, remaining, isUnlimited, planId } = usage
 
   let response: NextResponse | undefined
   if (!allowed) {
-    const actionLabelBn =
-      actionType === 'refinement'
-        ? '১০টি ফ্রি পরিমার্জনের (Refinement)'
-        : actionType === 'voice'
-        ? '২টি ফ্রি ভয়েস জেনারেশনের (Voice Letter)'
-        : '৫টি ফ্রি চিঠির (Letter Generation)'
-    const actionLabelEn =
-      actionType === 'refinement'
-        ? 'daily limit of 10 free AI refinements'
-        : actionType === 'voice'
-        ? 'daily limit of 2 free voice generations'
-        : 'daily limit of 5 free letter generations'
-
     response = NextResponse.json(
       {
         success: false,
         error: {
           code: 'DAILY_LIMIT_REACHED',
-          message: `আজকের জন্য আপনার ${actionLabelBn} কোটা পূর্ণ হয়েছে। আনলিমিটেড ব্যবহার করতে প্রিমিয়ামে আপগ্রেড করুন।`,
-          messageEn: `You have reached your ${actionLabelEn}. Upgrade to Chithi Lekhi Premium for unlimited access.`,
+          message: 'You have reached your daily limit.',
+          messageEn: 'You have reached your daily limit.',
+          messageBn: 'আপনি আজকের দৈনিক ব্যবহারের সীমায় পৌঁছেছেন।',
           actionType,
           limit,
           used,
@@ -275,12 +279,14 @@ export async function reserveUserQuota(params: {
     }
   } catch (error) {
     console.warn('[reserveUserQuota] Reservation failed:', error)
-    return { ...quota, allowed: false, response: quotaUnavailableResponse() }
+    return { ...quota, allowed: false, response: quotaUnavailableResponse(error) }
   }
   if (!allowed) {
     return { ...quota, allowed: false, response: NextResponse.json({ success: false, error: {
       code: reason === 'limit' ? 'DAILY_LIMIT_REACHED' : 'AI_REQUEST_IN_PROGRESS',
-      message: reason === 'limit' ? 'Daily usage limit reached.' : 'An AI request is already in progress. Please wait.',
+      message: reason === 'limit' ? 'You have reached your daily limit.' : 'An AI request is already in progress. Please wait.',
+      messageEn: reason === 'limit' ? 'You have reached your daily limit.' : 'An AI request is already in progress. Please wait.',
+      messageBn: reason === 'limit' ? 'আপনি আজকের দৈনিক ব্যবহারের সীমায় পৌঁছেছেন।' : 'একটি অনুরোধ ইতিমধ্যে চলছে। অনুগ্রহ করে অপেক্ষা করুন।',
     } }, { status: reason === 'limit' ? 429 : 409 }) }
   }
   return { ...quota, date, reservationId }

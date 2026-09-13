@@ -196,6 +196,8 @@ export interface RefineLetterResponse {
 
 export interface ApiError {
   message: string
+  messageEn?: string
+  messageBn?: string
   code?: string
   status: number
 }

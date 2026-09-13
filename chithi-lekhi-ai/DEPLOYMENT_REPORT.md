@@ -105,3 +105,12 @@ CURRENT POSITION: STEP 7 — local deployment review complete; waiting for confi
 NEXT STEP: Supply staging configuration through the hosting/secret-management environment, verify target migration history, then run the migration and integration checklist above.
 CHANGED FILES: DEPLOYMENT_REPORT.md, CONTINUATION.md (documentation only in STEP 7).
 TEST RESULTS: Existing 126 regression / 16 HTTP / TypeScript / lint / build / browser passes retained; focused SQL 26/26 and diff checks passed in STEP 7. No live staging result claimed.
+
+
+## Generation regression follow-up (after baseline 3b72afa)
+
+Local production preview now validates configuration during Next's production-server config phase. Missing values stop `npm run start` with “Service configuration required” and variable names only. The build phase remains available. See `.env.example` for the existing NEXT_PUBLIC_SUPABASE_URL/ANON_KEY names, private service-role/provider credentials, and explicit supported GEMINI_MODEL.
+
+Quota/API failures distinguish daily exhaustion, required configuration/schema setup, and transient storage failure; the generation form renders localized messages. Production fail-closed behavior and atomic accounting are unchanged. The full regression suite now passes 142 checks; TypeScript, lint, and build passed again. The actual production configuration loader rejected the placeholder environment as intended. Configured success was verified with controlled auth/provider/Supabase test boundaries, not live credentials.
+
+Waiting for configured staging environment. Follow the existing deployment steps above; previous HTTP/browser passes are historical evidence, not new live verification of this follow-up. The local HTTP reproduction attempt was blocked by automatic approval review's account usage limit, and its temporary server was stopped.

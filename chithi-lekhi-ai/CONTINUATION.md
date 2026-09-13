@@ -89,3 +89,47 @@ CURRENT POSITION: STEP 7 — deployment review complete; waiting for configured 
 NEXT STEP: Configure staging, verify target migration history/schema, and execute the prepared migration/integration checklist.
 CHANGED FILES: DEPLOYMENT_REPORT.md and CONTINUATION.md only during STEP 7; prior application/SQL/test changes preserved.
 TEST RESULTS: Previous 126 regression / 16 HTTP / TypeScript / lint / build / browser passes retained; STEP 7 focused SQL 26/26 and git diff --check passed. Live staging tests pending.
+
+
+## Generation regression checkpoint
+
+Baseline: prior optimization/deployment-review work was committed externally as `3b72afa` (New All Fixes). Preserve that commit and continue the current diff; do not redo earlier security/API changes.
+
+CURRENT POSITION: Generation quota/configuration regression fix complete and locally verified.
+BUG: In local production preview (`npm run start`, confirmed by user), generation showed the generic “Usage verification is temporarily unavailable” message instead of identifying missing service configuration.
+ROOT CAUSE: `getQuotaUsage` correctly fails closed in production without persistent Supabase configuration, and requires a service-role client when configured. Local Supabase/provider values are placeholders. Pre-hardening `1a7ba52` ignored database errors or used memory even in production; `9312a5e` deliberately removed that unsafe fallback. The regression was the misleading generic retry message, not missing-row handling. A new guest/authenticated user with no usage row still has zero usage when the database is correctly configured.
+
+Completed:
+
+- Existing quota error response now distinguishes quota exhaustion (429, DAILY_LIMIT_REACHED), missing environment (503, QUOTA_NOT_CONFIGURED), missing schema/RPC/permissions (503, QUOTA_SETUP_REQUIRED), and temporary storage failure (503, QUOTA_UNAVAILABLE). Public messages match the requested three cases and do not echo database details or secrets.
+- Generation form selects Bengali/English API messages, retaining its existing alert, loading cleanup, legacy error fallback, and success transition.
+- Existing Supabase/config module validates production startup values; next.config calls it only for PHASE_PRODUCTION_SERVER (`npm run start`). Missing/placeholder values cause a clear startup failure listing variable names, never values. Build and the existing offline development mode remain available. No production quota bypass added.
+- `.env.example` documents the existing canonical NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY names (unprefixed aliases alone are insufficient for browser auth), required service-role/Gemini/OpenAI keys, rebuild requirements, and explicit supported GEMINI_MODEL. Retired Gemini 1.5 and unset model fail startup validation.
+- No migration, quota counter, atomic finalizer, RBAC, ownership rule, or generation architecture was changed.
+
+CHANGED FILES:
+
+- `.env.example`, `next.config.ts`
+- `src/lib/supabase/config.ts`, `src/lib/quota-service.ts`
+- `src/components/generator/EmotionalStorytellerForm.tsx`, `src/types/index.ts`
+- `tests/generation-quota.test.cjs`, `tests/generation-form.test.cjs`
+- `CONTINUATION.md`, `DEPLOYMENT_REPORT.md`
+
+TEST RESULTS:
+
+- `npx tsc --noEmit` — passed.
+- `npm run lint` — passed.
+- `npm run build` — passed, existing routes and 28 static pages present.
+- `NODE_PATH=/tmp/chithi-sql-tests/node_modules node --test tests/*.test.cjs` — 142 passed, 0 failed, 0 skipped (126 prior plus 16 new).
+- New tests exercise the real generation route and quota/configuration service with mocked auth/provider/Supabase boundaries: guest/authenticated first-use with no usage row, atomic consumption after save, free-limit exhaustion, premium unlimited, AI/save failure free, temporary database failure, missing table/RPC/configuration, secret redaction, production startup validation, and form submit/success/localized-error behavior.
+- Actual Next production config loader (`next/dist/server/config`, PHASE_PRODUCTION_SERVER) rejected the current placeholder `.env.local` with the expected setup error. No listener/provider was started for this check.
+- `git diff --check` — passed.
+
+Remaining risks:
+
+- Local production preview cannot generate until real Supabase/provider configuration and required migrations exist. Set environment values through secret management, rebuild, then start. `npm run dev` retains existing offline behavior for local development; it does not establish production readiness.
+- No live authenticated/provider/Supabase integration was claimed. An attempted local HTTP reproduction was rejected because automatic approval review hit an account usage limit; that request did not execute. The known temporary production server was stopped. Do not work around that rejection.
+- Existing STEP 7 migration order, target-schema checks, and PostgREST finalizer verification still apply. Hosted deployments that do not execute the Next production-server config phase must also satisfy the deployment checklist; this startup check specifically covers `npm run start`.
+- A separate pre-existing Formal writing-style schema mismatch was identified by the bounded frontend reviewer; it predates this quota regression and was intentionally not changed. Keep it a separate follow-up.
+
+NEXT STEP: Configure the production preview/staging environment using `.env.example`, apply only pending migrations in the documented order, rebuild, and run real guest/authenticated/provider flows. No security rollback or quota bypass is needed.
